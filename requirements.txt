@@ -6,3 +6,6 @@ redis==5.0.8
 python-dotenv==1.0.1
 django-environ==0.11.2
 gunicorn==22.0.0
+openai==1.51.0
+pytest==8.3.3
+pytest-django==4.9.0
