@@ -224,3 +224,35 @@ def test_chat_cheap_mode_routes_to_google_by_default():
     log = RequestLog.objects.get(user=user)
     assert log.provider == "google"
     assert log.mocked is True
+
+
+def test_history_requires_authentication():
+    client = APIClient()
+    response = client.get("/api/history/")
+    assert response.status_code == 401
+
+
+def test_history_returns_only_the_requesting_users_entries():
+    client, user = _authed_client("history_owner")
+    other_client, other_user = _authed_client("history_other")
+
+    client.post("/api/chat/", {"prompt": "mine", "mode": "fast"}, format="json")
+    other_client.post("/api/chat/", {"prompt": "not mine", "mode": "fast"}, format="json")
+
+    response = client.get("/api/history/")
+    assert response.status_code == 200
+    results = response.data["results"]
+    assert len(results) == 1
+    assert RequestLog.objects.get(id=results[0]["id"]).user == user
+
+
+def test_history_is_paginated_newest_first():
+    client, user = _authed_client("history_paged")
+    for i in range(3):
+        client.post("/api/chat/", {"prompt": f"prompt {i}", "mode": "fast"}, format="json")
+
+    response = client.get("/api/history/")
+    assert response.status_code == 200
+    assert response.data["count"] == 3
+    created_at_values = [row["created_at"] for row in response.data["results"]]
+    assert created_at_values == sorted(created_at_values, reverse=True)

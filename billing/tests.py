@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import override_settings
+from rest_framework.test import APIClient
 
 from billing.models import CreditAccount, LedgerEntry
 from billing.services import InsufficientCreditsError, charge_credits, get_or_create_account, grant_credits
@@ -10,6 +11,13 @@ from billing.services import InsufficientCreditsError, charge_credits, get_or_cr
 User = get_user_model()
 
 pytestmark = pytest.mark.django_db
+
+
+def _authed_client(username="billed"):
+    user = User.objects.create_user(username=username, password="strongpass123")
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client, user
 
 
 @override_settings(SIGNUP_BONUS_CREDITS=500)
@@ -60,3 +68,47 @@ def test_charge_credits_raises_when_balance_insufficient():
     account.refresh_from_db()
     assert account.balance == Decimal("10")
     assert not LedgerEntry.objects.filter(account=account, reason=LedgerEntry.Reason.CHAT_REQUEST).exists()
+
+
+def test_balance_endpoint_requires_authentication():
+    client = APIClient()
+    response = client.get("/api/billing/balance/")
+    assert response.status_code == 401
+
+
+def test_balance_endpoint_returns_current_balance():
+    client, user = _authed_client()
+    response = client.get("/api/billing/balance/")
+    assert response.status_code == 200
+    assert Decimal(response.data["balance"]) == Decimal("500")
+
+
+@override_settings(SANDBOX_TOPUP_ENABLED=True)
+def test_sandbox_topup_grants_credits_when_enabled():
+    client, user = _authed_client()
+    response = client.post("/api/billing/topup/sandbox/", {"amount": "25"}, format="json")
+    assert response.status_code == 201
+    assert Decimal(response.data["balance"]) == Decimal("525")
+
+    account = CreditAccount.objects.get(user=user)
+    assert account.balance == Decimal("525")
+    last_entry = LedgerEntry.objects.filter(account=account).order_by("-created_at").first()
+    assert last_entry.reason == LedgerEntry.Reason.TOPUP
+    assert last_entry.amount == Decimal("25")
+
+
+@override_settings(SANDBOX_TOPUP_ENABLED=False)
+def test_sandbox_topup_returns_404_when_disabled():
+    client, user = _authed_client()
+    response = client.post("/api/billing/topup/sandbox/", {"amount": "25"}, format="json")
+    assert response.status_code == 404
+
+    account = CreditAccount.objects.get(user=user)
+    assert account.balance == Decimal("500")
+
+
+@override_settings(SANDBOX_TOPUP_ENABLED=True)
+def test_sandbox_topup_rejects_non_positive_amount():
+    client, _ = _authed_client()
+    response = client.post("/api/billing/topup/sandbox/", {"amount": "0"}, format="json")
+    assert response.status_code == 400

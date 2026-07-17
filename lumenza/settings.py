@@ -99,6 +99,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
+        "sandbox_topup": "5/min",
     },
 }
 
@@ -119,3 +120,9 @@ CREDIT_USD_VALUE = env.float("CREDIT_USD_VALUE", default=0.001)
 PROVIDER_MARKUP = env.float("PROVIDER_MARKUP", default=1.3)
 # Welcome credits granted on signup (~$0.50 of usage at default markup).
 SIGNUP_BONUS_CREDITS = env.float("SIGNUP_BONUS_CREDITS", default=500)
+
+# Sandbox top-up endpoint mints credits with no real payment behind them —
+# a stand-in for Phase 6's real YooKassa integration. Defaults to DEBUG so a
+# misconfigured prod deploy (DEBUG unset/False) can't expose it by accident;
+# never force this True outside local/dev environments.
+SANDBOX_TOPUP_ENABLED = env.bool("SANDBOX_TOPUP_ENABLED", default=DEBUG)

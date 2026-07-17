@@ -1,7 +1,8 @@
 from decimal import Decimal
 
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -10,7 +11,7 @@ from billing.services import InsufficientCreditsError, charge_credits, get_or_cr
 from providers.models import RequestLog
 from providers.pricing import estimate_max_cost_usd
 from providers.registry import get_adapter
-from providers.serializers import ChatRequestSerializer
+from providers.serializers import ChatRequestSerializer, RequestLogSerializer
 
 # Each mode routes to a primary (provider, model) and an ordered list of
 # fallbacks, tried in turn if the primary (or an earlier fallback) raises.
@@ -125,3 +126,17 @@ def chat(request):
             "balance": str(account.balance),
         }
     )
+
+
+class HistoryPagination(PageNumberPagination):
+    page_size = 20
+    max_page_size = 100
+
+
+class ChatHistoryView(generics.ListAPIView):
+    serializer_class = RequestLogSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = HistoryPagination
+
+    def get_queryset(self):
+        return RequestLog.objects.filter(user=self.request.user)
