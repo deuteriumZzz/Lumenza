@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "accounts",
     "billing",
     "providers",
+    "imagegen",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -87,6 +88,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
@@ -108,11 +112,16 @@ CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://redis:6379
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+# Tests flip this on (via override_settings) to run tasks synchronously,
+# in-process, without needing a broker/worker.
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # --- Providers / billing ---
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 GOOGLE_API_KEY = env("GOOGLE_API_KEY", default="")
+REPLICATE_API_TOKEN = env("REPLICATE_API_TOKEN", default="")
 
 # 1 credit = $0.001 of underlying provider cost (before markup).
 CREDIT_USD_VALUE = env.float("CREDIT_USD_VALUE", default=0.001)
