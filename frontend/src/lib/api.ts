@@ -113,6 +113,21 @@ export interface Paginated<T> {
   results: T[];
 }
 
+export type ImageProvider = "openai" | "flux";
+
+export interface GeneratedImageEntry {
+  id: number;
+  prompt: string;
+  provider: string;
+  model: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
+  credits_charged: string;
+  mocked: boolean;
+  image_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export const api = {
   register: (username: string, email: string, password: string) =>
     request<AuthResponse>(
@@ -137,4 +152,11 @@ export const api = {
   chat: (prompt: string, mode: Mode) =>
     request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, mode }) }),
   history: (page = 1) => request<Paginated<HistoryEntry>>(`/history/?page=${page}`),
+  createImage: (prompt: string, provider: ImageProvider) =>
+    request<GeneratedImageEntry>("/images/", {
+      method: "POST",
+      body: JSON.stringify({ prompt, provider }),
+    }),
+  images: (page = 1) => request<Paginated<GeneratedImageEntry>>(`/images/?page=${page}`),
+  image: (id: number) => request<GeneratedImageEntry>(`/images/${id}/`),
 };
