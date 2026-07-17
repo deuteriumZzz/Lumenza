@@ -1,7 +1,11 @@
+from providers.anthropic_adapter import AnthropicAdapter
+from providers.gemini_adapter import GeminiAdapter
 from providers.openai_adapter import OpenAIAdapter
 
 REGISTRY = {
     "openai": OpenAIAdapter(),
+    "anthropic": AnthropicAdapter(),
+    "google": GeminiAdapter(),
 }
 
 

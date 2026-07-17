@@ -5,12 +5,37 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from billing.models import CreditAccount
+from billing.services import usd_to_credits
 from providers.models import RequestLog
+from providers.pricing import estimate_max_cost_usd
 from providers.registry import REGISTRY
+from providers.views import MODE_ROUTES, _route_hold_credits
 
 User = get_user_model()
 
 pytestmark = pytest.mark.django_db
+
+
+def test_route_hold_credits_uses_the_most_expensive_route_candidate():
+    # "fast" mode routes to openai primarily, with anthropic (priced far
+    # higher per token) as its fallback. The hold must cover whichever one
+    # actually ends up running, so it has to be sized off anthropic here,
+    # not off the cheaper primary.
+    prompt = "x" * 100
+    routes = MODE_ROUTES["fast"]
+    openai_provider, openai_model = routes[0]
+    anthropic_provider, anthropic_model = routes[1]
+
+    openai_cost = estimate_max_cost_usd(
+        openai_model, len(prompt), REGISTRY[openai_provider].max_completion_tokens
+    )
+    anthropic_cost = estimate_max_cost_usd(
+        anthropic_model, len(prompt), REGISTRY[anthropic_provider].max_completion_tokens
+    )
+    assert anthropic_cost > openai_cost, "test assumption: anthropic is the pricier candidate"
+
+    hold = _route_hold_credits(routes, prompt)
+    assert hold == usd_to_credits(anthropic_cost)
 
 
 def _authed_client(username="chatter"):
@@ -124,6 +149,8 @@ def test_chat_with_low_but_positive_balance_never_reaches_provider_repeatedly(mo
 
 
 def test_chat_provider_error_returns_502_and_does_not_charge(monkeypatch):
+    # "fast" mode's route is [openai, anthropic]; both must fail to see a 502,
+    # otherwise the request should recover via fallback (see the test below).
     client, user = _authed_client()
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
@@ -132,6 +159,7 @@ def test_chat_provider_error_returns_502_and_does_not_charge(monkeypatch):
         raise RuntimeError("upstream provider is down")
 
     monkeypatch.setattr(REGISTRY["openai"], "complete", boom)
+    monkeypatch.setattr(REGISTRY["anthropic"], "complete", boom)
 
     response = client.post("/api/chat/", {"prompt": "trigger failure", "mode": "fast"}, format="json")
 
@@ -143,3 +171,56 @@ def test_chat_provider_error_returns_502_and_does_not_charge(monkeypatch):
     log = RequestLog.objects.get(user=user)
     assert log.status == RequestLog.Status.ERROR
     assert "upstream provider is down" in log.error_message
+    assert log.used_fallback is True
+
+
+def test_chat_falls_back_to_next_provider_when_primary_fails(monkeypatch):
+    client, user = _authed_client()
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("openai is having an outage")
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", boom)
+
+    response = client.post(
+        "/api/chat/", {"prompt": "should recover via fallback", "mode": "fast"}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert response.data["provider"] == "anthropic"
+    assert response.data["used_fallback"] is True
+
+    account.refresh_from_db()
+    assert account.balance < starting_balance
+
+    log = RequestLog.objects.get(user=user)
+    assert log.status == RequestLog.Status.OK
+    assert log.provider == "anthropic"
+    assert log.used_fallback is True
+    assert "openai is having an outage" in log.error_message
+
+
+def test_chat_smart_mode_routes_to_anthropic_by_default():
+    client, user = _authed_client()
+    response = client.post("/api/chat/", {"prompt": "give me the smart route", "mode": "smart"}, format="json")
+    assert response.status_code == 200
+    assert response.data["provider"] == "anthropic"
+    assert response.data["used_fallback"] is False
+
+    log = RequestLog.objects.get(user=user)
+    assert log.provider == "anthropic"
+    assert log.mocked is True
+
+
+def test_chat_cheap_mode_routes_to_google_by_default():
+    client, user = _authed_client()
+    response = client.post("/api/chat/", {"prompt": "give me the cheap route", "mode": "cheap"}, format="json")
+    assert response.status_code == 200
+    assert response.data["provider"] == "google"
+    assert response.data["used_fallback"] is False
+
+    log = RequestLog.objects.get(user=user)
+    assert log.provider == "google"
+    assert log.mocked is True

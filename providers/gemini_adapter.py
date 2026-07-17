@@ -5,35 +5,35 @@ from django.conf import settings
 from providers.base import ProviderAdapter, ProviderResult
 from providers.pricing import estimate_cost_usd
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gemini-1.5-flash"
 
 
-class OpenAIAdapter(ProviderAdapter):
-    name = "openai"
+class GeminiAdapter(ProviderAdapter):
+    name = "google"
 
     def complete(self, prompt: str, model: str = DEFAULT_MODEL, **kwargs) -> ProviderResult:
         start = time.monotonic()
 
-        if not settings.OPENAI_API_KEY:
+        if not settings.GOOGLE_API_KEY:
             return self._mock_result(prompt, model, start)
 
-        from openai import OpenAI
+        import google.generativeai as genai
 
-        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=self.request_timeout_seconds)
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=self.max_completion_tokens,
+        genai.configure(api_key=settings.GOOGLE_API_KEY)
+        client = genai.GenerativeModel(model)
+        response = client.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(max_output_tokens=self.max_completion_tokens),
+            request_options={"timeout": self.request_timeout_seconds},
         )
         latency_ms = int((time.monotonic() - start) * 1000)
-        usage = response.usage
-        text = response.choices[0].message.content
+        usage = response.usage_metadata
 
         return ProviderResult(
-            text=text,
-            prompt_tokens=usage.prompt_tokens,
-            completion_tokens=usage.completion_tokens,
-            cost_usd=estimate_cost_usd(model, usage.prompt_tokens, usage.completion_tokens),
+            text=response.text,
+            prompt_tokens=usage.prompt_token_count,
+            completion_tokens=usage.candidates_token_count,
+            cost_usd=estimate_cost_usd(model, usage.prompt_token_count, usage.candidates_token_count),
             latency_ms=latency_ms,
             model=model,
             mocked=False,

@@ -1,6 +1,8 @@
 # USD per 1M tokens. Update when provider pricing changes.
 PRICING = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "claude-3-5-sonnet-latest": {"input": 3.00, "output": 15.00},
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
 }
 
 

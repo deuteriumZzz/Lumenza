@@ -22,6 +22,7 @@ class RequestLog(models.Model):
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.OK)
     error_message = models.TextField(blank=True, default="")
     mocked = models.BooleanField(default=False)
+    used_fallback = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -5,35 +5,34 @@ from django.conf import settings
 from providers.base import ProviderAdapter, ProviderResult
 from providers.pricing import estimate_cost_usd
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "claude-3-5-sonnet-latest"
 
 
-class OpenAIAdapter(ProviderAdapter):
-    name = "openai"
+class AnthropicAdapter(ProviderAdapter):
+    name = "anthropic"
 
     def complete(self, prompt: str, model: str = DEFAULT_MODEL, **kwargs) -> ProviderResult:
         start = time.monotonic()
 
-        if not settings.OPENAI_API_KEY:
+        if not settings.ANTHROPIC_API_KEY:
             return self._mock_result(prompt, model, start)
 
-        from openai import OpenAI
+        from anthropic import Anthropic
 
-        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=self.request_timeout_seconds)
-        response = client.chat.completions.create(
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=self.request_timeout_seconds)
+        response = client.messages.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
             max_tokens=self.max_completion_tokens,
+            messages=[{"role": "user", "content": prompt}],
         )
         latency_ms = int((time.monotonic() - start) * 1000)
-        usage = response.usage
-        text = response.choices[0].message.content
+        text = "".join(block.text for block in response.content if block.type == "text")
 
         return ProviderResult(
             text=text,
-            prompt_tokens=usage.prompt_tokens,
-            completion_tokens=usage.completion_tokens,
-            cost_usd=estimate_cost_usd(model, usage.prompt_tokens, usage.completion_tokens),
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+            cost_usd=estimate_cost_usd(model, response.usage.input_tokens, response.usage.output_tokens),
             latency_ms=latency_ms,
             model=model,
             mocked=False,
