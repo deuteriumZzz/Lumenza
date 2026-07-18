@@ -1,0 +1,63 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h2>Last {{ data.window_days }} days</h2>
+<p>
+  Total cost: ${{ data.total_cost_usd|floatformat:4 }} &middot;
+  Total revenue: ${{ data.total_revenue_usd|floatformat:4 }} &middot;
+  Margin: ${{ data.total_margin_usd|floatformat:4 }} &middot;
+  Requests: {{ data.total_requests }}
+</p>
+
+<h3>Cost vs. revenue by user / day</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th>User</th>
+      <th>Requests</th>
+      <th>Cost (USD)</th>
+      <th>Revenue (USD)</th>
+      <th>Margin (USD)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in data.by_user_day %}
+    <tr>
+      <td>{{ row.day }}</td>
+      <td>{{ row.user }}</td>
+      <td>{{ row.requests }}</td>
+      <td>{{ row.cost_usd|floatformat:4 }}</td>
+      <td>{{ row.revenue_usd|floatformat:4 }}</td>
+      <td>{{ row.margin_usd|floatformat:4 }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">No requests in this window.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Top error sources</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Source</th>
+      <th>Provider</th>
+      <th>Model</th>
+      <th>Count</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in data.top_errors %}
+    <tr>
+      <td>{{ row.source }}</td>
+      <td>{{ row.provider }}</td>
+      <td>{{ row.model }}</td>
+      <td>{{ row.count }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">No errors in this window.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
