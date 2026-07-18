@@ -49,12 +49,12 @@ body {
     @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-muted focus:border-primary;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-bg transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50;
   }
   .status-pill {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white;
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-bg;
   }
 }

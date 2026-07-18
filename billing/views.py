@@ -1,6 +1,7 @@
 import json
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -66,6 +67,10 @@ def topup(request):
     return Response(body, status=status.HTTP_201_CREATED)
 
 
+WEBHOOK_RATE_LIMIT_PER_PAYMENT = 10
+WEBHOOK_RATE_LIMIT_WINDOW_SECONDS = 60
+
+
 @csrf_exempt
 @require_POST
 def yookassa_webhook(request):
@@ -82,6 +87,17 @@ def yookassa_webhook(request):
     payment_id = payload.get("object", {}).get("id")
     if not payment_id:
         return HttpResponse(status=400)
+
+    # Idempotency already makes repeat deliveries free of billing risk, but
+    # nothing capped how many times a caller who knows a valid payment id
+    # could force an outbound API call to YooKassa on every hit — this
+    # bounds that resource/quota drain without needing to distinguish real
+    # retries from abuse.
+    cache_key = f"yookassa_webhook_rl:{payment_id}"
+    attempts = cache.get(cache_key, 0) + 1
+    cache.set(cache_key, attempts, timeout=WEBHOOK_RATE_LIMIT_WINDOW_SECONDS)
+    if attempts > WEBHOOK_RATE_LIMIT_PER_PAYMENT:
+        return HttpResponse(status=429)
 
     outcome = confirm_topup(payment_id)
     if outcome.status == "provider_error":

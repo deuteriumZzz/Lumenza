@@ -97,7 +97,7 @@ function Chat() {
             <p className="mt-1 text-xs">Pick a mode below — cost shows after each reply.</p>
           </div>
         ) : (
-          <ol className="flex flex-col gap-6">
+          <ol className="flex flex-col gap-6" aria-live="polite">
             {messages.map((message) => (
               <li key={message.id}>
                 <MessageBlock message={message} />
@@ -145,7 +145,7 @@ function Chat() {
               aria-pressed={mode === option.value}
               onClick={() => setMode(option.value)}
               className={`rounded px-3 py-1 text-xs font-medium transition-colors duration-150 ${
-                mode === option.value ? "bg-primary text-white" : "text-muted hover:text-ink"
+                mode === option.value ? "bg-primary text-bg" : "text-muted hover:text-ink"
               }`}
             >
               {option.label}

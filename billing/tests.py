@@ -15,6 +15,17 @@ User = get_user_model()
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    # The webhook rate limit's counter lives in Django's cache, which isn't
+    # rolled back between tests like the DB is — several tests below share
+    # _pending_payment's hardcoded "pay_xyz" id, so a stale count could leak
+    # from one test into the next without this.
+    from django.core.cache import cache
+
+    cache.clear()
+
+
 def _authed_client(username="billed"):
     user = User.objects.create_user(username=username, password="strongpass123")
     client = APIClient()
@@ -294,3 +305,16 @@ def test_webhook_rejects_missing_payment_id():
         content_type="application/json",
     )
     assert response.status_code == 400
+
+
+def test_webhook_rate_limits_repeated_calls_for_the_same_payment_id(monkeypatch):
+    import billing.services as services
+
+    monkeypatch.setattr(services, "get_payment", lambda payment_id: {"status": "pending"})
+    client, user = _authed_client("webhook_rate_limited")
+    payment = _pending_payment(user)
+
+    responses = [_post_webhook(client, payment.yookassa_payment_id) for _ in range(11)]
+
+    assert [r.status_code for r in responses[:10]] == [200] * 10
+    assert responses[10].status_code == 429

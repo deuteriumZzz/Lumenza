@@ -19,7 +19,7 @@ const STATUS_STYLE: Record<GeneratedImageEntry["status"], string> = {
   ok: "bg-success",
   error: "bg-danger",
   insufficient_credits: "bg-surface-raised text-muted",
-  blocked: "bg-danger",
+  blocked: "bg-surface-raised text-muted",
 };
 
 export default function ImagesPage() {
@@ -159,7 +159,7 @@ function Images() {
               aria-pressed={provider === option.value}
               onClick={() => setProvider(option.value)}
               className={`rounded px-3 py-1 text-xs font-medium transition-colors duration-150 ${
-                provider === option.value ? "bg-primary text-white" : "text-muted hover:text-ink"
+                provider === option.value ? "bg-primary text-bg" : "text-muted hover:text-ink"
               }`}
             >
               {option.label}
@@ -264,7 +264,9 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
       <div className="flex flex-col gap-1 p-3">
         <p className="line-clamp-2 text-xs text-muted">{entry.prompt}</p>
         <div className="flex items-center justify-between font-mono text-[11px] tabular-nums text-muted">
-          <span className={`status-pill ${STATUS_STYLE[entry.status]}`}>{entry.status}</span>
+          <span className={`status-pill ${STATUS_STYLE[entry.status]}`} aria-live="polite">
+            {entry.status}
+          </span>
           <span>{entry.credits_charged}</span>
         </div>
       </div>

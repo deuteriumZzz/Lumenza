@@ -98,7 +98,7 @@ export interface HistoryEntry {
   provider: string;
   model: string;
   mode: Mode;
-  status: "ok" | "error" | "insufficient_credits";
+  status: "ok" | "error" | "insufficient_credits" | "blocked";
   credits_charged: string;
   latency_ms: number;
   mocked: boolean;

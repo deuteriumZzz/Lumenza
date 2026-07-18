@@ -16,12 +16,14 @@ const STATUS_STYLE: Record<HistoryEntry["status"], string> = {
   ok: "bg-success",
   error: "bg-danger",
   insufficient_credits: "bg-surface-raised text-muted",
+  blocked: "bg-surface-raised text-muted",
 };
 
 const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
   ok: "ok",
   error: "error",
   insufficient_credits: "insufficient credits",
+  blocked: "blocked",
 };
 
 function History() {

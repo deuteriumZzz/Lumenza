@@ -9,9 +9,16 @@ env_file = BASE_DIR / ".env"
 if env_file.exists():
     environ.Env.read_env(str(env_file))
 
-SECRET_KEY = env("SECRET_KEY", default="dev-insecure-secret-key")
+DEV_INSECURE_SECRET_KEY = "dev-insecure-secret-key"
+SECRET_KEY = env("SECRET_KEY", default=DEV_INSECURE_SECRET_KEY)
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+
+# A misconfigured prod deploy (SECRET_KEY unset) would otherwise boot
+# successfully with a fixed, public, guessable key backing session/token
+# signing — fail loudly instead of silently running insecure.
+if not DEBUG and SECRET_KEY == DEV_INSECURE_SECRET_KEY:
+    raise RuntimeError("SECRET_KEY must be set via the environment when DEBUG=False")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

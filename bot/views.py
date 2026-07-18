@@ -1,3 +1,4 @@
+import hmac
 import json
 
 from aiogram.types import Update
@@ -39,9 +40,12 @@ async def telegram_webhook(request, secret: str):
     # referrers). Without either, anyone could POST arbitrary fake
     # Updates — e.g. spoofing new telegram_id values to farm unlimited
     # signup-bonus accounts.
-    if not settings.TELEGRAM_WEBHOOK_SECRET or secret != settings.TELEGRAM_WEBHOOK_SECRET:
+    if not settings.TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(
+        secret, settings.TELEGRAM_WEBHOOK_SECRET
+    ):
         return HttpResponseForbidden()
-    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != settings.TELEGRAM_WEBHOOK_SECRET:
+    header_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token") or ""
+    if not hmac.compare_digest(header_token, settings.TELEGRAM_WEBHOOK_SECRET):
         return HttpResponseForbidden()
 
     try:
