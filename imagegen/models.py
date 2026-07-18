@@ -38,6 +38,10 @@ class GeneratedImage(models.Model):
     credits_charged = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     error_message = models.TextField(blank=True, default="")
     mocked = models.BooleanField(default=False)
+    # Set when the request came from the Telegram bot rather than the web
+    # app — the bot has no way to poll like the web gallery does, so the
+    # generation task pushes a message to this chat directly on completion.
+    telegram_chat_id = models.BigIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 

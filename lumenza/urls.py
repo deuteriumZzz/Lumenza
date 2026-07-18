@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/billing/", include("billing.urls")),
     path("api/", include("providers.urls")),
     path("api/", include("imagegen.urls")),
+    path("bot/", include("bot.urls")),
 ]
 
 if settings.DEBUG:

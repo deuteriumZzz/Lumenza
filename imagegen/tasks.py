@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from celery import shared_task
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
@@ -10,6 +11,7 @@ from billing.services import grant_credits, usd_to_credits
 from imagegen.models import GeneratedImage
 from imagegen.moderation import ModerationBlocked, check_prompt
 from imagegen.registry import get_image_adapter
+from imagegen.telegram_notify import notify_image_failed, notify_image_ready
 
 ERROR_MESSAGE_MAX_LEN = 500
 
@@ -53,6 +55,8 @@ def generate_image(image_id: int) -> None:
         record.error_message = str(exc)[:ERROR_MESSAGE_MAX_LEN]
         record.completed_at = timezone.now()
         record.save(update_fields=["status", "error_message", "credits_charged", "completed_at"])
+        if record.telegram_chat_id:
+            notify_image_failed(record.telegram_chat_id, "That prompt was blocked by moderation.")
         return
 
     adapter = get_image_adapter(record.provider)
@@ -64,6 +68,8 @@ def generate_image(image_id: int) -> None:
         record.error_message = str(exc)[:ERROR_MESSAGE_MAX_LEN]
         record.completed_at = timezone.now()
         record.save(update_fields=["status", "error_message", "credits_charged", "completed_at"])
+        if record.telegram_chat_id:
+            notify_image_failed(record.telegram_chat_id, "Sorry, image generation failed. Credits refunded.")
         return
 
     hold_credits = record.credits_charged
@@ -79,6 +85,10 @@ def generate_image(image_id: int) -> None:
     record.mocked = result.mocked
     record.completed_at = timezone.now()
     record.save()
+
+    if record.telegram_chat_id:
+        image_url = f"{settings.PUBLIC_BASE_URL}{record.image.url}"
+        notify_image_ready(record.telegram_chat_id, image_url, record.prompt)
 
 
 generate_image_task = shared_task(name="imagegen.generate_image")(generate_image)

@@ -53,5 +53,19 @@ services:
       redis:
         condition: service_healthy
 
+  bot:
+    build: .
+    # Long-polling for local/dev. Production should point Telegram's
+    # setWebhook at bot/views.py instead and drop this service — see
+    # bot/management/commands/run_bot_polling.py's help text.
+    command: python manage.py run_bot_polling
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      web:
+        condition: service_started
+
 volumes:
   postgres_data:

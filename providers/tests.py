@@ -9,7 +9,7 @@ from billing.services import usd_to_credits
 from providers.models import RequestLog
 from providers.pricing import estimate_max_cost_usd
 from providers.registry import REGISTRY
-from providers.views import MODE_ROUTES, _route_hold_credits
+from providers.services import MODE_ROUTES, _route_hold_credits
 
 User = get_user_model()
 

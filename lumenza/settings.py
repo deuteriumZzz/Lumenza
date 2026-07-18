@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "billing",
     "providers",
     "imagegen",
+    "bot",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -129,6 +130,14 @@ CREDIT_USD_VALUE = env.float("CREDIT_USD_VALUE", default=0.001)
 PROVIDER_MARKUP = env.float("PROVIDER_MARKUP", default=1.3)
 # Welcome credits granted on signup (~$0.50 of usage at default markup).
 SIGNUP_BONUS_CREDITS = env.float("SIGNUP_BONUS_CREDITS", default=500)
+
+# --- Telegram bot ---
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+# Used to build absolute media URLs for Telegram's sendPhoto (Telegram's
+# servers fetch the URL themselves, so it must be publicly reachable — a
+# real deployment needs a real domain here, not the localhost dev default).
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 
 # Sandbox top-up endpoint mints credits with no real payment behind them —
 # a stand-in for Phase 6's real YooKassa integration. Defaults to DEBUG so a
