@@ -6,8 +6,8 @@ import { useAuth } from "@/lib/auth-context";
 import { api, ApiError, type GeneratedImageEntry, type ImageProvider, type Paginated } from "@/lib/api";
 
 const PROVIDERS: { value: ImageProvider; label: string; hint: string }[] = [
-  { value: "openai", label: "OpenAI", hint: "DALL-E 3" },
-  { value: "flux", label: "Flux", hint: "Replicate, faster and cheaper" },
+  { value: "openai", label: "OpenAI", hint: "Best quality" },
+  { value: "flux", label: "Flux", hint: "Fast and cheap" },
 ];
 
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
@@ -142,7 +142,7 @@ function Images() {
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">Images</h1>
       <p className="mt-1 text-sm text-muted">
-        Generate images from a prompt — results land in the gallery below.
+        Generate visuals for your posts — results land in the gallery below.
       </p>
 
       <div className="mt-6 flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
@@ -171,7 +171,7 @@ function Images() {
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Describe the image…"
+            placeholder="Describe the visual for your post…"
             aria-label="Image prompt"
             rows={2}
             maxLength={4000}
@@ -203,7 +203,7 @@ function Images() {
       {!error && loading && <p className="mt-10 text-sm text-muted">Loading…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
-        <p className="mt-10 text-sm text-muted">No images yet — generate one above.</p>
+        <p className="mt-10 text-sm text-muted">No visuals yet — generate one above.</p>
       )}
 
       {!error && data && data.results.length > 0 && (

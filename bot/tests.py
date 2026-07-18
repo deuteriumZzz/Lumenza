@@ -142,7 +142,7 @@ def test_on_image_without_prompt_shows_usage_and_does_not_charge():
 
     asyncio.run(on_image(message, command))
 
-    message.answer.assert_awaited_once_with("Usage: /image a description of what to generate")
+    message.answer.assert_awaited_once_with("Usage: /image a description of the visual you want")
     assert not GeneratedImage.objects.filter(user__telegram_id=777).exists()
 
 

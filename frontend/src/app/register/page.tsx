@@ -33,7 +33,7 @@ export default function RegisterPage() {
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Create an account</h1>
       <p className="mt-2 text-sm text-muted">
-        Starting balance included — enough to try every mode before you top up.
+        Starting balance included — enough for your first posts and visuals before you top up.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">

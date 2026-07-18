@@ -31,7 +31,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Sign in</h1>
-      <p className="mt-2 text-sm text-muted">Welcome back to your workspace.</p>
+      <p className="mt-2 text-sm text-muted">Welcome back — pick up your posts where you left off.</p>
 
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
         <Field label="Username">

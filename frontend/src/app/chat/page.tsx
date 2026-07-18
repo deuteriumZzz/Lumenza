@@ -14,9 +14,9 @@ interface Message {
 }
 
 const MODES: { value: Mode; label: string; hint: string }[] = [
-  { value: "fast", label: "Fast", hint: "OpenAI, quickest turnaround" },
-  { value: "smart", label: "Smart", hint: "Anthropic, most capable" },
-  { value: "cheap", label: "Cheap", hint: "Gemini, lowest cost" },
+  { value: "fast", label: "Fast", hint: "Quick captions and replies" },
+  { value: "smart", label: "Smart", hint: "Best quality for finished posts" },
+  { value: "cheap", label: "Cheap", hint: "Bulk drafts and ideas" },
 ];
 
 export default function ChatPage() {
@@ -163,7 +163,7 @@ function Chat() {
                 void sendPrompt();
               }
             }}
-            placeholder="Write a message…"
+            placeholder="Ask for a caption, post, or content idea…"
             aria-label="Message"
             rows={2}
             maxLength={8000}

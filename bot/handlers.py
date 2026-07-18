@@ -47,8 +47,8 @@ async def on_start(message: Message, state: FSMContext) -> None:
     greeting = "Welcome to Lumenza!" if created else "Welcome back!"
     await message.answer(
         f"{greeting}\nBalance: {account.balance} credits.\n\n"
-        "Send any message to chat, or use /image <prompt> to generate an "
-        "image. Pick a mode below:",
+        "Send a message for a caption, post, or content idea — or use "
+        "/image <prompt> for a visual. Pick a mode below:",
         reply_markup=_mode_keyboard(DEFAULT_MODE),
     )
 
@@ -83,7 +83,7 @@ async def on_mode_selected(callback: CallbackQuery, state: FSMContext) -> None:
 async def on_image(message: Message, command: CommandObject) -> None:
     prompt = (command.args or "").strip()
     if not prompt:
-        await message.answer("Usage: /image a description of what to generate")
+        await message.answer("Usage: /image a description of the visual you want")
         return
 
     user, _ = await sync_to_async(get_or_create_telegram_user)(

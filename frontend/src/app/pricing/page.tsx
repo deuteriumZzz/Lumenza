@@ -82,6 +82,9 @@ function Pricing() {
           {balance ? Number(balance.balance).toFixed(2) : "—"}
           <span className="ml-2 text-base font-sans text-muted">credits</span>
         </div>
+        <p className="mt-3 text-xs text-muted">
+          Credits cover posts, captions, and visuals — the exact cost of each shows right after you send it.
+        </p>
       </div>
 
       <div className="mt-8">
