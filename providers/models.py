@@ -7,6 +7,7 @@ class RequestLog(models.Model):
         OK = "ok", "OK"
         ERROR = "error", "Error"
         INSUFFICIENT_CREDITS = "insufficient_credits", "Insufficient credits"
+        BLOCKED = "blocked", "Blocked by moderation"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="request_logs"

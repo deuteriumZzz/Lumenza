@@ -10,6 +10,7 @@ from billing.services import (
     grant_credits,
     usd_to_credits,
 )
+from core.moderation import ModerationBlocked, check_prompt
 from providers.models import RequestLog
 from providers.pricing import estimate_max_cost_usd
 from providers.registry import get_adapter
@@ -31,7 +32,7 @@ ERROR_MESSAGE_MAX_LEN = 500
 
 @dataclass
 class ChatOutcome:
-    status: Literal["ok", "insufficient_credits", "provider_error"]
+    status: Literal["ok", "insufficient_credits", "provider_error", "blocked"]
     text: Optional[str] = None
     provider: Optional[str] = None
     model: Optional[str] = None
@@ -57,6 +58,25 @@ def run_chat(user, prompt: str, mode: str) -> ChatOutcome:
     callers of the provider layer — so the hold/reconcile billing logic
     exists in exactly one place."""
     routes = MODE_ROUTES[mode]
+
+    # Checked before touching credits at all, and before any provider is
+    # called — a blocked prompt never costs the user a hold/refund cycle
+    # and never costs us a paid provider call.
+    try:
+        check_prompt(prompt)
+    except ModerationBlocked as exc:
+        from core.services import flag_repeated_moderation_blocks
+
+        RequestLog.objects.create(
+            user=user,
+            provider=routes[0][0],
+            model=routes[0][1],
+            mode=mode,
+            status=RequestLog.Status.BLOCKED,
+            error_message=str(exc)[:ERROR_MESSAGE_MAX_LEN],
+        )
+        flag_repeated_moderation_blocks(user)
+        return ChatOutcome(status="blocked")
 
     get_or_create_account(user)
     hold_credits = _route_hold_credits(routes, prompt)

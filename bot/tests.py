@@ -107,6 +107,19 @@ def test_on_text_ignores_blank_message():
     message.answer.assert_not_awaited()
 
 
+def test_on_text_reports_moderation_block_without_charging():
+    message = _make_message(text="child sexual content", telegram_id=888)
+    state = _make_state({"mode": "fast"})
+
+    asyncio.run(on_text(message, state))
+
+    message.answer.assert_awaited_once()
+    assert "blocked" in message.answer.await_args.args[0].lower()
+
+    user = User.objects.get(telegram_id=888)
+    assert RequestLog.objects.filter(user=user, status="blocked").exists()
+
+
 def test_on_image_command_starts_generation_for_the_telegram_chat():
     message = _make_message(telegram_id=666)
     command = MagicMock(args="a sunset over mountains")

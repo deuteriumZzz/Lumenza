@@ -106,6 +106,8 @@ REST_FRAMEWORK = {
         "auth": "10/min",
         "sandbox_topup": "5/min",
         "topup": "5/min",
+        "chat": "60/min",
+        "image_generation": "20/min",
     },
 }
 

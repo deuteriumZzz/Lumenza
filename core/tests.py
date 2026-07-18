@@ -4,9 +4,10 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client, override_settings
 
+from core.models import AnomalyFlag
+from core.services import flag_repeated_moderation_blocks, margin_dashboard_data
 from imagegen.models import GeneratedImage
 from providers.models import RequestLog
-from core.services import margin_dashboard_data
 
 User = get_user_model()
 
@@ -106,3 +107,32 @@ def test_margin_dashboard_admin_renders_for_superuser():
 
     assert response.status_code == 200
     assert b"Margin dashboard" in response.content
+
+
+def test_flag_repeated_moderation_blocks_creates_flag_once_threshold_crossed():
+    user = User.objects.create_user(username="repeat_offender", password="strongpass123")
+    for _ in range(2):
+        RequestLog.objects.create(
+            user=user, provider="openai", model="gpt-4o-mini", status=RequestLog.Status.BLOCKED
+        )
+        flag_repeated_moderation_blocks(user)
+
+    assert not AnomalyFlag.objects.filter(user=user).exists()
+
+    RequestLog.objects.create(user=user, provider="openai", model="gpt-4o-mini", status=RequestLog.Status.BLOCKED)
+    flag_repeated_moderation_blocks(user)
+
+    assert AnomalyFlag.objects.filter(user=user, reason=AnomalyFlag.Reason.REPEATED_MODERATION_BLOCKS).count() == 1
+
+
+def test_flag_repeated_moderation_blocks_does_not_duplicate_within_window():
+    user = User.objects.create_user(username="repeat_offender2", password="strongpass123")
+    for _ in range(4):
+        RequestLog.objects.create(
+            user=user, provider="openai", model="gpt-4o-mini", status=RequestLog.Status.BLOCKED
+        )
+        flag_repeated_moderation_blocks(user)
+
+    # Crossed the threshold on block #3 and stayed crossed on block #4 —
+    # still exactly one flag, not one per block past the threshold.
+    assert AnomalyFlag.objects.filter(user=user).count() == 1

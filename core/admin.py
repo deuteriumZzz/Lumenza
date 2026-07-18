@@ -1,8 +1,15 @@
 from django.contrib import admin
 from django.template.response import TemplateResponse
 
-from core.models import MarginDashboard
+from core.models import AnomalyFlag, MarginDashboard
 from core.services import margin_dashboard_data
+
+
+@admin.register(AnomalyFlag)
+class AnomalyFlagAdmin(admin.ModelAdmin):
+    list_display = ("user", "reason", "detail", "created_at")
+    list_filter = ("reason",)
+    search_fields = ("user__username",)
 
 
 @admin.register(MarginDashboard)

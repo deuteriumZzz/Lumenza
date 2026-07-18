@@ -256,3 +256,39 @@ def test_history_is_paginated_newest_first():
     assert response.data["count"] == 3
     created_at_values = [row["created_at"] for row in response.data["results"]]
     assert created_at_values == sorted(created_at_values, reverse=True)
+
+
+def test_chat_blocked_by_moderation_returns_422_without_charging_or_calling_provider(monkeypatch):
+    client, user = _authed_client("moderated")
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    called = {"count": 0}
+    original_complete = REGISTRY["openai"].complete
+
+    def spy_complete(*args, **kwargs):
+        called["count"] += 1
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", spy_complete)
+
+    response = client.post("/api/chat/", {"prompt": "child sexual content", "mode": "fast"}, format="json")
+
+    assert response.status_code == 422
+    assert called["count"] == 0
+    account.refresh_from_db()
+    assert account.balance == starting_balance
+    assert RequestLog.objects.filter(user=user, status=RequestLog.Status.BLOCKED).exists()
+
+
+def test_chat_is_rate_limited(monkeypatch):
+    from providers.throttling import ChatRateThrottle
+
+    monkeypatch.setattr(ChatRateThrottle, "rate", "1/min", raising=False)
+    client, _ = _authed_client("rate_limited")
+
+    first = client.post("/api/chat/", {"prompt": "hello", "mode": "fast"}, format="json")
+    second = client.post("/api/chat/", {"prompt": "hello again", "mode": "fast"}, format="json")
+
+    assert first.status_code == 200
+    assert second.status_code == 429

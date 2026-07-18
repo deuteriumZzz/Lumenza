@@ -1,5 +1,5 @@
 from rest_framework import generics, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,10 +7,12 @@ from rest_framework.response import Response
 from providers.models import RequestLog
 from providers.serializers import ChatRequestSerializer, RequestLogSerializer
 from providers.services import run_chat
+from providers.throttling import ChatRateThrottle
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ChatRateThrottle])
 def chat(request):
     serializer = ChatRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -22,6 +24,10 @@ def chat(request):
         return Response({"detail": "Insufficient credits"}, status=status.HTTP_402_PAYMENT_REQUIRED)
     if outcome.status == "provider_error":
         return Response({"detail": "Provider error"}, status=status.HTTP_502_BAD_GATEWAY)
+    if outcome.status == "blocked":
+        return Response(
+            {"detail": "This prompt was blocked by moderation"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
 
     return Response(
         {

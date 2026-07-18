@@ -119,6 +119,8 @@ async def on_text(message: Message, state: FSMContext) -> None:
         await message.answer("Not enough credits for this request. Top up in the web app to continue.")
     elif outcome.status == "provider_error":
         await message.answer("Every provider for this mode failed. Nothing was charged.")
+    elif outcome.status == "blocked":
+        await message.answer("That message was blocked by moderation. Nothing was charged.")
     else:
         await message.answer(
             f"{outcome.text}\n\n— {outcome.provider}/{outcome.model} "

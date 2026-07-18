@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from imagegen.models import GeneratedImage
 from imagegen.serializers import GeneratedImageSerializer, ImageRequestSerializer
 from imagegen.services import start_image_generation
+from imagegen.throttling import ImageGenerationRateThrottle
 
 
 class ImagePagination(PageNumberPagination):
@@ -16,6 +17,13 @@ class ImagePagination(PageNumberPagination):
 class ImageGalleryView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = ImagePagination
+
+    def get_throttles(self):
+        # Only the generation request itself is rate-limited — browsing
+        # your own gallery (GET) shouldn't count against the same budget.
+        if self.request.method == "POST":
+            return [ImageGenerationRateThrottle()]
+        return []
 
     def get_queryset(self):
         return GeneratedImage.objects.filter(user=self.request.user)

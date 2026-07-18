@@ -7,6 +7,7 @@ from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
+from core.models import AnomalyFlag
 from imagegen.models import GeneratedImage
 from providers.models import RequestLog
 
@@ -15,6 +16,41 @@ DEFAULT_WINDOW_DAYS = 30
 # enough to catch a flaky provider without letting one noisy row bury it in
 # a long tail of one-off failures.
 TOP_ERROR_LIMIT = 20
+
+# Threshold and window for flagging a user who keeps hitting the moderation
+# blocklist — occasional false positives happen, but this many within an
+# hour looks like probing rather than accidental phrasing.
+MODERATION_BLOCK_ANOMALY_THRESHOLD = 3
+MODERATION_BLOCK_ANOMALY_WINDOW = timedelta(hours=1)
+
+
+def flag_repeated_moderation_blocks(user) -> None:
+    """Called after a moderation block on either surface (chat or image
+    generation). Creates one AnomalyFlag the first time a user crosses the
+    threshold within the window, not one per block past it — otherwise a
+    single bad actor floods the admin with duplicate flags instead of one
+    actionable signal."""
+    since = timezone.now() - MODERATION_BLOCK_ANOMALY_WINDOW
+    recent_blocks = (
+        RequestLog.objects.filter(user=user, status=RequestLog.Status.BLOCKED, created_at__gte=since).count()
+        + GeneratedImage.objects.filter(
+            user=user, status=GeneratedImage.Status.BLOCKED, created_at__gte=since
+        ).count()
+    )
+    if recent_blocks < MODERATION_BLOCK_ANOMALY_THRESHOLD:
+        return
+
+    already_flagged = AnomalyFlag.objects.filter(
+        user=user, reason=AnomalyFlag.Reason.REPEATED_MODERATION_BLOCKS, created_at__gte=since
+    ).exists()
+    if already_flagged:
+        return
+
+    AnomalyFlag.objects.create(
+        user=user,
+        reason=AnomalyFlag.Reason.REPEATED_MODERATION_BLOCKS,
+        detail=f"{recent_blocks} blocked prompts in the last hour",
+    )
 
 
 @dataclass

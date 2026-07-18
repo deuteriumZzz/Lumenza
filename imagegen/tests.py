@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 from billing.models import CreditAccount
 from imagegen.models import GeneratedImage
 from imagegen.tasks import generate_image, generate_image_task
+from imagegen.throttling import ImageGenerationRateThrottle
 
 User = get_user_model()
 
@@ -192,3 +193,26 @@ def test_enqueue_failure_refunds_hold_and_returns_503(monkeypatch):
 
     account.refresh_from_db()
     assert account.balance == starting_balance
+
+
+def test_image_creation_is_rate_limited(monkeypatch):
+    monkeypatch.setattr(ImageGenerationRateThrottle, "rate", "1/min", raising=False)
+    client, user = _authed_client("image_rate_limited")
+
+    first = client.post("/api/images/", {"prompt": "a sunset", "provider": "openai"}, format="json")
+    second = client.post("/api/images/", {"prompt": "a sunrise", "provider": "openai"}, format="json")
+
+    assert first.status_code == 202
+    assert second.status_code == 429
+
+
+def test_image_gallery_listing_is_not_rate_limited(monkeypatch):
+    # Only the generation POST should count against the budget — browsing
+    # your own gallery is a read and shouldn't compete for the same quota.
+    monkeypatch.setattr(ImageGenerationRateThrottle, "rate", "1/min", raising=False)
+    client, user = _authed_client("image_listing_not_limited")
+    client.post("/api/images/", {"prompt": "a sunset", "provider": "openai"}, format="json")
+
+    for _ in range(3):
+        response = client.get("/api/images/")
+        assert response.status_code == 200

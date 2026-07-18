@@ -50,11 +50,14 @@ def generate_image(image_id: int) -> None:
     try:
         check_prompt(record.prompt)
     except ModerationBlocked as exc:
+        from core.services import flag_repeated_moderation_blocks
+
         _refund_hold(record)
         record.status = GeneratedImage.Status.BLOCKED
         record.error_message = str(exc)[:ERROR_MESSAGE_MAX_LEN]
         record.completed_at = timezone.now()
         record.save(update_fields=["status", "error_message", "credits_charged", "completed_at"])
+        flag_repeated_moderation_blocks(record.user)
         if record.telegram_chat_id:
             notify_image_failed(record.telegram_chat_id, "That prompt was blocked by moderation.")
         return
