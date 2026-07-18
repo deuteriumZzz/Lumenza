@@ -113,6 +113,15 @@ export interface Paginated<T> {
   results: T[];
 }
 
+export interface Payment {
+  id: number;
+  amount_rub: string;
+  credits_amount: string;
+  status: "pending" | "succeeded" | "canceled";
+  created_at: string;
+  confirmation_url: string;
+}
+
 export type ImageProvider = "openai" | "flux";
 
 export interface GeneratedImageEntry {
@@ -148,6 +157,11 @@ export const api = {
     request<Balance>("/billing/topup/sandbox/", {
       method: "POST",
       body: JSON.stringify({ amount }),
+    }),
+  topup: (amountRub: string) =>
+    request<Payment>("/billing/topup/", {
+      method: "POST",
+      body: JSON.stringify({ amount_rub: amountRub }),
     }),
   chat: (prompt: string, mode: Mode) =>
     request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, mode }) }),

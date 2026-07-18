@@ -105,6 +105,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
         "sandbox_topup": "5/min",
+        "topup": "5/min",
     },
 }
 
@@ -144,3 +145,11 @@ TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 # misconfigured prod deploy (DEBUG unset/False) can't expose it by accident;
 # never force this True outside local/dev environments.
 SANDBOX_TOPUP_ENABLED = env.bool("SANDBOX_TOPUP_ENABLED", default=DEBUG)
+
+# --- YooKassa (Phase 6 real top-up) ---
+YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", default="")
+YOOKASSA_SECRET_KEY = env("YOOKASSA_SECRET_KEY", default="")
+# 1 credit = this many RUB, independent of CREDIT_USD_VALUE (real-money RUB
+# pricing vs. the USD-denominated provider-cost accounting) — avoids tying
+# top-up pricing to a live FX rate for an MVP.
+CREDIT_RUB_VALUE = env.float("CREDIT_RUB_VALUE", default=0.1)

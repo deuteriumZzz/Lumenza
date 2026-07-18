@@ -34,3 +34,29 @@ class LedgerEntry(models.Model):
 
     def __str__(self):
         return f"{self.account.user} {self.amount} ({self.reason})"
+
+
+class Payment(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCEEDED = "succeeded", "Succeeded"
+        CANCELED = "canceled", "Canceled"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payments")
+    # YooKassa's own payment id (a UUID they generate) — the join key used
+    # to look a payment back up when its webhook notification arrives.
+    yookassa_payment_id = models.CharField(max_length=64, unique=True)
+    amount_rub = models.DecimalField(max_digits=12, decimal_places=2)
+    # Computed once at creation time from the RUB amount and the rate then
+    # in effect, so a later rate change can't retroactively change what an
+    # already-created payment is worth.
+    credits_amount = models.DecimalField(max_digits=12, decimal_places=4)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} {self.amount_rub} RUB ({self.status})"

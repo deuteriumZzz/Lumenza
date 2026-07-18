@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 
 import pytest
@@ -5,8 +6,9 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework.test import APIClient
 
-from billing.models import CreditAccount, LedgerEntry
+from billing.models import CreditAccount, LedgerEntry, Payment
 from billing.services import InsufficientCreditsError, charge_credits, get_or_create_account, grant_credits
+from billing.yookassa_client import YooKassaError
 
 User = get_user_model()
 
@@ -111,4 +113,184 @@ def test_sandbox_topup_returns_404_when_disabled():
 def test_sandbox_topup_rejects_non_positive_amount():
     client, _ = _authed_client()
     response = client.post("/api/billing/topup/sandbox/", {"amount": "0"}, format="json")
+    assert response.status_code == 400
+
+
+YOOKASSA_SETTINGS = {"YOOKASSA_SHOP_ID": "shop_123", "YOOKASSA_SECRET_KEY": "secret_123", "CREDIT_RUB_VALUE": 0.1}
+
+
+def _fake_create_payment(yookassa_payment_id="pay_abc"):
+    def create_payment(amount_rub, return_url, description):
+        return {
+            "id": yookassa_payment_id,
+            "confirmation": {"confirmation_url": f"https://yookassa.ru/pay/{yookassa_payment_id}"},
+        }
+
+    return create_payment
+
+
+@override_settings(**YOOKASSA_SETTINGS)
+def test_topup_creates_pending_payment_and_returns_confirmation_url(monkeypatch):
+    import billing.services as services
+
+    monkeypatch.setattr(services, "create_payment", _fake_create_payment())
+    client, user = _authed_client()
+
+    response = client.post("/api/billing/topup/", {"amount_rub": "100"}, format="json")
+
+    assert response.status_code == 201
+    assert response.data["confirmation_url"] == "https://yookassa.ru/pay/pay_abc"
+    assert response.data["status"] == Payment.Status.PENDING
+
+    payment = Payment.objects.get(user=user)
+    assert payment.yookassa_payment_id == "pay_abc"
+    assert payment.amount_rub == Decimal("100")
+    assert payment.credits_amount == Decimal("1000")  # 100 RUB / 0.1 RUB-per-credit
+
+
+@override_settings(YOOKASSA_SHOP_ID="", YOOKASSA_SECRET_KEY="")
+def test_topup_returns_503_when_yookassa_not_configured():
+    client, _ = _authed_client()
+    response = client.post("/api/billing/topup/", {"amount_rub": "100"}, format="json")
+    assert response.status_code == 503
+    assert not Payment.objects.exists()
+
+
+@override_settings(**YOOKASSA_SETTINGS)
+def test_topup_returns_503_and_creates_no_payment_when_yookassa_api_fails(monkeypatch):
+    import billing.services as services
+
+    def boom(amount_rub, return_url, description):
+        raise YooKassaError("boom")
+
+    monkeypatch.setattr(services, "create_payment", boom)
+    client, _ = _authed_client()
+
+    response = client.post("/api/billing/topup/", {"amount_rub": "100"}, format="json")
+
+    assert response.status_code == 503
+    assert not Payment.objects.exists()
+
+
+def _pending_payment(user, credits_amount=Decimal("1000")):
+    return Payment.objects.create(
+        user=user,
+        yookassa_payment_id="pay_xyz",
+        amount_rub=Decimal("100"),
+        credits_amount=credits_amount,
+    )
+
+
+def _post_webhook(client, payment_id):
+    return client.post(
+        "/api/billing/topup/yookassa/webhook/",
+        data=json.dumps({"type": "notification", "event": "payment.succeeded", "object": {"id": payment_id}}),
+        content_type="application/json",
+    )
+
+
+def test_webhook_credits_account_when_yookassa_confirms_succeeded(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client()
+    payment = _pending_payment(user)
+    balance_before = CreditAccount.objects.get(user=user).balance
+
+    monkeypatch.setattr(services, "get_payment", lambda payment_id: {"status": "succeeded"})
+    response = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert response.status_code == 200
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.SUCCEEDED
+
+    account = CreditAccount.objects.get(user=user)
+    assert account.balance == balance_before + payment.credits_amount
+    assert LedgerEntry.objects.filter(account=account, reason=LedgerEntry.Reason.TOPUP).exists()
+
+
+def test_webhook_is_idempotent_on_duplicate_delivery(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client()
+    payment = _pending_payment(user)
+
+    monkeypatch.setattr(services, "get_payment", lambda payment_id: {"status": "succeeded"})
+    first = _post_webhook(APIClient(), payment.yookassa_payment_id)
+    second = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    account = CreditAccount.objects.get(user=user)
+    # Credited exactly once despite two notification deliveries for the
+    # same payment — the whole point of the idempotency guard.
+    assert account.balance == Decimal("500") + payment.credits_amount
+    assert LedgerEntry.objects.filter(account=account, reason=LedgerEntry.Reason.TOPUP).count() == 1
+
+
+def test_webhook_does_not_credit_when_yookassa_reports_pending(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client()
+    payment = _pending_payment(user)
+    balance_before = CreditAccount.objects.get(user=user).balance
+
+    monkeypatch.setattr(services, "get_payment", lambda payment_id: {"status": "pending"})
+    response = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert response.status_code == 200
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.PENDING
+    assert CreditAccount.objects.get(user=user).balance == balance_before
+
+
+def test_webhook_marks_canceled_when_yookassa_reports_canceled(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client()
+    payment = _pending_payment(user)
+
+    monkeypatch.setattr(services, "get_payment", lambda payment_id: {"status": "canceled"})
+    response = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert response.status_code == 200
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.CANCELED
+
+
+def test_webhook_ignores_unknown_payment_id():
+    response = _post_webhook(APIClient(), "no-such-payment")
+    assert response.status_code == 200
+
+
+def test_webhook_returns_502_when_yookassa_lookup_fails(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client()
+    payment = _pending_payment(user)
+
+    def boom(payment_id):
+        raise YooKassaError("boom")
+
+    monkeypatch.setattr(services, "get_payment", boom)
+    response = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert response.status_code == 502
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.PENDING
+
+
+def test_webhook_rejects_malformed_json():
+    response = APIClient().post(
+        "/api/billing/topup/yookassa/webhook/", data="not json", content_type="application/json"
+    )
+    assert response.status_code == 400
+
+
+def test_webhook_rejects_missing_payment_id():
+    response = APIClient().post(
+        "/api/billing/topup/yookassa/webhook/",
+        data=json.dumps({"type": "notification", "object": {}}),
+        content_type="application/json",
+    )
     assert response.status_code == 400
