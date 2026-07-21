@@ -18,6 +18,7 @@ export default defineConfig({
         "src/components/markdown-response.tsx",
         "src/components/nav.tsx",
         "src/components/require-auth.tsx",
+        "src/components/response-skeleton.tsx",
         "src/proxy.ts",
       ],
       thresholds: {

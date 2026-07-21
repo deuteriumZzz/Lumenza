@@ -9,6 +9,7 @@ import {
   lockedOptionAccessibleName,
 } from "@/components/locked-option-picker";
 import { RequireAuth } from "@/components/require-auth";
+import { ResponseSkeleton } from "@/components/response-skeleton";
 import { UnlockToasts } from "@/components/unlock-toast";
 import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type ChatResponse, type ModelProgress, type Task } from "@/lib/api";
@@ -159,11 +160,7 @@ function Chat() {
           </ol>
         )}
 
-        {sending && (
-          <p className="mt-6 text-sm text-muted" aria-live="polite">
-            Thinking…
-          </p>
-        )}
+        {sending && <ResponseSkeleton />}
       </div>
 
       {error && (
