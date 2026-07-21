@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
-import { api, ApiError, type HistoryEntry, type Paginated } from "@/lib/api";
+import { api, apiErrorMessage, type HistoryEntry, type Paginated } from "@/lib/api";
+import { statusPillClass } from "@/lib/status-styles";
 
 export default function HistoryPage() {
   return (
@@ -12,26 +13,21 @@ export default function HistoryPage() {
   );
 }
 
-const STATUS_STYLE: Record<HistoryEntry["status"], string> = {
-  ok: "bg-success",
-  error: "bg-danger",
-  insufficient_credits: "bg-surface-raised text-muted",
-  blocked: "bg-surface-raised text-muted",
-};
-
 const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
   ok: "ok",
   error: "error",
   insufficient_credits: "insufficient credits",
   blocked: "blocked",
+  task_locked: "task locked",
+  model_locked: "model locked",
 };
 
 function History() {
   const [page, setPage] = useState(1);
-  // `result` tags each response with the page it answers, so "loading" can
-  // be derived (result's page hasn't caught up to the requested page) rather
-  // than tracked as a separate flag that would need a synchronous setState
-  // at the top of the effect below.
+  // `result` помечает каждый ответ страницей, на которую он отвечает, так
+  // что "loading" можно вывести (страница result ещё не догнала запрошенную
+  // страницу), а не отслеживать как отдельный флаг, для которого
+  // понадобился бы синхронный setState в начале эффекта ниже.
   const [result, setResult] = useState<{ page: number; data: Paginated<HistoryEntry> } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +41,7 @@ function History() {
       },
       (err) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Couldn't load history.");
+        setError(apiErrorMessage(err, "Couldn't load history."));
       }
     );
     return () => {
@@ -80,7 +76,7 @@ function History() {
               <div>
                 <div className="text-ink">
                   {entry.provider}/{entry.model}
-                  <span className="ml-2 text-xs text-muted">{entry.mode}</span>
+                  <span className="ml-2 text-xs text-muted">{entry.task}</span>
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
                   {new Date(entry.created_at).toLocaleString()}
@@ -88,7 +84,7 @@ function History() {
                   {entry.mocked && <span className="ml-2">· mock</span>}
                 </div>
               </div>
-              <span className={`status-pill ${STATUS_STYLE[entry.status]}`}>{STATUS_LABEL[entry.status]}</span>
+              <span className={`status-pill ${statusPillClass(entry.status)}`}>{STATUS_LABEL[entry.status]}</span>
               <span className="w-20 text-right font-mono tabular-nums text-ink">{entry.credits_charged}</span>
             </div>
           ))}

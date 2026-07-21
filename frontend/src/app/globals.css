@@ -35,6 +35,51 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Zones (see DESIGN.md) — a restrained hue shift on primary/accent plus a
+   near-imperceptible background/surface chroma tint per section of the
+   product, NOT a different palette per section. "desk" (chat/history/
+   pricing/login/register) intentionally has no override block below — it
+   IS the :root palette above, unchanged. Scoped to [data-zone], which
+   ZoneScope renders around page content only (never around Nav), so the
+   header never shifts between zones, only the content beneath it does. */
+[data-zone="studio"] {
+  /* images + analyze — warmer, toward orange */
+  --color-bg: oklch(0.09 0.006 45);
+  --color-surface: oklch(0.16 0.008 45);
+  --color-surface-raised: oklch(0.21 0.009 45);
+  --color-primary: oklch(0.72 0.15 45);
+  --color-accent: oklch(0.74 0.12 190);
+}
+
+[data-zone="voice"] {
+  /* voice — cooler, toward blue-violet */
+  --color-bg: oklch(0.09 0.006 280);
+  --color-surface: oklch(0.16 0.008 280);
+  --color-surface-raised: oklch(0.21 0.009 280);
+  --color-primary: oklch(0.68 0.12 280);
+  --color-accent: oklch(0.7 0.13 275);
+}
+
+[data-zone="archive"] {
+  /* documents (OCR) — lower chroma, quieter/neutral */
+  --color-bg: oklch(0.09 0.002 60);
+  --color-surface: oklch(0.155 0.003 60);
+  --color-surface-raised: oklch(0.2 0.004 60);
+  --color-primary: oklch(0.6 0.05 60);
+  --color-accent: oklch(0.58 0.04 60);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -56,5 +101,8 @@ body {
   }
   .status-pill {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-bg;
+  }
+  .toast {
+    animation: toast-in 200ms ease-out;
   }
 }
