@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HistoryFilters } from "@/components/history-filters";
 import { RequireAuth } from "@/components/require-auth";
-import { api, apiErrorMessage, type HistoryEntry, type Paginated } from "@/lib/api";
+import {
+  api,
+  apiErrorMessage,
+  type HistoryEntry,
+  type HistoryQuery,
+  type Paginated,
+} from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 
 export default function HistoryPage() {
@@ -24,19 +31,24 @@ const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
 
 function History() {
   const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<HistoryQuery>({});
   // `result` помечает каждый ответ страницей, на которую он отвечает, так
   // что "loading" можно вывести (страница result ещё не догнала запрошенную
   // страницу), а не отслеживать как отдельный флаг, для которого
   // понадобился бы синхронный setState в начале эффекта ниже.
-  const [result, setResult] = useState<{ page: number; data: Paginated<HistoryEntry> } | null>(null);
+  const [result, setResult] = useState<{
+    requestKey: string;
+    data: Paginated<HistoryEntry>;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestKey = JSON.stringify({ page, filters });
 
   useEffect(() => {
     let cancelled = false;
-    api.history(page).then(
+    api.history(page, filters).then(
       (data) => {
         if (cancelled) return;
-        setResult({ page, data });
+        setResult({ requestKey, data });
         setError(null);
       },
       (err) => {
@@ -47,15 +59,24 @@ function History() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [filters, page, requestKey]);
 
-  const loading = !error && result?.page !== page;
-  const data = result?.page === page ? result.data : null;
+  const loading = !error && result?.requestKey !== requestKey;
+  const data = result?.requestKey === requestKey ? result.data : null;
+  const filtersActive = Object.keys(filters).length > 0;
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">History</h1>
       <p className="mt-1 text-sm text-muted">Every request, with the credits it charged.</p>
+
+      <HistoryFilters
+        onApply={(nextFilters) => {
+          setFilters(nextFilters);
+          setPage(1);
+          setError(null);
+        }}
+      />
 
       {error && (
         <p role="alert" className="mt-6 text-sm text-danger">
@@ -66,13 +87,20 @@ function History() {
       {!error && loading && <p className="mt-10 text-sm text-muted">Loading…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
-        <p className="mt-10 text-sm text-muted">No requests yet — start a chat to see it here.</p>
+        <p className="mt-10 text-sm text-muted">
+          {filtersActive
+            ? "No requests match these filters."
+            : "No requests yet — start a chat to see it here."}
+        </p>
       )}
 
       {!error && !loading && data && data.results.length > 0 && (
         <div className="mt-6 divide-y divide-border border-t border-border">
           {data.results.map((entry) => (
-            <div key={entry.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 py-3 text-sm">
+            <div
+              key={entry.id}
+              className="grid items-center gap-2 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:gap-4"
+            >
               <div>
                 <div className="text-ink">
                   {entry.provider}/{entry.model}

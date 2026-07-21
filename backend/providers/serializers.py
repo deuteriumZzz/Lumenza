@@ -2,20 +2,22 @@ from rest_framework import serializers
 
 from providers.models import RequestLog
 
+CHAT_TASK_CHOICES = (
+    "hook",
+    "longform",
+    "hashtags",
+    "content_plan",
+    "repurpose",
+    "translation",
+)
+
 
 class ChatRequestSerializer(serializers.Serializer):
     prompt = serializers.CharField(
         max_length=8000, trim_whitespace=True, allow_blank=False
     )
     task = serializers.ChoiceField(
-        choices=[
-            "hook",
-            "longform",
-            "hashtags",
-            "content_plan",
-            "repurpose",
-            "translation",
-        ],
+        choices=CHAT_TASK_CHOICES,
         default="repurpose",
     )
     # Необязательный явный выбор модели (геймифицированная разблокировка
@@ -27,6 +29,33 @@ class ChatRequestSerializer(serializers.Serializer):
     model = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, default=None
     )
+
+
+class HistoryFilterSerializer(serializers.Serializer):
+    task = serializers.ChoiceField(
+        choices=CHAT_TASK_CHOICES, required=False
+    )
+    provider = serializers.RegexField(
+        r"^[a-z0-9_-]+$", max_length=32, required=False
+    )
+    status = serializers.ChoiceField(
+        choices=RequestLog.Status.values, required=False
+    )
+    created_after = serializers.DateTimeField(required=False)
+    created_before = serializers.DateTimeField(required=False)
+
+    def validate(self, attrs):
+        created_after = attrs.get("created_after")
+        created_before = attrs.get("created_before")
+        if (
+            created_after is not None
+            and created_before is not None
+            and created_after >= created_before
+        ):
+            raise serializers.ValidationError(
+                "created_after must be earlier than created_before"
+            )
+        return attrs
 
 
 class RequestLogSerializer(serializers.ModelSerializer):

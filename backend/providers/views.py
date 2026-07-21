@@ -9,7 +9,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from providers.models import RequestLog
-from providers.serializers import ChatRequestSerializer, RequestLogSerializer
+from providers.serializers import (
+    ChatRequestSerializer,
+    HistoryFilterSerializer,
+    RequestLogSerializer,
+)
 from providers.services import run_chat
 from providers.throttling import ChatRateThrottle
 
@@ -82,4 +86,20 @@ class ChatHistoryView(generics.ListAPIView):
     pagination_class = HistoryPagination
 
     def get_queryset(self):
-        return RequestLog.objects.filter(user=self.request.user)
+        serializer = HistoryFilterSerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        queryset = RequestLog.objects.filter(user=self.request.user)
+
+        for field in ("task", "provider", "status"):
+            if field in filters:
+                queryset = queryset.filter(**{field: filters[field]})
+        if "created_after" in filters:
+            queryset = queryset.filter(
+                created_at__gte=filters["created_after"]
+            )
+        if "created_before" in filters:
+            queryset = queryset.filter(
+                created_at__lt=filters["created_before"]
+            )
+        return queryset

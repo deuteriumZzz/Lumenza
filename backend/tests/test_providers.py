@@ -1,6 +1,8 @@
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User as UserModel
@@ -595,6 +597,73 @@ def test_history_is_paginated_newest_first():
     assert response.data["count"] == 3
     created_at_values = [row["created_at"] for row in response.data["results"]]
     assert created_at_values == sorted(created_at_values, reverse=True)
+
+
+def test_history_filters_by_task_provider_status_and_datetime_range():
+    client, user = _authed_client("history_filtered")
+    _, other_user = _authed_client("history_filtered_other")
+    now = timezone.now()
+
+    matching = RequestLog.objects.create(
+        user=user,
+        provider="openai",
+        model="gpt-4o-mini",
+        task="repurpose",
+        status=RequestLog.Status.OK,
+    )
+    RequestLog.objects.filter(pk=matching.pk).update(
+        created_at=now - timedelta(days=1)
+    )
+    RequestLog.objects.create(
+        user=user,
+        provider="google",
+        model="gemini",
+        task="translation",
+        status=RequestLog.Status.ERROR,
+    )
+    RequestLog.objects.create(
+        user=other_user,
+        provider="openai",
+        model="gpt-4o-mini",
+        task="repurpose",
+        status=RequestLog.Status.OK,
+    )
+
+    response = client.get(
+        "/api/history/",
+        {
+            "task": "repurpose",
+            "provider": "openai",
+            "status": "ok",
+            "created_after": (now - timedelta(days=2)).isoformat(),
+            "created_before": (now + timedelta(hours=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert [row["id"] for row in response.data["results"]] == [
+        matching.id
+    ]
+
+
+def test_history_rejects_invalid_filters_and_reversed_datetime_range():
+    client, _ = _authed_client("history_invalid_filters")
+    now = timezone.now()
+
+    invalid_values = [
+        {"task": "unknown"},
+        {"provider": "bad provider!"},
+        {"status": "unknown"},
+        {
+            "created_after": now.isoformat(),
+            "created_before": (now - timedelta(days=1)).isoformat(),
+        },
+    ]
+
+    for query in invalid_values:
+        response = client.get("/api/history/", query)
+        assert response.status_code == 400
 
 
 def test_chat_blocked_by_moderation_returns_422_uncharged(monkeypatch):

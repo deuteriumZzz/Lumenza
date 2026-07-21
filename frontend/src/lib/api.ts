@@ -110,6 +110,14 @@ export interface HistoryEntry {
   created_at: string;
 }
 
+export interface HistoryQuery {
+  task?: Task;
+  provider?: string;
+  status?: HistoryEntry["status"];
+  created_after?: string;
+  created_before?: string;
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;
@@ -273,7 +281,20 @@ export const api = {
   chat: (prompt: string, task: Task, model?: string) =>
     request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, task, model }) }),
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
-  history: (page = 1) => request<Paginated<HistoryEntry>>(`/history/?page=${page}`),
+  history: (page = 1, filters: HistoryQuery = {}) => {
+    const params = new URLSearchParams({ page: String(page) });
+    const filterEntries: [keyof HistoryQuery, string | undefined][] = [
+      ["task", filters.task],
+      ["provider", filters.provider],
+      ["status", filters.status],
+      ["created_after", filters.created_after],
+      ["created_before", filters.created_before],
+    ];
+    filterEntries.forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    return request<Paginated<HistoryEntry>>(`/history/?${params.toString()}`);
+  },
   createImage: (prompt: string, task: ImageTask) =>
     request<GeneratedImageEntry>("/images/", {
       method: "POST",
