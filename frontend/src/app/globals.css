@@ -80,6 +80,31 @@ body {
   }
 }
 
+@keyframes balance-increase {
+  0% {
+    opacity: 0.55;
+    transform: translateY(3px) scale(0.96);
+  }
+  55% {
+    transform: translateY(-1px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes balance-decrease {
+  0% {
+    opacity: 0.55;
+    transform: translateY(-3px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -104,5 +129,11 @@ body {
   }
   .toast {
     animation: toast-in 200ms ease-out;
+  }
+  .balance-change-increase {
+    animation: balance-increase 420ms ease-out;
+  }
+  .balance-change-decrease {
+    animation: balance-decrease 360ms ease-out;
   }
 }
