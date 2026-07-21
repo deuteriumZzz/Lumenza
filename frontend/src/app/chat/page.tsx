@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CopyResponseButton } from "@/components/copy-response-button";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
 import { RequireAuth } from "@/components/require-auth";
 import { UnlockToasts } from "@/components/unlock-toast";
@@ -273,15 +274,18 @@ function MessageBlock({ message }: { message: Message }) {
   return (
     <div className="flex flex-col items-start gap-1.5">
       <p className="max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{message.text}</p>
-      {message.meta && (
-        <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted">
-          <span>{message.meta.provider}/{message.meta.model}</span>
-          <span>·</span>
-          <span>{message.meta.credits_charged} credits</span>
-          {message.meta.used_fallback && <span className="status-pill bg-accent">fallback</span>}
-          {message.meta.mocked && <span className="status-pill bg-surface-raised text-muted">mock</span>}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <CopyResponseButton text={message.text} />
+        {message.meta && (
+          <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted">
+            <span>{message.meta.provider}/{message.meta.model}</span>
+            <span>·</span>
+            <span>{message.meta.credits_charged} credits</span>
+            {message.meta.used_fallback && <span className="status-pill bg-accent">fallback</span>}
+            {message.meta.mocked && <span className="status-pill bg-surface-raised text-muted">mock</span>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

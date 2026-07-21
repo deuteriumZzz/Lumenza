@@ -8,7 +8,10 @@ export default defineConfig({
     environment: "jsdom",
     coverage: {
       provider: "v8",
-      include: ["src/components/nav.tsx"],
+      include: [
+        "src/components/copy-response-button.tsx",
+        "src/components/nav.tsx",
+      ],
       thresholds: {
         branches: 80,
         functions: 80,
