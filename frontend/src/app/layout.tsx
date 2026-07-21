@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
+import { ZoneScope } from "@/components/zone";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-bg text-ink">
         <AuthProvider>
           <Nav />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <main className="flex flex-1 flex-col">
+            <ZoneScope>{children}</ZoneScope>
+          </main>
         </AuthProvider>
       </body>
     </html>

@@ -7,6 +7,9 @@ import { useAuth } from "@/lib/auth-context";
 const LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/images", label: "Images" },
+  { href: "/voice", label: "Voice" },
+  { href: "/documents", label: "Documents" },
+  { href: "/analyze", label: "Analyze" },
   { href: "/history", label: "History" },
   { href: "/pricing", label: "Billing" },
 ];

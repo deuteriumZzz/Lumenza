@@ -93,6 +93,30 @@ here — that's reserved for the marketing landing page register).
 - Every animation has a `prefers-reduced-motion: reduce` fallback (instant or
   crossfade) — non-optional per the WCAG AA accessibility baseline.
 
+## Zones (2026-07-20)
+
+The product spans 4 distinct task modalities (text, images, voice, documents) — rather than
+one flat palette for all of them, each gets a **restrained hue shift**, not a different
+palette. This is a deliberate compromise: the user wanted a stronger per-section identity;
+"Restraint reads as confidence" above argues against loud color variety. The resolution is
+narrow scope — only `--color-primary`/`--color-accent` shift hue, plus a barely-perceptible
+background/surface chroma tint (0.002–0.009, essentially invisible without the two zones
+side by side). Typography, layout, spacing, and every component stay identical across zones.
+
+| Zone | Routes | Hue direction |
+|---|---|---|
+| **Desk** (default) | `/chat`, `/history`, `/pricing`, `/login`, `/register` | unchanged — this IS the root palette |
+| **Studio** | `/images`, `/analyze` | warmer, toward orange (primary hue 45 vs. desk's 57) |
+| **Voice booth** | `/voice` | cooler, toward blue-violet (accent/primary hue ~275–280, replacing verdigris) |
+| **Archive** | `/documents` | lower chroma — quieter, more neutral than desk, not a new hue |
+
+Implemented via `[data-zone="..."]` CSS variable overrides in `globals.css`, applied by
+`components/zone.tsx`'s `ZoneScope` (a client component reading the current route) wrapped
+around page content only — **never around `<Nav>`**, so the persistent header never shifts
+between zones, only the content beneath it does. `bg-color` transitions at 300ms (this
+surface's existing "content transition" duration band) — respects `prefers-reduced-motion`
+via the existing global media-query rule, no extra work needed.
+
 ## Components (initial vocabulary)
 
 - **Segmented control** (mode selector: fast / smart / cheap) — not a dropdown, not
