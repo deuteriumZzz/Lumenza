@@ -4,6 +4,7 @@ from django.conf import settings
 
 from providers.base import ProviderAdapter, ProviderResult
 from providers.pricing import estimate_cost_usd
+from providers.validation import validate_token_count
 
 DEFAULT_MODEL = "gpt-4o-mini"
 
@@ -33,13 +34,23 @@ class OpenAIAdapter(ProviderAdapter):
         latency_ms = int((time.monotonic() - start) * 1000)
         usage = response.usage
         text = response.choices[0].message.content
+        if not text:
+            raise ValueError("OpenAI returned no text")
+        if usage is None:
+            raise ValueError("OpenAI returned no usage metadata")
+        prompt_tokens = validate_token_count(
+            usage.prompt_tokens, "prompt_tokens"
+        )
+        completion_tokens = validate_token_count(
+            usage.completion_tokens, "completion_tokens"
+        )
 
         return ProviderResult(
             text=text,
-            prompt_tokens=usage.prompt_tokens,
-            completion_tokens=usage.completion_tokens,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             cost_usd=estimate_cost_usd(
-                model, usage.prompt_tokens, usage.completion_tokens
+                model, prompt_tokens, completion_tokens
             ),
             latency_ms=latency_ms,
             model=model,

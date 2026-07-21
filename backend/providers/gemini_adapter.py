@@ -4,6 +4,7 @@ from django.conf import settings
 
 from providers.base import ProviderAdapter, ProviderResult
 from providers.pricing import estimate_cost_usd
+from providers.validation import validate_token_count
 
 DEFAULT_MODEL = "gemini-1.5-flash"
 
@@ -42,13 +43,26 @@ class GeminiAdapter(ProviderAdapter):
         )
         latency_ms = int((time.monotonic() - start) * 1000)
         usage = response.usage_metadata
+        text = response.text
+        if not text:
+            raise ValueError("Gemini returned no text")
+        if usage is None:
+            raise ValueError("Gemini returned no usage metadata")
+        prompt_tokens = usage.prompt_token_count
+        completion_tokens = usage.candidates_token_count
+        if prompt_tokens is None or completion_tokens is None:
+            raise ValueError("Gemini returned incomplete usage metadata")
+        prompt_tokens = validate_token_count(prompt_tokens, "prompt_tokens")
+        completion_tokens = validate_token_count(
+            completion_tokens, "completion_tokens"
+        )
 
         return ProviderResult(
-            text=response.text,
-            prompt_tokens=usage.prompt_token_count,
-            completion_tokens=usage.candidates_token_count,
+            text=text,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             cost_usd=estimate_cost_usd(
-                model, usage.prompt_token_count, usage.candidates_token_count
+                model, prompt_tokens, completion_tokens
             ),
             latency_ms=latency_ms,
             model=model,

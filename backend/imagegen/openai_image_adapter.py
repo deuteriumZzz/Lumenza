@@ -1,10 +1,9 @@
-import base64
-
 from django.conf import settings
 
 from imagegen.base import ImageProviderAdapter, ImageResult
 from imagegen.mock import mock_image_bytes
 from imagegen.pricing import estimate_image_cost_usd
+from imagegen.validation import decode_base64_image
 
 DEFAULT_MODEL = "dall-e-3"
 
@@ -36,7 +35,12 @@ class OpenAIImageAdapter(ImageProviderAdapter):
             n=1,
             response_format="b64_json",
         )
-        image_bytes = base64.b64decode(response.data[0].b64_json)
+        if not response.data:
+            raise ValueError("OpenAI returned no image data")
+        encoded_image = response.data[0].b64_json
+        if not encoded_image:
+            raise ValueError("OpenAI returned no image data")
+        image_bytes = decode_base64_image(encoded_image)
 
         return ImageResult(
             image_bytes=image_bytes,
