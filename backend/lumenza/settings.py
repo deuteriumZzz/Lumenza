@@ -61,6 +61,9 @@ MIDDLEWARE = [
     # Отдаёт STATIC_URL напрямую из gunicorn — должен стоять сразу после
     # SecurityMiddleware, как того требует документация whitenoise.
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # JSON request completion logs + correlation ID. Static files handled
+    # above by WhiteNoise do not need to enter the application request log.
+    "core.middleware.RequestLoggingMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -266,6 +269,9 @@ CELERY_RESULT_BACKEND = env(
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+# Celery otherwise removes the root handlers configured by Django and
+# replaces the JSON formatter with its own human-oriented formatter.
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 # Тесты включают этот флаг (через override_settings), чтобы задачи
 # выполнялись синхронно, в том же процессе, без брокера/воркера.
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
@@ -325,6 +331,47 @@ TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 # прод-деплой (DEBUG не задан/False) не открыл его случайно; никогда не
 # форсировать True вне локальной разработки/дев-окружения.
 SANDBOX_TOPUP_ENABLED = env.bool("SANDBOX_TOPUP_ENABLED", default=DEBUG)
+
+# --- Structured logging ---
+
+LOG_LEVEL = env("LOG_LEVEL", default="INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_context": {
+            "()": "core.logging.RequestContextFilter",
+        }
+    },
+    "formatters": {
+        "json": {
+            "()": "core.logging.JsonFormatter",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["request_context"],
+            "formatter": "json",
+        }
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "lumenza.request": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}
 
 # --- YooKassa (реальное пополнение) ---
 YOOKASSA_SHOP_ID = env("YOOKASSA_SHOP_ID", default="")

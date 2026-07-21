@@ -1,9 +1,12 @@
+import logging
 from decimal import Decimal
 
 from django.utils import timezone
 
 from billing.models import LedgerEntry
 from billing.services import grant_credits
+
+logger = logging.getLogger(__name__)
 
 
 def try_enqueue_or_refund(
@@ -20,7 +23,16 @@ def try_enqueue_or_refund(
     try:
         task.delay(record.id)
         return True
-    except Exception:
+    except Exception as exc:
+        logger.error(
+            "queue.publish_failed",
+            extra={
+                "task_name": getattr(task, "name", type(task).__name__),
+                "record_id": record.id,
+                "user_id": user.pk,
+                "error_type": type(exc).__name__,
+            },
+        )
         grant_credits(user, hold_credits, reason=LedgerEntry.Reason.REFUND)
         record.status = record.Status.ERROR
         record.credits_charged = Decimal("0")
