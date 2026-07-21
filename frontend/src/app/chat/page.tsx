@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
-import {
-  LockedOptionPicker,
-  lockedOptionAccessibleName,
-} from "@/components/locked-option-picker";
+import { LockedOptionPicker } from "@/components/locked-option-picker";
+import { ModelPicker } from "@/components/model-picker";
 import { RequireAuth } from "@/components/require-auth";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { UnlockToasts } from "@/components/unlock-toast";
@@ -197,46 +195,11 @@ function Chat() {
         />
 
         {models && models.length > 1 && (
-          <div role="group" aria-label="Model" className="flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              aria-pressed={selectedModel === null}
-              onClick={() => setSelectedModel(null)}
-              className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors duration-150 ${
-                selectedModel === null ? "bg-surface-raised text-ink" : "text-muted hover:text-ink"
-              }`}
-              title="Let Lumenza pick the best available model"
-            >
-              Auto
-            </button>
-            {models.map((entry) => {
-              const label = entry.model.includes("/") ? entry.model.split("/").pop()! : entry.model;
-              const lockedHint = entry.unlocked
-                ? entry.provider
-                : `Locked — ${entry.current_requests}/${entry.target_requests} requests, ${entry.current_days}/${entry.target_days} days`;
-              return (
-                <button
-                  key={`${entry.provider}/${entry.model}`}
-                  type="button"
-                  title={lockedHint}
-                  aria-label={lockedOptionAccessibleName(label, entry.unlocked, lockedHint)}
-                  aria-pressed={selectedModel === entry.model}
-                  aria-disabled={!entry.unlocked}
-                  onClick={() => entry.unlocked && setSelectedModel(entry.model)}
-                  className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors duration-150 ${
-                    !entry.unlocked
-                      ? "cursor-not-allowed text-muted/40"
-                      : selectedModel === entry.model
-                        ? "bg-surface-raised text-ink"
-                        : "text-muted hover:text-ink"
-                  }`}
-                >
-                  {!entry.unlocked && "🔒 "}
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <ModelPicker
+            models={models}
+            selectedModel={selectedModel}
+            onSelect={setSelectedModel}
+          />
         )}
 
         <div className="flex items-end gap-3">
