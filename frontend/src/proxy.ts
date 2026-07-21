@@ -3,12 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 const API_ORIGIN = process.env.LUMENZA_API_ORIGIN ?? "http://localhost:8000";
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: ["/api/:path*", "/media/:path*"],
 };
 
 // Прокси на тот же origin к Django API в разработке, чтобы браузеру
-// никогда не понадобился CORS: fetch("/api/...") с клиента попадает на этот
-// сервер Next.js, который прозрачно переписывает запрос в Django.
+// никогда не понадобился CORS: API-запросы и медиа с клиента попадают на
+// этот сервер Next.js, который прозрачно переписывает их в Django.
 //
 // Next.js убирает завершающий слэш во входящих путях запроса ещё до того,
 // как это вообще выполняется (верно и для `rewrites()` в next.config.ts —
@@ -20,9 +20,11 @@ export const config = {
 // фиксирована и известна, безусловно добавляем слэш заново при
 // проксировании, а не полагаемся на то, что Next.js его сохранит.
 export function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname.endsWith("/")
-    ? request.nextUrl.pathname
-    : `${request.nextUrl.pathname}/`;
+  const requestPath = request.nextUrl.pathname;
+  const isApiPath = requestPath === "/api" || requestPath.startsWith("/api/");
+  const pathname = isApiPath && !requestPath.endsWith("/")
+    ? `${requestPath}/`
+    : requestPath;
   const target = new URL(pathname + request.nextUrl.search, API_ORIGIN);
   return NextResponse.rewrite(target);
 }

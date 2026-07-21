@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
 import { RequireAuth } from "@/components/require-auth";
 import { UnlockToasts } from "@/components/unlock-toast";
@@ -367,12 +368,11 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
     <div className="flex flex-col overflow-hidden rounded-md border border-border bg-surface">
       <div className="flex aspect-square items-center justify-center bg-bg">
         {entry.image_url ? (
-          // Отдаётся с нашего собственного медиа-бэкенда Django с
-          // произвольным origin для разработки — next/image потребовал бы
-          // настройки remotePatterns под каждое окружение без реальной
-          // пользы здесь (это не публично кэшируемые статические ресурсы).
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={entry.image_url} alt={entry.prompt} className="h-full w-full object-cover" />
+          <ImageLightbox
+            src={entry.image_url}
+            alt={entry.prompt}
+            downloadName={`lumenza-image-${entry.id}`}
+          />
         ) : inProgress ? (
           <span className="text-xs text-muted" aria-live="polite">
             Generating…

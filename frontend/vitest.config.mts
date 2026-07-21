@@ -10,7 +10,9 @@ export default defineConfig({
       provider: "v8",
       include: [
         "src/components/copy-response-button.tsx",
+        "src/components/image-lightbox.tsx",
         "src/components/nav.tsx",
+        "src/proxy.ts",
       ],
       thresholds: {
         branches: 80,
