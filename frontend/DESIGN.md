@@ -117,6 +117,23 @@ between zones, only the content beneath it does. `bg-color` transitions at 300ms
 surface's existing "content transition" duration band) — respects `prefers-reduced-motion`
 via the existing global media-query rule, no extra work needed.
 
+## Theme Mode Decision (2026-07-21)
+
+Lumenza remains **dark-only for the current product phase**. This is intentional,
+not an omitted `prefers-color-scheme` rule: the near-black instrument surface is a
+core part of the brand direction above, and the four zone palettes, semantic status
+fills, charts/progress marks, image workspace, and text-on-fill rules have only been
+contrast-checked as one dark system.
+
+Do not automatically switch to a light palette from the operating-system preference.
+An automatic partial inversion would make the same account look materially different
+between devices and would leave zone/status combinations without a verified WCAG AA
+contract. When a light theme is introduced, it must ship as a complete second token
+set with contrast tests for every zone and semantic state, plus an explicit
+`system / dark / light` user control and a pre-hydration preference bootstrap to avoid
+theme flash. Until those pieces can land together, one coherent dark theme is the
+more trustworthy product choice.
+
 ## Components (initial vocabulary)
 
 - **Segmented control** (mode selector: fast / smart / cheap) — not a dropdown, not
