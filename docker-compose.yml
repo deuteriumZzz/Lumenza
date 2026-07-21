@@ -26,14 +26,21 @@ services:
       retries: 5
 
   web:
-    build: .
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    build: ./backend
+    # gunicorn, not runserver — a dev-only single-threaded server was never
+    # meant to hold up under real concurrent traffic. Override this
+    # service's `command:` locally (e.g. via docker-compose.override.yml)
+    # to get runserver's autoreload back for active backend development.
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn lumenza.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
     volumes:
-      - .:/app
+      - ./backend:/app
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ./backend/.env
     depends_on:
       db:
         condition: service_healthy
@@ -41,12 +48,12 @@ services:
         condition: service_healthy
 
   worker:
-    build: .
+    build: ./backend
     command: celery -A lumenza worker -l info
     volumes:
-      - .:/app
+      - ./backend:/app
     env_file:
-      - .env
+      - ./backend/.env
     depends_on:
       db:
         condition: service_healthy
@@ -54,18 +61,34 @@ services:
         condition: service_healthy
 
   bot:
-    build: .
+    build: ./backend
     # Long-polling for local/dev. Production should point Telegram's
     # setWebhook at bot/views.py instead and drop this service — see
     # bot/management/commands/run_bot_polling.py's help text.
     command: python manage.py run_bot_polling
     volumes:
-      - .:/app
+      - ./backend:/app
     env_file:
-      - .env
+      - ./backend/.env
     depends_on:
       web:
         condition: service_started
+
+  beat:
+    build: ./backend
+    # Fires CELERY_BEAT_SCHEDULE (currently: billing.renew_subscriptions,
+    # daily) — separate process from `worker`, per Celery's own convention;
+    # `worker` still executes the task, `beat` only decides when.
+    command: celery -A lumenza beat -l info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

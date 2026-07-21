@@ -1,0 +1,28 @@
+[tool.black]
+line-length = 79
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 79
+known_first_party = [
+    "accounts",
+    "billing",
+    "bot",
+    "core",
+    "imagegen",
+    "lumenza",
+    "media_ops",
+    "progression",
+    "providers",
+    "referrals",
+    "tests",
+]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "lumenza.settings"

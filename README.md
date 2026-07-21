@@ -8,7 +8,7 @@ Telegram-first AI-агрегатор (MVP). Backend: Django + DRF, Postgres, Red
 ### Backend
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 docker compose up --build
 ```
 

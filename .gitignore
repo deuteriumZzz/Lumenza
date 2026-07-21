@@ -12,3 +12,6 @@ node_modules/
 *.log
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+celerybeat-schedule
+.agents/
