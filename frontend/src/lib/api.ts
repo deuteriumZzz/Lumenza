@@ -1,17 +1,14 @@
-export const TOKEN_STORAGE_KEY = "lumenza_token";
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+// Авторизация — это httpOnly cookie (выставляется бэкендом на login/
+// register) — она никогда не читается из JS, так что здесь нет токена для
+// хранения/чтения/очистки. Читать нужно только cookie csrftoken (намеренно
+// НЕ httpOnly, см. паттерн двойной отправки Django), чтобы отправить её
+// обратно в заголовке.
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function setToken(token: string) {
-  window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-}
-
-export function clearToken() {
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-}
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export class ApiError extends Error {
   status: number;
@@ -24,11 +21,19 @@ export class ApiError extends Error {
   }
 }
 
-// DRF validation errors can carry multiple messages per field (e.g. Django's
-// validate_password raising "too short" and "too common" at once) and
-// multiple invalid fields at once. Flatten every string found across all
-// fields rather than surfacing only the first, so callers don't silently
-// drop errors the user needs to see.
+// Единая точка для catch-блоков: ApiError уже несёт сообщение, пригодное для
+// показа пользователю (см. extractMessage выше), а любая другая ошибка
+// (сеть, таймаут, JS-исключение) — нет, отсюда общий fallback.
+export function apiErrorMessage(err: unknown, fallback = "Something went wrong."): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
+
+// Ошибки валидации DRF могут нести несколько сообщений на одно поле
+// (например, validate_password в Django одновременно выбрасывает "слишком
+// короткий" и "слишком распространённый") и сразу несколько невалидных
+// полей. Собираем в одну строку каждое найденное сообщение по всем полям,
+// а не показываем только первое — иначе вызывающий код молча теряет
+// ошибки, которые пользователю нужно увидеть.
 function extractMessage(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const record = body as Record<string, unknown>;
@@ -39,23 +44,26 @@ function extractMessage(body: unknown): string | null {
   return messages.length > 0 ? messages.join(" ") : null;
 }
 
-// Generous enough to cover /chat/'s worst case server-side: up to two
-// sequential provider attempts (fallback) at a 15s request_timeout_seconds
-// each, plus network overhead — see providers/base.py on the backend. A
-// tighter default would abort legitimate slow-but-successful chat requests.
+// Достаточно щедрый запас, чтобы покрыть худший случай /chat/ на сервере:
+// до двух последовательных попыток провайдера (запасной вариант) по 15с
+// request_timeout_seconds каждая, плюс сетевые накладные расходы — см.
+// providers/base.py на бэкенде. Более жёсткий дефолт обрывал бы законные
+// медленные, но успешные запросы чата.
 const DEFAULT_TIMEOUT_MS = 45_000;
 
-async function request<T>(path: string, options: RequestInit = {}, auth = true): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (auth) {
-    const token = getToken();
-    if (token) headers.set("Authorization", `Token ${token}`);
+  const method = (options.method ?? "GET").toUpperCase();
+  if (UNSAFE_METHODS.has(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers.set("X-CSRFToken", csrfToken);
   }
 
   const res = await fetch(`/api${path}`, {
     ...options,
     headers,
+    credentials: "include",
     signal: options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
 
@@ -72,16 +80,12 @@ export interface User {
   email: string;
 }
 
-export interface AuthResponse extends User {
-  token: string;
-}
-
 export interface Balance {
   balance: string;
   updated_at: string;
 }
 
-export type Mode = "fast" | "smart" | "cheap";
+export type Task = "hook" | "longform" | "hashtags" | "content_plan" | "repurpose" | "translation";
 
 export interface ChatResponse {
   text: string;
@@ -97,8 +101,8 @@ export interface HistoryEntry {
   id: number;
   provider: string;
   model: string;
-  mode: Mode;
-  status: "ok" | "error" | "insufficient_credits" | "blocked";
+  task: Task;
+  status: "ok" | "error" | "insufficient_credits" | "blocked" | "task_locked" | "model_locked";
   credits_charged: string;
   latency_ms: number;
   mocked: boolean;
@@ -122,7 +126,53 @@ export interface Payment {
   confirmation_url: string;
 }
 
-export type ImageProvider = "openai" | "flux";
+export interface Subscription {
+  status: "active" | "past_due" | "canceled";
+  price_rub: string;
+  current_period_end: string;
+  canceled_at: string | null;
+}
+
+export interface ReferralStats {
+  referral_link: string;
+  referral_code: string;
+  referred_count: number;
+  rewarded_count: number;
+  reward_credits: string;
+}
+
+export interface ModelProgress {
+  task: string;
+  provider: string;
+  model: string;
+  unlocked: boolean;
+  current_requests: number;
+  target_requests: number;
+  current_days: number;
+  target_days: number;
+}
+
+export type ImageTask = "realistic" | "illustration" | "premium";
+
+// "edit" не входит в ImageTask/поле task у createImage — это отдельный
+// поток (createImageEdit, multipart с входным фото) — но он всё равно
+// должен появляться здесь, чтобы типизация прогресса/разблокировки его
+// покрывала.
+export type TaskOrImageTask = Task | ImageTask | "edit";
+
+export interface ResourceProgress {
+  key: TaskOrImageTask;
+  current_requests: number;
+  target_requests: number;
+  current_days: number;
+  target_days: number;
+}
+
+export interface Progress {
+  tier: "free" | "paid";
+  unlocked: TaskOrImageTask[];
+  progress: ResourceProgress[];
+}
 
 export interface GeneratedImageEntry {
   id: number;
@@ -133,23 +183,76 @@ export interface GeneratedImageEntry {
   credits_charged: string;
   mocked: boolean;
   image_url: string | null;
+  source_image_url: string | null;
   created_at: string;
   completed_at: string | null;
 }
 
+export interface TranscriptionEntry {
+  id: number;
+  text: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "task_locked";
+  credits_charged: string;
+  mocked: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface SpeechClipEntry {
+  id: number;
+  text: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "task_locked";
+  credits_charged: string;
+  mocked: boolean;
+  audio_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface DocumentExtractionEntry {
+  id: number;
+  text: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "task_locked";
+  credits_charged: string;
+  mocked: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface PhotoAnalysisEntry {
+  id: number;
+  text: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "task_locked";
+  credits_charged: string;
+  mocked: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
+  const headers = new Headers();
+  const csrfToken = getCsrfToken();
+  if (csrfToken) headers.set("X-CSRFToken", csrfToken);
+  const res = await fetch(`/api${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data);
+  return data as T;
+}
+
 export const api = {
-  register: (username: string, email: string, password: string) =>
-    request<AuthResponse>(
-      "/auth/register/",
-      { method: "POST", body: JSON.stringify({ username, email, password }) },
-      false
-    ),
+  register: (username: string, email: string, password: string, referralCode?: string) =>
+    request<User>("/auth/register/", {
+      method: "POST",
+      body: JSON.stringify({ username, email, password, referral_code: referralCode }),
+    }),
   login: (username: string, password: string) =>
-    request<AuthResponse>(
-      "/auth/login/",
-      { method: "POST", body: JSON.stringify({ username, password }) },
-      false
-    ),
+    request<User>("/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/auth/logout/", { method: "POST" }),
   me: () => request<User>("/auth/me/"),
   balance: () => request<Balance>("/billing/balance/"),
@@ -163,14 +266,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ amount_rub: amountRub }),
     }),
-  chat: (prompt: string, mode: Mode) =>
-    request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, mode }) }),
+  subscriptionStatus: () => request<Subscription | null>("/billing/subscription/"),
+  subscribe: () => request<Payment>("/billing/subscription/subscribe/", { method: "POST" }),
+  unsubscribe: () => request<void>("/billing/subscription/cancel/", { method: "POST" }),
+  referralStats: () => request<ReferralStats>("/referrals/"),
+  chat: (prompt: string, task: Task, model?: string) =>
+    request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, task, model }) }),
+  modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
   history: (page = 1) => request<Paginated<HistoryEntry>>(`/history/?page=${page}`),
-  createImage: (prompt: string, provider: ImageProvider) =>
+  createImage: (prompt: string, task: ImageTask) =>
     request<GeneratedImageEntry>("/images/", {
       method: "POST",
-      body: JSON.stringify({ prompt, provider }),
+      body: JSON.stringify({ prompt, task }),
     }),
   images: (page = 1) => request<Paginated<GeneratedImageEntry>>(`/images/?page=${page}`),
   image: (id: number) => request<GeneratedImageEntry>(`/images/${id}/`),
+  createImageEdit: (prompt: string, imageFile: File) => {
+    const formData = new FormData();
+    formData.append("prompt", prompt);
+    formData.append("image", imageFile, imageFile.name);
+    return requestMultipart<GeneratedImageEntry>("/images/edit/", formData);
+  },
+  progress: () => request<Progress>("/progress/"),
+  createTranscription: (audioBlob: Blob, filename: string) => {
+    const formData = new FormData();
+    formData.append("audio", audioBlob, filename);
+    return requestMultipart<TranscriptionEntry>("/transcriptions/", formData);
+  },
+  transcription: (id: number) => request<TranscriptionEntry>(`/transcriptions/${id}/`),
+  createSpeech: (text: string) =>
+    request<SpeechClipEntry>("/speech/", { method: "POST", body: JSON.stringify({ text }) }),
+  speechClip: (id: number) => request<SpeechClipEntry>(`/speech/${id}/`),
+  createDocumentExtraction: (file: File) => {
+    const formData = new FormData();
+    formData.append("document", file, file.name);
+    return requestMultipart<DocumentExtractionEntry>("/documents/", formData);
+  },
+  documentExtraction: (id: number) => request<DocumentExtractionEntry>(`/documents/${id}/`),
+  createPhotoAnalysis: (file: File) => {
+    const formData = new FormData();
+    formData.append("image", file, file.name);
+    return requestMultipart<PhotoAnalysisEntry>("/photos/analyze/", formData);
+  },
+  photoAnalysis: (id: number) => request<PhotoAnalysisEntry>(`/photos/analyze/${id}/`),
 };

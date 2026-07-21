@@ -1,14 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 
 export default function RegisterPage() {
+  // useSearchParams() выводит поддерево из статического рендеринга, если
+  // оно не изолировано за Suspense — без этой обёртки `next build`
+  // проваливает пререндер этой страницы (missing-suspense-with-csr-bailout).
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const { register } = useAuth();
   const router = useRouter();
+  // Веб-эквивалент deep-ссылки бота /start ref_<id> — например,
+  // lumenza.app/register?ref=ref_42 (см. referrals/services.py).
+  const referralCode = useSearchParams().get("ref") ?? undefined;
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,7 +34,7 @@ export default function RegisterPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await register(username, email, password);
+      await register(username, email, password, referralCode);
       router.push("/chat");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");

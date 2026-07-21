@@ -1,14 +1,28 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api, ApiError, clearToken, getToken, setToken, TOKEN_STORAGE_KEY, type Balance, type User } from "@/lib/api";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { api, ApiError, type Balance, type User } from "@/lib/api";
+
+// Авторизация — это httpOnly cookie, поэтому вкладки не могут отследить
+// вход/выход через событие `storage`, как это было можно с токеном в
+// localStorage. BroadcastChannel — это эквивалент для того же origin между
+// вкладками: login/register/logout отправляют в него сообщение, каждая
+// открытая вкладка AuthProvider в ответ перепроверяет сессию.
+const AUTH_CHANNEL_NAME = "lumenza-auth";
+
+function broadcastAuthChange() {
+  if (typeof BroadcastChannel === "undefined") return;
+  const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+  channel.postMessage("changed");
+  channel.close();
+}
 
 interface AuthState {
   user: User | null;
   balance: Balance | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   setBalance: (balance: Balance) => void;
@@ -19,85 +33,87 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [balance, setBalanceState] = useState<Balance | null>(null);
-  // No token means nothing to verify, so start as "not loading" — avoids a
-  // synchronous setState in the effect below for that branch.
-  const [loading, setLoading] = useState(() => getToken() !== null);
+  const [loading, setLoading] = useState(true);
+
+  // Защита от ответов, приходящих не по порядку: вызов, вытесненный более
+  // новым (например, кросс-табовый broadcast срабатывает пока начальная
+  // загрузка ещё выполняется, или пользователь выходит и снова заходит до
+  // того, как разрешится первый вызов), отбрасывает свой результат вместо
+  // того, чтобы восстанавливать устаревшее состояние — тот же паттерн, что
+  // и у refreshBalance ниже, только по ссылке-счётчику вместо строки
+  // токена, поскольку здесь нет токена для сравнения.
+  const loadSessionSeq = useRef(0);
 
   useEffect(() => {
-    // Re-runs on mount and whenever another tab changes the stored token
-    // (sign-in/sign-out there should be reflected here too). `token` is
-    // captured per-invocation so a response that lands after the token has
-    // since changed again (e.g. user signs out mid-request, or signs into a
-    // different account before this resolves) is discarded instead of
-    // resurrecting a stale session.
     function loadSession() {
-      const token = getToken();
-      if (!token) {
-        setUser(null);
-        setBalanceState(null);
-        setLoading(false);
-        return;
-      }
+      const seq = ++loadSessionSeq.current;
       setLoading(true);
       Promise.all([api.me(), api.balance()])
         .then(([meRes, balanceRes]) => {
-          if (getToken() !== token) return;
+          if (loadSessionSeq.current !== seq) return;
           setUser(meRes);
           setBalanceState(balanceRes);
         })
         .catch((err) => {
-          if (getToken() !== token) return;
-          // Only an actually-invalid token should sign the user out here —
-          // a network blip or a transient 5xx shouldn't silently log out
-          // someone holding a perfectly valid token.
+          if (loadSessionSeq.current !== seq) return;
+          // Разлогинивать здесь должна только по-настоящему недействительная/
+          // отсутствующая сессия — сетевой сбой или временная 5xx не должны
+          // молча выкидывать из системы того, у кого сессия совершенно
+          // валидна.
           if (err instanceof ApiError && err.status === 401) {
-            clearToken();
             setUser(null);
             setBalanceState(null);
           }
         })
         .finally(() => {
-          if (getToken() === token) setLoading(false);
+          if (loadSessionSeq.current === seq) setLoading(false);
         });
     }
 
     loadSession();
 
-    function onStorage(event: StorageEvent) {
-      if (event.key === TOKEN_STORAGE_KEY) loadSession();
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+    channel.onmessage = () => loadSession();
+    return () => channel.close();
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await api.login(username, password);
-    setToken(res.token);
     setUser(res);
     setBalanceState(await api.balance());
+    broadcastAuthChange();
   }, []);
 
-  const register = useCallback(async (username: string, email: string, password: string) => {
-    const res = await api.register(username, email, password);
-    setToken(res.token);
+  const register = useCallback(async (username: string, email: string, password: string, referralCode?: string) => {
+    const res = await api.register(username, email, password, referralCode);
     setUser(res);
     setBalanceState(await api.balance());
+    broadcastAuthChange();
   }, []);
 
   const logout = useCallback(async () => {
     try {
       await api.logout();
     } catch {
-      // Token may already be invalid server-side; clearing client state is
-      // the part that matters for the user.
+      // Сессия на сервере уже может быть недействительна; важная для
+      // пользователя часть — это очистка состояния на клиенте.
     }
-    clearToken();
     setUser(null);
     setBalanceState(null);
+    broadcastAuthChange();
   }, []);
 
+  // Защита от ответов не по порядку: если refreshBalance вызывается снова
+  // (например, эффект второй страницы триггерит его) до того, как пришёл
+  // ответ на первый вызов, применяться должен только ответ на ПОСЛЕДНИЙ
+  // вызов — иначе более медленный ранний ответ, пришедший после более
+  // быстрого позднего, перезаписал бы свежие данные баланса устаревшими.
+  const refreshBalanceSeq = useRef(0);
   const refreshBalance = useCallback(async () => {
-    setBalanceState(await api.balance());
+    const seq = ++refreshBalanceSeq.current;
+    const res = await api.balance();
+    if (refreshBalanceSeq.current === seq) setBalanceState(res);
   }, []);
 
   return (

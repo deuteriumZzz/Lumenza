@@ -6,19 +6,19 @@ export const config = {
   matcher: "/api/:path*",
 };
 
-// Same-origin proxy to the Django API in dev, so the browser never needs
-// CORS: fetch("/api/...") from the client hits this Next.js server, which
-// rewrites to Django transparently.
+// Прокси на тот же origin к Django API в разработке, чтобы браузеру
+// никогда не понадобился CORS: fetch("/api/...") с клиента попадает на этот
+// сервер Next.js, который прозрачно переписывает запрос в Django.
 //
-// Next.js normalizes away trailing slashes on incoming request paths before
-// this ever runs (true both for next.config.ts's `rewrites()` — which
-// rejoins the captured `:path*` segments without one — and for
-// `request.nextUrl.pathname` read here directly). Every Lumenza API route
-// is defined with a trailing slash (Django's APPEND_SLASH convention), and
-// APPEND_SLASH 500s on a slash-less POST because it can't redirect while
-// preserving the request body. Since the backend's convention is fixed and
-// known, re-append the slash unconditionally when forwarding rather than
-// depending on Next.js to preserve it.
+// Next.js убирает завершающий слэш во входящих путях запроса ещё до того,
+// как это вообще выполняется (верно и для `rewrites()` в next.config.ts —
+// который заново собирает захваченные сегменты `:path*` без него, — и для
+// `request.nextUrl.pathname`, читаемого здесь напрямую). Каждый API-роут
+// Lumenza определён с завершающим слэшем (конвенция APPEND_SLASH в
+// Django), а APPEND_SLASH отдаёт 500 на POST без слэша, поскольку не может
+// сделать редирект, сохранив тело запроса. Поскольку конвенция бэкенда
+// фиксирована и известна, безусловно добавляем слэш заново при
+// проксировании, а не полагаемся на то, что Next.js его сохранит.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname.endsWith("/")
     ? request.nextUrl.pathname

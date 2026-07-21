@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
 import { useAuth } from "@/lib/auth-context";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type ReferralStats, type Subscription } from "@/lib/api";
 
 const PRESETS = ["50", "100", "500"];
 const RUB_PRESETS = ["100", "300", "1000"];
@@ -29,6 +29,60 @@ function Pricing() {
   const [cardNotice, setCardNotice] = useState<{ kind: "unavailable" | "error"; message: string } | null>(
     null
   );
+
+  const [subscription, setSubscription] = useState<Subscription | null | undefined>(undefined);
+  const [subActionPending, setSubActionPending] = useState(false);
+  const [subNotice, setSubNotice] = useState<{ kind: "unavailable" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    api.subscriptionStatus().then(setSubscription, () => setSubscription(null));
+  }, []);
+
+  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.referralStats().then(setReferralStats).catch(() => {});
+  }, []);
+
+  async function copyReferralLink() {
+    if (!referralStats) return;
+    await navigator.clipboard.writeText(referralStats.referral_link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function subscribe() {
+    setSubActionPending(true);
+    setSubNotice(null);
+    try {
+      const payment = await api.subscribe();
+      // Тот же поток редиректа в YooKassa и возврата на /billing, что и у
+      // разового пополнения — вебхук активирует подписку после успешной
+      // оплаты, так что при возврате эта страница покажет новый статус.
+      window.location.href = payment.confirmation_url;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 503) {
+        setSubNotice({ kind: "unavailable", message: "Subscriptions aren't configured in this environment." });
+      } else {
+        setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Couldn't start subscription." });
+      }
+      setSubActionPending(false);
+    }
+  }
+
+  async function cancel() {
+    setSubActionPending(true);
+    setSubNotice(null);
+    try {
+      await api.unsubscribe();
+      setSubscription((prev) => (prev ? { ...prev, status: "canceled" } : prev));
+    } catch (err) {
+      setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Couldn't cancel subscription." });
+    } finally {
+      setSubActionPending(false);
+    }
+  }
 
   async function topUp() {
     setSubmitting(true);
@@ -56,10 +110,10 @@ function Pricing() {
     setCardNotice(null);
     try {
       const payment = await api.topup(rubAmount);
-      // YooKassa's confirmation page lives on their domain — the user pays
-      // there and is bounced back to PUBLIC_BASE_URL/billing (this page)
-      // once done, at which point the webhook has (or will shortly have)
-      // credited the account.
+      // Страница подтверждения YooKassa находится на их домене —
+      // пользователь платит там и по завершении отправляется обратно на
+      // PUBLIC_BASE_URL/billing (эту страницу), к этому моменту вебхук уже
+      // зачислил (или вот-вот зачислит) средства на счёт.
       window.location.href = payment.confirmation_url;
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
@@ -86,6 +140,70 @@ function Pricing() {
           Credits cover posts, captions, and visuals — the exact cost of each shows right after you send it.
         </p>
       </div>
+
+      <div className="mt-8 rounded-md border border-border bg-surface p-6">
+        <div className="text-sm font-medium text-ink">Pro subscription</div>
+        <p className="mt-1 text-xs text-muted">
+          Instant access to every model — no gradual unlocking. 990₽/month, cancel anytime.
+        </p>
+
+        {subscription === undefined ? (
+          <p className="mt-4 text-xs text-muted">Loading…</p>
+        ) : subscription && subscription.status === "active" ? (
+          <div className="mt-4">
+            <p className="text-sm text-ink">
+              Active — renews {new Date(subscription.current_period_end).toLocaleDateString()}
+            </p>
+            <button
+              type="button"
+              onClick={() => void cancel()}
+              disabled={subActionPending}
+              className="btn-secondary mt-3"
+            >
+              {subActionPending ? "Canceling…" : "Cancel subscription"}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void subscribe()}
+            disabled={subActionPending}
+            className="btn-primary mt-4 w-full"
+          >
+            {subActionPending ? "Redirecting…" : "Subscribe to Pro"}
+          </button>
+        )}
+
+        {subNotice && (
+          <p role="status" className={`mt-3 text-sm ${subNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
+            {subNotice.message}
+          </p>
+        )}
+      </div>
+
+      {referralStats && (
+        <div className="mt-8 rounded-md border border-border bg-surface p-6">
+          <div className="text-sm font-medium text-ink">Invite friends</div>
+          <p className="mt-1 text-xs text-muted">
+            You both get {Number(referralStats.reward_credits).toFixed(0)} credits once they try Lumenza.
+          </p>
+          <div className="mt-4 flex items-center gap-2">
+            <input
+              readOnly
+              value={referralStats.referral_link}
+              aria-label="Referral link"
+              className="input flex-1 text-xs"
+              onFocus={(event) => event.target.select()}
+            />
+            <button type="button" onClick={() => void copyReferralLink()} className="btn-secondary">
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            {referralStats.referred_count} invited · {referralStats.rewarded_count} rewarded
+          </p>
+        </div>
+      )}
 
       <div className="mt-8">
         <div className="text-sm font-medium text-ink">Top up (sandbox)</div>
