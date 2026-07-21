@@ -113,9 +113,10 @@ side by side). Typography, layout, spacing, and every component stay identical a
 Implemented via `[data-zone="..."]` CSS variable overrides in `globals.css`, applied by
 `components/zone.tsx`'s `ZoneScope` (a client component reading the current route) wrapped
 around page content only — **never around `<Nav>`**, so the persistent header never shifts
-between zones, only the content beneath it does. `bg-color` transitions at 300ms (this
-surface's existing "content transition" duration band) — respects `prefers-reduced-motion`
-via the existing global media-query rule, no extra work needed.
+between zones, only the content beneath it does. The five registered zone color tokens
+interpolate together over 220ms with the standard strong ease-in-out curve; the transition
+names exact properties rather than using `transition: all`, and the existing global
+`prefers-reduced-motion` rule reduces it to an effectively instant state change.
 
 ## Theme Mode Decision (2026-07-21)
 

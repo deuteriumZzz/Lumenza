@@ -19,6 +19,7 @@ export default defineConfig({
         "src/components/nav.tsx",
         "src/components/require-auth.tsx",
         "src/components/response-skeleton.tsx",
+        "src/components/zone.tsx",
         "src/proxy.ts",
       ],
       thresholds: {

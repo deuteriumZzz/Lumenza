@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+@property --color-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.09 0 0);
+}
+
+@property --color-surface {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.16 0.004 60);
+}
+
+@property --color-surface-raised {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.21 0.005 60);
+}
+
+@property --color-primary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.7 0.14 57);
+}
+
+@property --color-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.72 0.11 200);
+}
+
 :root {
   /* See DESIGN.md for the full rationale behind this palette. */
   --color-bg: oklch(0.09 0 0);
@@ -91,6 +121,17 @@ body {
   --color-surface-raised: oklch(0.2 0.004 60);
   --color-primary: oklch(0.6 0.05 60);
   --color-accent: oklch(0.58 0.04 60);
+}
+
+.zone-scope {
+  transition-property:
+    --color-bg,
+    --color-surface,
+    --color-surface-raised,
+    --color-primary,
+    --color-accent;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @keyframes toast-in {

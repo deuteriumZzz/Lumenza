@@ -29,7 +29,7 @@ function zoneForPath(pathname: string): string {
 export function ZoneScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div data-zone={zoneForPath(pathname)} className="flex flex-1 flex-col bg-bg transition-colors duration-300">
+    <div data-zone={zoneForPath(pathname)} className="zone-scope flex flex-1 flex-col bg-bg">
       {children}
     </div>
   );
