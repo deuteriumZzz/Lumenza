@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CopyResponseButton } from "@/components/copy-response-button";
+import { MarkdownResponse } from "@/components/markdown-response";
 import {
   LockedOptionPicker,
   lockedOptionAccessibleName,
@@ -277,7 +278,7 @@ function MessageBlock({ message }: { message: Message }) {
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <p className="max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{message.text}</p>
+      <MarkdownResponse content={message.text} />
       <div className="flex flex-wrap items-center gap-2">
         <CopyResponseButton text={message.text} />
         {message.meta && (

@@ -15,6 +15,7 @@ export default defineConfig({
         "src/components/history-filters.tsx",
         "src/components/image-lightbox.tsx",
         "src/components/locked-option-picker.tsx",
+        "src/components/markdown-response.tsx",
         "src/components/nav.tsx",
         "src/components/require-auth.tsx",
         "src/proxy.ts",
