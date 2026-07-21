@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type SpeechClipEntry, type TranscriptionEntry } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 import { usePolledStatus } from "@/lib/use-polled-status";
+import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
@@ -65,12 +66,6 @@ function TranscribeSection() {
     setRecording(false);
   }
 
-  function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) void submitAudio(file, file.name);
-    event.target.value = "";
-  }
-
   async function submitAudio(blob: Blob, filename: string) {
     setSubmitting(true);
     setError(null);
@@ -114,10 +109,13 @@ function TranscribeSection() {
         >
           {recording ? "Stop recording" : "Record"}
         </button>
-        <label className="btn-secondary cursor-pointer">
-          Upload audio file
-          <input type="file" accept="audio/*" onChange={onFileChosen} className="hidden" />
-        </label>
+        <FileUploadButton
+          accept="audio/*"
+          label="Upload audio file"
+          onFile={(file) => void submitAudio(file, file.name)}
+          disabled={submitting}
+          className="btn-secondary"
+        />
         {submitting && <span className="text-sm text-muted">Uploading…</span>}
       </div>
 
@@ -130,7 +128,7 @@ function TranscribeSection() {
       {entry && (
         <div className="mt-4 rounded-md border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span className={`status-pill ${statusPillClass(entry.status)}`}>
+            <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
             {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}
@@ -214,7 +212,7 @@ function SpeechSection() {
       {entry && (
         <div className="mt-4 rounded-md border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span className={`status-pill ${statusPillClass(entry.status)}`}>
+            <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
             {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}

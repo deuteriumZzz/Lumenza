@@ -35,6 +35,30 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 50;
+  transform: translateY(calc(-100% - 1rem));
+  border-radius: 0.375rem;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 150ms ease-out;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 /* Zones (see DESIGN.md) — a restrained hue shift on primary/accent plus a
    near-imperceptible background/surface chroma tint per section of the
    product, NOT a different palette per section. "desk" (chat/history/

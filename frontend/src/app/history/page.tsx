@@ -84,7 +84,7 @@ function History() {
         </p>
       )}
 
-      {!error && loading && <p className="mt-10 text-sm text-muted">Loading…</p>}
+      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Loading…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
         <p className="mt-10 text-sm text-muted">

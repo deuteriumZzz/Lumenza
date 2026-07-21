@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
 import { ZoneScope } from "@/components/zone";
+import { AccessibilityShell } from "@/components/accessibility-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,10 +33,9 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-bg text-ink">
         <AuthProvider>
-          <Nav />
-          <main className="flex flex-1 flex-col">
+          <AccessibilityShell navigation={<Nav />}>
             <ZoneScope>{children}</ZoneScope>
-          </main>
+          </AccessibilityShell>
         </AuthProvider>
       </body>
     </html>

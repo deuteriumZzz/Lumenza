@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type PhotoAnalysisEntry } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 import { usePolledStatus } from "@/lib/use-polled-status";
+import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
@@ -25,13 +26,9 @@ function Analyze() {
   const [entry, setEntry] = useState<PhotoAnalysisEntry | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
-  function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) {
-      setPreview(URL.createObjectURL(file));
-      void submitPhoto(file);
-    }
-    event.target.value = "";
+  function onFileChosen(file: File) {
+    setPreview(URL.createObjectURL(file));
+    void submitPhoto(file);
   }
 
   async function submitPhoto(file: File) {
@@ -74,10 +71,12 @@ function Analyze() {
       </p>
 
       <div className="mt-6 rounded-md border border-border bg-surface p-4">
-        <label className="btn-primary inline-block cursor-pointer">
-          {submitting ? "Uploading…" : "Upload photo"}
-          <input type="file" accept="image/*" onChange={onFileChosen} disabled={submitting} className="hidden" />
-        </label>
+        <FileUploadButton
+          accept="image/*"
+          label={submitting ? "Uploading…" : "Upload photo"}
+          onFile={onFileChosen}
+          disabled={submitting}
+        />
 
         {error && (
           <p role="alert" className="mt-3 text-sm text-danger">
@@ -94,7 +93,7 @@ function Analyze() {
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs text-muted">
-              <span className={`status-pill ${statusPillClass(entry.status)}`}>
+              <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
                 {entry.status}
               </span>
               {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}

@@ -18,7 +18,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-24">
+      <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-24">
         <h1
           className="text-balance text-4xl font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-5xl"
           style={{ textWrap: "balance" }}
@@ -59,7 +59,7 @@ export default function Home() {
             <dd className="mt-1 text-sm text-muted">logged with exact cost and latency</dd>
           </div>
         </dl>
-      </main>
+      </section>
     </div>
   );
 }

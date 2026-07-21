@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CopyResponseButton } from "@/components/copy-response-button";
-import { LockedOptionPicker } from "@/components/locked-option-picker";
+import {
+  LockedOptionPicker,
+  lockedOptionAccessibleName,
+} from "@/components/locked-option-picker";
 import { RequireAuth } from "@/components/require-auth";
 import { UnlockToasts } from "@/components/unlock-toast";
 import { useAuth } from "@/lib/auth-context";
@@ -218,6 +221,7 @@ function Chat() {
                   key={`${entry.provider}/${entry.model}`}
                   type="button"
                   title={lockedHint}
+                  aria-label={lockedOptionAccessibleName(label, entry.unlocked, lockedHint)}
                   aria-pressed={selectedModel === entry.model}
                   aria-disabled={!entry.unlocked}
                   onClick={() => entry.unlocked && setSelectedModel(entry.model)}

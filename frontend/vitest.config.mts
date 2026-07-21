@@ -9,10 +9,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: [
+        "src/components/accessibility-shell.tsx",
         "src/components/copy-response-button.tsx",
+        "src/components/file-upload-button.tsx",
         "src/components/history-filters.tsx",
         "src/components/image-lightbox.tsx",
+        "src/components/locked-option-picker.tsx",
         "src/components/nav.tsx",
+        "src/components/require-auth.tsx",
         "src/proxy.ts",
       ],
       thresholds: {

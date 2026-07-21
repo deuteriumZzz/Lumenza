@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type DocumentExtractionEntry } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 import { usePolledStatus } from "@/lib/use-polled-status";
+import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
@@ -23,12 +24,6 @@ function Documents() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entry, setEntry] = useState<DocumentExtractionEntry | null>(null);
-
-  function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) void submitDocument(file);
-    event.target.value = "";
-  }
 
   async function submitDocument(file: File) {
     setSubmitting(true);
@@ -69,10 +64,12 @@ function Documents() {
       </p>
 
       <div className="mt-6 rounded-md border border-border bg-surface p-4">
-        <label className="btn-primary inline-block cursor-pointer">
-          {submitting ? "Uploading…" : "Upload image or PDF"}
-          <input type="file" accept="image/*,.pdf" onChange={onFileChosen} disabled={submitting} className="hidden" />
-        </label>
+        <FileUploadButton
+          accept="image/*,.pdf"
+          label={submitting ? "Uploading…" : "Upload image or PDF"}
+          onFile={(file) => void submitDocument(file)}
+          disabled={submitting}
+        />
 
         {error && (
           <p role="alert" className="mt-3 text-sm text-danger">
@@ -84,7 +81,7 @@ function Documents() {
       {entry && (
         <div className="mt-4 rounded-md border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span className={`status-pill ${statusPillClass(entry.status)}`}>
+            <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
             {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}

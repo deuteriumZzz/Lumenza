@@ -99,6 +99,15 @@ describe("Nav", () => {
     expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).toBeNull();
   });
 
+  it("marks the current page in desktop and mobile navigation", () => {
+    render(<Nav />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+
+    const currentLinks = screen.getAllByRole("link", { name: "Chat", current: "page" });
+    expect(currentLinks).toHaveLength(2);
+  });
+
   it("closes the mobile menu with Escape", () => {
     render(<Nav />);
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));

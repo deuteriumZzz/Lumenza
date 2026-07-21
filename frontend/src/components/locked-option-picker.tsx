@@ -22,6 +22,14 @@ interface LockedOptionPickerProps {
 const DEFAULT_CLASS_NAME =
   "flex flex-wrap items-center gap-1 self-start rounded-md border border-border bg-surface p-1";
 
+export function lockedOptionAccessibleName(
+  label: string,
+  unlocked: boolean,
+  lockedHint: string,
+): string {
+  return unlocked ? label : `${label}. ${lockedHint}`;
+}
+
 // Общий для chat (задачи и модели) и images (задачи) рендер кнопок с учётом
 // разблокировки: сам прогресс/статус разблокировки приходит из
 // useUnlockProgress, эта часть — только про кнопки.
@@ -57,6 +65,7 @@ export function LockedOptionPicker({
             key={option.value}
             type="button"
             title={unlocked ? option.hint : lockedHint}
+            aria-label={lockedOptionAccessibleName(option.label, unlocked, lockedHint)}
             aria-pressed={selected === option.value}
             aria-disabled={!unlocked}
             onClick={() => unlocked && onSelect(option.value)}
