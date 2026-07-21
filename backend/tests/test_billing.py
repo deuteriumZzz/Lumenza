@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -8,6 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from billing.models import CreditAccount, LedgerEntry, Payment, Subscription
+from billing.tasks import renew_due_subscriptions
 from billing.services import (
     InsufficientCreditsError,
     charge_credits,
@@ -450,6 +452,86 @@ def test_subscribe_creates_pending_subscription_payment(monkeypatch):
     ).exists()  # not active until webhook confirms
 
 
+@override_settings(**YOOKASSA_SETTINGS, PRO_SUBSCRIPTION_PRICE_RUB=990.0)
+def test_subscribe_reuses_pending_subscription_payment(monkeypatch):
+    import billing.services as services
+
+    calls = []
+
+    def create_payment(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {
+            "id": "pay_sub_reused",
+            "status": "pending",
+            "confirmation": {
+                "confirmation_url": "https://yookassa.ru/pay/pay_sub_reused"
+            },
+        }
+
+    monkeypatch.setattr(services, "create_payment", create_payment)
+    monkeypatch.setattr(
+        services,
+        "get_payment",
+        lambda payment_id: {
+            "id": payment_id,
+            "status": "pending",
+            "confirmation": {
+                "confirmation_url": "https://yookassa.ru/pay/pay_sub_reused"
+            },
+        },
+    )
+    client, user = _authed_client("subscriber_pending")
+
+    first = client.post("/api/billing/subscription/subscribe/")
+    second = client.post("/api/billing/subscription/subscribe/")
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.data["confirmation_url"] == second.data["confirmation_url"]
+    assert len(calls) == 1
+    assert Payment.objects.filter(
+        user=user,
+        kind=Payment.Kind.SUBSCRIPTION,
+        status=Payment.Status.PENDING,
+    ).count() == 1
+
+
+@override_settings(**YOOKASSA_SETTINGS, PRO_SUBSCRIPTION_PRICE_RUB=990.0)
+def test_subscribe_reconciles_succeeded_payment_before_webhook(monkeypatch):
+    import billing.services as services
+
+    client, user = _authed_client("subscriber_reconcile")
+    payment = Payment.objects.create(
+        user=user,
+        yookassa_payment_id="pay_sub_reconcile",
+        amount_rub=Decimal("990"),
+        kind=Payment.Kind.SUBSCRIPTION,
+    )
+    monkeypatch.setattr(
+        services,
+        "get_payment",
+        lambda payment_id: {
+            "id": payment_id,
+            "status": "succeeded",
+            "payment_method": {"id": "pm_reconciled"},
+        },
+    )
+    create_payment = MagicMock()
+    monkeypatch.setattr(services, "create_payment", create_payment)
+
+    response = client.post("/api/billing/subscription/subscribe/")
+
+    assert response.status_code == 409
+    create_payment.assert_not_called()
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.SUCCEEDED
+    subscription = Subscription.objects.get(user=user)
+    assert subscription.status == Subscription.Status.ACTIVE
+    assert subscription.yookassa_payment_method_id == "pm_reconciled"
+    user.refresh_from_db()
+    assert user.tier == User.Tier.PAID
+
+
 @override_settings(YOOKASSA_SHOP_ID="", YOOKASSA_SECRET_KEY="")
 def test_subscribe_returns_503_when_yookassa_not_configured():
     client, _ = _authed_client("sub_unconfigured")
@@ -468,6 +550,22 @@ def test_subscribe_returns_409_when_already_subscribed():
     )
 
     response = client.post("/api/billing/subscription/subscribe/")
+    assert response.status_code == 409
+
+
+@override_settings(**YOOKASSA_SETTINGS)
+def test_subscribe_returns_409_during_nonrenewing_paid_period():
+    client, user = _authed_client("nonrenewing_subbed")
+    Subscription.objects.create(
+        user=user,
+        yookassa_payment_method_id="",
+        status=Subscription.Status.NON_RENEWING,
+        price_rub=Decimal("990"),
+        current_period_end=timezone.now() + timezone.timedelta(days=10),
+    )
+
+    response = client.post("/api/billing/subscription/subscribe/")
+
     assert response.status_code == 409
 
 
@@ -508,6 +606,59 @@ def test_webhook_activates_subscription_and_upgrades_tier_on_success(
     assert user.tier == User.Tier.PAID
 
 
+def test_webhook_grants_nonrenewing_period_without_saved_method(
+    monkeypatch,
+):
+    import billing.services as services
+
+    client, user = _authed_client("sub_missing_method")
+    payment = Payment.objects.create(
+        user=user,
+        yookassa_payment_id="pay_sub_missing_method",
+        amount_rub=Decimal("990"),
+        kind=Payment.Kind.SUBSCRIPTION,
+    )
+    monkeypatch.setattr(
+        services,
+        "get_payment",
+        lambda payment_id: {"status": "succeeded"},
+    )
+
+    response = _post_webhook(APIClient(), payment.yookassa_payment_id)
+
+    assert response.status_code == 200
+    payment.refresh_from_db()
+    assert payment.status == Payment.Status.SUCCEEDED
+    subscription = Subscription.objects.get(user=user)
+    assert subscription.status == "non_renewing"
+    assert subscription.yookassa_payment_method_id == ""
+    assert subscription.current_period_end > timezone.now()
+    user.refresh_from_db()
+    assert user.tier == User.Tier.PAID
+
+
+def test_renewal_job_expires_nonrenewing_subscription():
+    user = User.objects.create_user(
+        username="sub_nonrenewing_expired", password="strongpass123"
+    )
+    user.tier = User.Tier.PAID
+    user.save(update_fields=["tier"])
+    subscription = Subscription.objects.create(
+        user=user,
+        yookassa_payment_method_id="",
+        status="non_renewing",
+        price_rub=Decimal("990"),
+        current_period_end=timezone.now() - timezone.timedelta(minutes=1),
+    )
+
+    assert renew_due_subscriptions() == 1
+
+    subscription.refresh_from_db()
+    assert subscription.status == Subscription.Status.CANCELED
+    user.refresh_from_db()
+    assert user.tier == User.Tier.FREE
+
+
 def test_unsubscribe_downgrades_tier_and_cancels_subscription():
     client, user = _authed_client("sub_cancel")
     user.tier = User.Tier.PAID
@@ -526,6 +677,27 @@ def test_unsubscribe_downgrades_tier_and_cancels_subscription():
     assert subscription.status == Subscription.Status.CANCELED
     assert subscription.canceled_at is not None
 
+    user.refresh_from_db()
+    assert user.tier == User.Tier.FREE
+
+
+def test_unsubscribe_cancels_nonrenewing_paid_period():
+    client, user = _authed_client("sub_cancel_nonrenewing")
+    user.tier = User.Tier.PAID
+    user.save(update_fields=["tier"])
+    Subscription.objects.create(
+        user=user,
+        yookassa_payment_method_id="",
+        status=Subscription.Status.NON_RENEWING,
+        price_rub=Decimal("990"),
+        current_period_end=timezone.now() + timezone.timedelta(days=10),
+    )
+
+    response = client.post("/api/billing/subscription/cancel/")
+
+    assert response.status_code == 204
+    subscription = Subscription.objects.get(user=user)
+    assert subscription.status == Subscription.Status.CANCELED
     user.refresh_from_db()
     assert user.tier == User.Tier.FREE
 
@@ -555,7 +727,7 @@ def test_renew_subscription_success_extends_period_and_creates_payment(
     monkeypatch.setattr(
         services,
         "charge_saved_payment_method",
-        lambda payment_method_id, amount_rub, description: {
+        lambda payment_method_id, amount_rub, description, idempotency_key: {
             "id": "pay_renew_ok",
             "status": "succeeded",
         },
@@ -570,6 +742,37 @@ def test_renew_subscription_success_extends_period_and_creates_payment(
     payment = Payment.objects.get(yookassa_payment_id="pay_renew_ok")
     assert payment.kind == Payment.Kind.SUBSCRIPTION
     assert payment.status == Payment.Status.SUCCEEDED
+
+
+def test_renew_subscription_is_idempotent_for_the_same_period(monkeypatch):
+    import billing.services as services
+
+    user = User.objects.create_user(
+        username="sub_renew_duplicate", password="strongpass123"
+    )
+    subscription = Subscription.objects.create(
+        user=user,
+        yookassa_payment_method_id="pm_renew_duplicate",
+        price_rub=Decimal("990"),
+        current_period_end=timezone.now() - timezone.timedelta(hours=1),
+    )
+    calls = []
+
+    def charge(
+        payment_method_id, amount_rub, description, idempotency_key
+    ):
+        calls.append(idempotency_key)
+        return {"id": "pay_renew_duplicate", "status": "succeeded"}
+
+    monkeypatch.setattr(services, "charge_saved_payment_method", charge)
+
+    assert renew_subscription(subscription) is True
+    assert renew_subscription(subscription) is False
+    assert len(calls) == 1
+    assert calls[0].startswith(f"lumenza-sub-{subscription.pk}-")
+    assert Payment.objects.filter(
+        yookassa_payment_id="pay_renew_duplicate"
+    ).count() == 1
 
 
 def test_renew_subscription_failure_marks_past_due_and_downgrades_tier(
@@ -589,7 +792,7 @@ def test_renew_subscription_failure_marks_past_due_and_downgrades_tier(
         current_period_end=timezone.now() - timezone.timedelta(hours=1),
     )
 
-    def boom(payment_method_id, amount_rub, description):
+    def boom(payment_method_id, amount_rub, description, idempotency_key):
         raise YooKassaError("card declined")
 
     monkeypatch.setattr(services, "charge_saved_payment_method", boom)

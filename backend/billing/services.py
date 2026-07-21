@@ -182,6 +182,12 @@ def confirm_payment(yookassa_payment_id: str) -> ConfirmTopupOutcome:
     # и только локальные чтение-проверка-запись выполняются под
     # блокировкой.
     with transaction.atomic():
+        # Keep the same User -> Payment lock order as start_subscription().
+        # A delayed YooKassa webhook can race a user's subscribe retry, so
+        # reversing these locks would allow the two transactions to deadlock.
+        locked_user = User.objects.select_for_update().get(
+            pk=payment.user_id
+        )
         payment = Payment.objects.select_for_update().get(pk=payment.pk)
 
         if payment.status == Payment.Status.SUCCEEDED:
@@ -204,12 +210,12 @@ def confirm_payment(yookassa_payment_id: str) -> ConfirmTopupOutcome:
 
         if payment.kind == Payment.Kind.TOPUP:
             grant_credits(
-                payment.user,
+                locked_user,
                 payment.credits_amount,
                 reason=LedgerEntry.Reason.TOPUP,
             )
         else:
-            _activate_subscription(payment.user, payment.amount_rub, remote)
+            _activate_subscription(locked_user, payment.amount_rub, remote)
 
         return ConfirmTopupOutcome(status="credited", payment=payment)
 
@@ -222,7 +228,11 @@ def _activate_subscription(
         user=user,
         defaults={
             "yookassa_payment_method_id": payment_method_id,
-            "status": Subscription.Status.ACTIVE,
+            "status": (
+                Subscription.Status.ACTIVE
+                if payment_method_id
+                else Subscription.Status.NON_RENEWING
+            ),
             "price_rub": price_rub,
             "current_period_end": timezone.now() + SUBSCRIPTION_PERIOD,
             "canceled_at": None,
@@ -239,14 +249,58 @@ class StartSubscriptionOutcome:
     confirmation_url: Optional[str] = None
 
 
+@transaction.atomic
 def start_subscription(user, price_rub: Decimal) -> StartSubscriptionOutcome:
     if not settings.YOOKASSA_SHOP_ID or not settings.YOOKASSA_SECRET_KEY:
         return StartSubscriptionOutcome(status="unavailable")
 
+    locked_user = User.objects.select_for_update().get(pk=user.pk)
     if Subscription.objects.filter(
-        user=user, status=Subscription.Status.ACTIVE
+        user=locked_user,
+        status__in=(
+            Subscription.Status.ACTIVE,
+            Subscription.Status.NON_RENEWING,
+        ),
     ).exists():
         return StartSubscriptionOutcome(status="already_subscribed")
+
+    pending_payment = (
+        Payment.objects.filter(
+            user=locked_user,
+            kind=Payment.Kind.SUBSCRIPTION,
+            status=Payment.Status.PENDING,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if pending_payment is not None:
+        try:
+            remote = get_payment(pending_payment.yookassa_payment_id)
+        except YooKassaError:
+            return StartSubscriptionOutcome(status="unavailable")
+
+        remote_status = remote.get("status")
+        if remote_status == "canceled":
+            pending_payment.status = Payment.Status.CANCELED
+            pending_payment.save(update_fields=["status", "updated_at"])
+        elif remote_status == "succeeded":
+            pending_payment.status = Payment.Status.SUCCEEDED
+            pending_payment.save(update_fields=["status", "updated_at"])
+            _activate_subscription(
+                locked_user, pending_payment.amount_rub, remote
+            )
+            return StartSubscriptionOutcome(status="already_subscribed")
+        else:
+            confirmation_url = remote.get("confirmation", {}).get(
+                "confirmation_url"
+            )
+            if not confirmation_url:
+                return StartSubscriptionOutcome(status="unavailable")
+            return StartSubscriptionOutcome(
+                status="created",
+                payment=pending_payment,
+                confirmation_url=confirmation_url,
+            )
 
     return_url = f"{settings.PUBLIC_BASE_URL}/billing"
     try:
@@ -260,7 +314,7 @@ def start_subscription(user, price_rub: Decimal) -> StartSubscriptionOutcome:
         return StartSubscriptionOutcome(status="unavailable")
 
     payment = Payment.objects.create(
-        user=user,
+        user=locked_user,
         yookassa_payment_id=response["id"],
         amount_rub=price_rub,
         kind=Payment.Kind.SUBSCRIPTION,
@@ -279,7 +333,11 @@ def cancel_subscription(user) -> bool:
     даёт FREE-пользователям настоящий, пригодный к использованию продукт, а
     не урезанный."""
     updated = Subscription.objects.filter(
-        user=user, status=Subscription.Status.ACTIVE
+        user=user,
+        status__in=(
+            Subscription.Status.ACTIVE,
+            Subscription.Status.NON_RENEWING,
+        ),
     ).update(status=Subscription.Status.CANCELED, canceled_at=timezone.now())
     if not updated:
         return False
@@ -288,45 +346,92 @@ def cancel_subscription(user) -> bool:
     return True
 
 
+@transaction.atomic
+def expire_nonrenewing_subscription(subscription: Subscription) -> bool:
+    """End a paid first period that could not be made recurring.
+
+    YooKassa can confirm the initial charge without returning a reusable
+    payment method. The user still receives the period they paid for, but the
+    subscription is marked NON_RENEWING and this guarded transition downgrades
+    it exactly once after that period ends.
+    """
+    locked = (
+        Subscription.objects.select_for_update()
+        .select_related("user")
+        .get(pk=subscription.pk)
+    )
+    if (
+        locked.status != Subscription.Status.NON_RENEWING
+        or locked.current_period_end > timezone.now()
+    ):
+        return False
+    locked.status = Subscription.Status.CANCELED
+    locked.canceled_at = timezone.now()
+    locked.save(
+        update_fields=["status", "canceled_at", "updated_at"]
+    )
+    locked.user.tier = User.Tier.FREE
+    locked.user.save(update_fields=["tier"])
+    return True
+
+
+def _renewal_idempotency_key(subscription: Subscription) -> str:
+    period_timestamp = int(subscription.current_period_end.timestamp())
+    return f"lumenza-sub-{subscription.pk}-{period_timestamp}"
+
+
 def renew_subscription(subscription: Subscription) -> bool:
     """Списывает средства за следующий период подписки с сохранённого
     способа оплаты. Вызывается из billing.tasks.renew_subscriptions (Celery
     Beat, ежедневно) для каждой ACTIVE-подписки, у которой current_period_end
     уже прошёл — без участия пользователя, в этом весь смысл
     save_payment_method. Возвращает, удалось ли списание."""
-    try:
-        remote = charge_saved_payment_method(
-            subscription.yookassa_payment_method_id,
-            subscription.price_rub,
-            description="Lumenza Pro subscription renewal",
+    with transaction.atomic():
+        locked = (
+            Subscription.objects.select_for_update()
+            .select_related("user")
+            .get(pk=subscription.pk)
         )
-    except YooKassaError:
-        _mark_past_due(subscription)
-        return False
+        if (
+            locked.status != Subscription.Status.ACTIVE
+            or locked.current_period_end > timezone.now()
+        ):
+            return False
 
-    remote_status = remote.get("status")
-    Payment.objects.create(
-        user=subscription.user,
-        yookassa_payment_id=remote["id"],
-        amount_rub=subscription.price_rub,
-        kind=Payment.Kind.SUBSCRIPTION,
-        status=(
-            Payment.Status.SUCCEEDED
-            if remote_status == "succeeded"
-            else Payment.Status.CANCELED
-        ),
-    )
+        try:
+            remote = charge_saved_payment_method(
+                locked.yookassa_payment_method_id,
+                locked.price_rub,
+                description="Lumenza Pro subscription renewal",
+                idempotency_key=_renewal_idempotency_key(locked),
+            )
+        except YooKassaError:
+            _mark_past_due(locked)
+            return False
 
-    if remote_status != "succeeded":
-        _mark_past_due(subscription)
-        return False
+        remote_status = remote.get("status")
+        Payment.objects.create(
+            user=locked.user,
+            yookassa_payment_id=remote["id"],
+            amount_rub=locked.price_rub,
+            kind=Payment.Kind.SUBSCRIPTION,
+            status=(
+                Payment.Status.SUCCEEDED
+                if remote_status == "succeeded"
+                else Payment.Status.CANCELED
+            ),
+        )
 
-    subscription.current_period_end += SUBSCRIPTION_PERIOD
-    subscription.status = Subscription.Status.ACTIVE
-    subscription.save(
-        update_fields=["current_period_end", "status", "updated_at"]
-    )
-    return True
+        if remote_status != "succeeded":
+            _mark_past_due(locked)
+            return False
+
+        locked.current_period_end += SUBSCRIPTION_PERIOD
+        locked.status = Subscription.Status.ACTIVE
+        locked.save(
+            update_fields=["current_period_end", "status", "updated_at"]
+        )
+        return True
 
 
 def _mark_past_due(subscription: Subscription) -> None:

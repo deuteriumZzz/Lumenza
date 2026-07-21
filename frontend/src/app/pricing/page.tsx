@@ -149,10 +149,12 @@ function Pricing() {
 
         {subscription === undefined ? (
           <p className="mt-4 text-xs text-muted">Loading…</p>
-        ) : subscription && subscription.status === "active" ? (
+        ) : subscription && (subscription.status === "active" || subscription.status === "non_renewing") ? (
           <div className="mt-4">
             <p className="text-sm text-ink">
-              Active — renews {new Date(subscription.current_period_end).toLocaleDateString()}
+              {subscription.status === "active"
+                ? `Active — renews ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                : `Active until ${new Date(subscription.current_period_end).toLocaleDateString()} — won't renew automatically`}
             </p>
             <button
               type="button"

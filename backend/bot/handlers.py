@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -19,6 +20,11 @@ from billing.services import (
     start_subscription,
 )
 from bot.services import get_or_create_telegram_user
+from core.validators import (
+    MAX_AUDIO_UPLOAD_BYTES,
+    MAX_DOCUMENT_UPLOAD_BYTES,
+    MAX_IMAGE_UPLOAD_BYTES,
+)
 from imagegen.services import start_image_edit, start_image_generation
 from media_ops.services import (
     start_document_extraction,
@@ -41,6 +47,55 @@ DEFAULT_TASK = "repurpose"
 # progression.services.BASE_FREE_KEYS, чтобы первая команда /image у
 # совершенно нового FREE-пользователя никогда не была заблокирована.
 DEFAULT_IMAGE_TASK = "illustration"
+SUPPORTED_DOCUMENT_MIME_TYPES = frozenset(
+    {"image/jpeg", "image/png", "image/webp"}
+)
+SUPPORTED_DOCUMENT_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+
+
+async def _reject_oversized_upload(
+    message: Message, file_size: int | None, max_bytes: int
+) -> bool:
+    if isinstance(file_size, int) and file_size > max_bytes:
+        await message.answer(
+            f"File is too large. Maximum size is "
+            f"{max_bytes // (1024 * 1024)} MB."
+        )
+        return True
+    return False
+
+
+async def _get_verified_telegram_file(
+    message: Message,
+    file_id: str,
+    reported_size: int | None,
+    max_bytes: int,
+):
+    if await _reject_oversized_upload(message, reported_size, max_bytes):
+        return None
+
+    file = await message.bot.get_file(file_id)
+    verified_size = (
+        file.file_size
+        if isinstance(getattr(file, "file_size", None), int)
+        else reported_size
+    )
+    if not isinstance(verified_size, int):
+        await message.answer(
+            "Unable to verify file size. Please send a different file."
+        )
+        return None
+    if await _reject_oversized_upload(message, verified_size, max_bytes):
+        return None
+    return file
+
+
+async def _download_verified_upload(message: Message, file, max_bytes: int):
+    downloaded = await message.bot.download_file(file.file_path)
+    payload = downloaded.read()
+    if await _reject_oversized_upload(message, len(payload), max_bytes):
+        return None
+    return payload
 
 
 def _task_keyboard(current: str, unlocked: frozenset) -> InlineKeyboardMarkup:
@@ -236,12 +291,24 @@ async def on_unsubscribe(message: Message) -> None:
 
 @router.message(F.voice)
 async def on_voice(message: Message) -> None:
+    file = await _get_verified_telegram_file(
+        message,
+        message.voice.file_id,
+        message.voice.file_size,
+        MAX_AUDIO_UPLOAD_BYTES,
+    )
+    if file is None:
+        return
+
+    audio_bytes = await _download_verified_upload(
+        message, file, MAX_AUDIO_UPLOAD_BYTES
+    )
+    if audio_bytes is None:
+        return
     user, _ = await sync_to_async(get_or_create_telegram_user)(
         message.from_user.id, message.from_user.username or ""
     )
-    file = await message.bot.get_file(message.voice.file_id)
-    audio_bytes = await message.bot.download_file(file.file_path)
-    audio_file = ContentFile(audio_bytes.read(), name="voice.ogg")
+    audio_file = ContentFile(audio_bytes, name="voice.ogg")
 
     outcome = await sync_to_async(start_transcription)(
         user, audio_file, telegram_chat_id=message.chat.id
@@ -276,12 +343,22 @@ async def on_describe_prompt(message: Message, state: FSMContext) -> None:
 @router.message(_awaiting_photo_analysis)
 async def on_photo_analysis(message: Message, state: FSMContext) -> None:
     await state.update_data(awaiting_photo_analysis=False)
+    photo = message.photo[-1]
+    file = await _get_verified_telegram_file(
+        message, photo.file_id, photo.file_size, MAX_IMAGE_UPLOAD_BYTES
+    )
+    if file is None:
+        return
+
+    image_bytes = await _download_verified_upload(
+        message, file, MAX_IMAGE_UPLOAD_BYTES
+    )
+    if image_bytes is None:
+        return
     user, _ = await sync_to_async(get_or_create_telegram_user)(
         message.from_user.id, message.from_user.username or ""
     )
-    file = await message.bot.get_file(message.photo[-1].file_id)
-    image_bytes = await message.bot.download_file(file.file_path)
-    image_file = ContentFile(image_bytes.read(), name="photo.jpg")
+    image_file = ContentFile(image_bytes, name="photo.jpg")
 
     outcome = await sync_to_async(start_photo_analysis)(
         user, image_file, telegram_chat_id=message.chat.id
@@ -309,12 +386,22 @@ async def on_photo_edit(message: Message) -> None:
     # чтобы фото С подписью трактовалось как "отредактируй это фото,
     # используя подпись как промпт" — фото без подписи всё равно
     # проваливается дальше в OCR.
+    photo = message.photo[-1]
+    file = await _get_verified_telegram_file(
+        message, photo.file_id, photo.file_size, MAX_IMAGE_UPLOAD_BYTES
+    )
+    if file is None:
+        return
+
+    image_bytes = await _download_verified_upload(
+        message, file, MAX_IMAGE_UPLOAD_BYTES
+    )
+    if image_bytes is None:
+        return
     user, _ = await sync_to_async(get_or_create_telegram_user)(
         message.from_user.id, message.from_user.username or ""
     )
-    file = await message.bot.get_file(message.photo[-1].file_id)
-    image_bytes = await message.bot.download_file(file.file_path)
-    image_file = ContentFile(image_bytes.read(), name="source.jpg")
+    image_file = ContentFile(image_bytes, name="source.jpg")
 
     outcome = await sync_to_async(start_image_edit)(
         user,
@@ -341,21 +428,39 @@ async def on_photo_edit(message: Message) -> None:
 
 @router.message(F.document | F.photo)
 async def on_document(message: Message) -> None:
+    upload = message.document or message.photo[-1]
+    if message.document:
+        mime_type = message.document.mime_type
+        extension = Path(message.document.file_name or "").suffix.lower()
+        supported_type = mime_type in SUPPORTED_DOCUMENT_MIME_TYPES or (
+            not mime_type and extension in SUPPORTED_DOCUMENT_EXTENSIONS
+        )
+        if not supported_type:
+            await message.answer(
+                "Unsupported document type. Send a JPEG, PNG, or WebP image."
+            )
+            return
+
+    file = await _get_verified_telegram_file(
+        message,
+        upload.file_id,
+        upload.file_size,
+        MAX_DOCUMENT_UPLOAD_BYTES,
+    )
+    if file is None:
+        return
+
+    filename = message.document.file_name if message.document else "photo.jpg"
+
+    document_bytes = await _download_verified_upload(
+        message, file, MAX_DOCUMENT_UPLOAD_BYTES
+    )
+    if document_bytes is None:
+        return
     user, _ = await sync_to_async(get_or_create_telegram_user)(
         message.from_user.id, message.from_user.username or ""
     )
-    # Сообщение с фото содержит несколько разрешений; последнее —
-    # самое большое.
-    file_id = (
-        message.document.file_id
-        if message.document
-        else message.photo[-1].file_id
-    )
-    filename = message.document.file_name if message.document else "photo.jpg"
-
-    file = await message.bot.get_file(file_id)
-    document_bytes = await message.bot.download_file(file.file_path)
-    document_file = ContentFile(document_bytes.read(), name=filename)
+    document_file = ContentFile(document_bytes, name=filename)
 
     outcome = await sync_to_async(start_document_extraction)(
         user, document_file, telegram_chat_id=message.chat.id

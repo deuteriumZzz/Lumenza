@@ -106,6 +106,7 @@ class Subscription(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
+        NON_RENEWING = "non_renewing", "Non-renewing"
         PAST_DUE = "past_due", "Past due"
         CANCELED = "canceled", "Canceled"
 

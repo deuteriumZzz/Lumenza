@@ -9,12 +9,20 @@ from billing.models import CreditAccount
 from bot.handlers import (
     on_balance,
     on_describe_prompt,
+    on_document,
     on_image,
     on_invite,
+    on_photo_edit,
     on_photo_analysis,
     on_start,
     on_task_selected,
     on_text,
+    on_voice,
+)
+from core.validators import (
+    MAX_AUDIO_UPLOAD_BYTES,
+    MAX_DOCUMENT_UPLOAD_BYTES,
+    MAX_IMAGE_UPLOAD_BYTES,
 )
 from bot.services import get_or_create_telegram_user
 from imagegen.models import GeneratedImage
@@ -66,7 +74,9 @@ def _make_photo_message(telegram_id=111, username="tester"):
     message = MagicMock()
     message.text = None
     message.caption = None
-    message.photo = [MagicMock(file_id="photo_file_id")]
+    message.photo = [
+        MagicMock(file_id="photo_file_id", file_size=1024)
+    ]
     message.from_user = MagicMock(id=telegram_id, username=username)
     message.chat = MagicMock(id=telegram_id)
     message.answer = AsyncMock()
@@ -76,6 +86,33 @@ def _make_photo_message(telegram_id=111, username="tester"):
     downloaded = MagicMock()
     downloaded.read = MagicMock(return_value=b"\x89PNG\r\n\x1a\nfakebytes")
     message.bot.download_file = AsyncMock(return_value=downloaded)
+    return message
+
+
+def _make_voice_message(file_size, telegram_id=111):
+    message = _make_message(telegram_id=telegram_id)
+    message.voice = MagicMock(file_id="voice_file_id", file_size=file_size)
+    message.bot.get_file = AsyncMock()
+    message.bot.download_file = AsyncMock()
+    return message
+
+
+def _make_document_message(
+    file_size,
+    mime_type="image/png",
+    file_name="document.png",
+    telegram_id=111,
+):
+    message = _make_message(telegram_id=telegram_id)
+    message.photo = None
+    message.document = MagicMock(
+        file_id="document_file_id",
+        file_name=file_name,
+        file_size=file_size,
+        mime_type=mime_type,
+    )
+    message.bot.get_file = AsyncMock()
+    message.bot.download_file = AsyncMock()
     return message
 
 
@@ -185,6 +222,106 @@ def test_on_photo_analysis_starts_analysis_and_clears_flag():
     record = PhotoAnalysis.objects.get(user__telegram_id=906)
     assert record.status == PhotoAnalysis.Status.OK
     assert record.telegram_chat_id == 906
+
+
+def test_on_voice_rejects_oversized_upload_before_download():
+    message = _make_voice_message(MAX_AUDIO_UPLOAD_BYTES + 1)
+
+    asyncio.run(on_voice(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_voice_rejects_upload_when_size_cannot_be_verified():
+    message = _make_voice_message(None)
+    message.bot.get_file.return_value = MagicMock(
+        file_path="path/to/voice.ogg", file_size=None
+    )
+
+    asyncio.run(on_voice(message))
+
+    message.bot.get_file.assert_awaited_once()
+    message.bot.download_file.assert_not_awaited()
+    assert "verify" in message.answer.await_args.args[0].lower()
+
+
+def test_on_voice_rejects_download_larger_than_verified_metadata():
+    message = _make_voice_message(1024)
+    message.bot.get_file.return_value = MagicMock(
+        file_path="path/to/voice.ogg", file_size=1024
+    )
+    downloaded = MagicMock()
+    downloaded.read.return_value = b"x" * (MAX_AUDIO_UPLOAD_BYTES + 1)
+    message.bot.download_file.return_value = downloaded
+
+    asyncio.run(on_voice(message))
+
+    message.bot.download_file.assert_awaited_once()
+    assert "too large" in message.answer.await_args.args[0].lower()
+    assert not User.objects.filter(telegram_id=111).exists()
+
+
+def test_on_photo_analysis_rejects_oversized_upload_and_clears_flag():
+    message = _make_photo_message(telegram_id=907)
+    message.photo[-1].file_size = MAX_IMAGE_UPLOAD_BYTES + 1
+    state = _make_state({"awaiting_photo_analysis": True})
+
+    asyncio.run(on_photo_analysis(message, state))
+
+    state.update_data.assert_awaited_once_with(
+        awaiting_photo_analysis=False
+    )
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_photo_edit_rejects_oversized_upload_before_download():
+    message = _make_photo_message(telegram_id=908)
+    message.caption = "Make it brighter"
+    message.photo[-1].file_size = MAX_IMAGE_UPLOAD_BYTES + 1
+
+    asyncio.run(on_photo_edit(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_document_rejects_oversized_upload_before_download():
+    message = _make_document_message(MAX_DOCUMENT_UPLOAD_BYTES + 1)
+
+    asyncio.run(on_document(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_document_rejects_unsupported_file_type_before_download():
+    message = _make_document_message(
+        1024, mime_type="application/pdf", file_name="document.pdf"
+    )
+
+    asyncio.run(on_document(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "unsupported" in message.answer.await_args.args[0].lower()
+
+
+def test_on_document_rejects_spoofed_image_extension_before_download():
+    message = _make_document_message(
+        1024, mime_type="application/pdf", file_name="spoof.png"
+    )
+
+    asyncio.run(on_document(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+    assert "unsupported" in message.answer.await_args.args[0].lower()
 
 
 def test_on_balance_reports_current_balance():

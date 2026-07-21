@@ -127,7 +127,7 @@ export interface Payment {
 }
 
 export interface Subscription {
-  status: "active" | "past_due" | "canceled";
+  status: "active" | "non_renewing" | "past_due" | "canceled";
   price_rub: string;
   current_period_end: string;
   canceled_at: string | null;

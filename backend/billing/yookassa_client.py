@@ -13,7 +13,12 @@ class YooKassaError(Exception):
     pass
 
 
-def _request(method: str, path: str, body: dict | None = None) -> dict:
+def _request(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    idempotency_key: str | None = None,
+) -> dict:
     credentials = base64.b64encode(
         f"{settings.YOOKASSA_SHOP_ID}:{settings.YOOKASSA_SECRET_KEY}".encode()
     ).decode()
@@ -25,7 +30,7 @@ def _request(method: str, path: str, body: dict | None = None) -> dict:
         # Требуется YooKassa при создании платежа: без этого повторная
         # отправка того же запроса из-за сетевого сбоя у клиента создала
         # бы второй, отдельный платёж вместо возврата исходного.
-        headers["Idempotence-Key"] = str(uuid.uuid4())
+        headers["Idempotence-Key"] = idempotency_key or str(uuid.uuid4())
 
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(
@@ -71,7 +76,10 @@ def create_payment(
 
 
 def charge_saved_payment_method(
-    payment_method_id: str, amount_rub, description: str
+    payment_method_id: str,
+    amount_rub,
+    description: str,
+    idempotency_key: str,
 ) -> dict:
     """Списание без участия пользователя (off-session) с ранее сохранённого
     способа оплаты — без блока `confirmation`, поскольку тут нет
@@ -87,6 +95,7 @@ def charge_saved_payment_method(
             "capture": True,
             "description": description,
         },
+        idempotency_key=idempotency_key,
     )
 
 
