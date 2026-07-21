@@ -176,21 +176,22 @@ def check_and_unlock(user) -> List[str]:
             "resource_id", flat=True
         )
     )
-    for resource in ModelUnlockable.objects.exclude(
+    for model_resource in ModelUnlockable.objects.exclude(
         min_requests=0, min_distinct_days=0
     ):
-        if resource.id in already_unlocked_model_ids:
+        if model_resource.id in already_unlocked_model_ids:
             continue
         if (
-            count >= resource.min_requests
-            and days >= resource.min_distinct_days
+            count >= model_resource.min_requests
+            and days >= model_resource.min_distinct_days
         ):
             _, created = UserModelUnlock.objects.get_or_create(
-                user=user, resource=resource
+                user=user, resource=model_resource
             )
             if created:
                 newly_unlocked.append(
-                    f"{resource.task}:{resource.provider}/{resource.model}"
+                    f"{model_resource.task}:"
+                    f"{model_resource.provider}/{model_resource.model}"
                 )
     return newly_unlocked
 
