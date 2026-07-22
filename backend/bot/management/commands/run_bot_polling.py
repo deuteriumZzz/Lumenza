@@ -3,7 +3,7 @@ import asyncio
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from bot.dispatcher import create_bot, create_dispatcher
+from bot.dispatcher import configure_menu_button, create_bot, create_dispatcher
 
 
 class Command(BaseCommand):
@@ -22,7 +22,12 @@ class Command(BaseCommand):
 
         bot = create_bot()
         dispatcher = create_dispatcher()
+
+        async def _run():
+            await configure_menu_button(bot)
+            await dispatcher.start_polling(bot)
+
         self.stdout.write(
             self.style.SUCCESS("Starting Telegram bot (long polling)…")
         )
-        asyncio.run(dispatcher.start_polling(bot))
+        asyncio.run(_run())

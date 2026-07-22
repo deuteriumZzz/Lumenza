@@ -12,6 +12,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    WebAppInfo,
 )
 from aiogram.types import User as TelegramUser
 from asgiref.sync import sync_to_async
@@ -157,6 +158,19 @@ def _task_keyboard(current: str, unlocked: frozenset) -> InlineKeyboardMarkup:
     # По 3 в ряд делает 6 категорий читаемыми вместо одного длинного
     # нечитаемого ряда.
     rows = [buttons[i : i + 3] for i in range(0, len(buttons), 3)]
+    # Гейт по MINI_APP_URL: пустой/невалидный URL в WebAppInfo сломал бы
+    # отправку самого сообщения, а не просто выглядел криво — поэтому
+    # кнопка появляется только когда Mini App реально настроен
+    # (HTTPS-домен, зарегистрированный в BotFather).
+    if settings.MINI_APP_URL:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Open App",
+                    web_app=WebAppInfo(url=settings.MINI_APP_URL),
+                )
+            ]
+        )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

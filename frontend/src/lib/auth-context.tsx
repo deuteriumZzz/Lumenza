@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { api, ApiError, type Balance, type User } from "@/lib/api";
+import { api, ApiError, type Balance, type TelegramWidgetPayload, type User } from "@/lib/api";
 
 // Авторизация — это httpOnly cookie, поэтому вкладки не могут отследить
 // вход/выход через событие `storage`, как это было можно с токеном в
@@ -17,12 +17,34 @@ function broadcastAuthChange() {
   channel.close();
 }
 
+// Внутри Telegram Mini App нет формы логина — Telegram сам передаёт
+// подписанные данные пользователя через WebApp.initData. Если это
+// значение есть, обмениваем его на сессию ДО обычной проверки me()/
+// balance() — иначе оба запроса стартуют параллельно и me() может
+// успеть 401-нуться и разлогинить раньше, чем обмен initData успеет
+// поднять cookie (гонка, а не просто медленный первый рендер).
+function getTelegramWebAppInitData(): string | null {
+  if (typeof window === "undefined") return null;
+  const telegram = (
+    window as unknown as { Telegram?: { WebApp?: { initData?: string } } }
+  ).Telegram;
+  return telegram?.WebApp?.initData || null;
+}
+
 interface AuthState {
   user: User | null;
   balance: Balance | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string, referralCode?: string) => Promise<void>;
+  // Один и тот же вызов backend'а обслуживает и вход/регистрацию анонима
+  // через Telegram, и привязку Telegram к уже залогиненной сессии — см.
+  // accounts.views.telegram_auth. Здесь достаточно одного метода: он
+  // просто перечитывает пользователя/баланс после ответа в обоих случаях.
+  authenticateWithTelegram: (
+    source: "widget" | "webapp",
+    payload: TelegramWidgetPayload | string
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   setBalance: (balance: Balance) => void;
@@ -48,7 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     function loadSession() {
       const seq = ++loadSessionSeq.current;
       setLoading(true);
-      Promise.all([api.me(), api.balance()])
+      const initData = getTelegramWebAppInitData();
+      const bootstrap = initData
+        ? api.telegramAuth("webapp", initData).catch(() => undefined)
+        : Promise.resolve(undefined);
+
+      bootstrap
+        .then(() => Promise.all([api.me(), api.balance()]))
         .then(([meRes, balanceRes]) => {
           if (loadSessionSeq.current !== seq) return;
           setUser(meRes);
@@ -92,6 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     broadcastAuthChange();
   }, []);
 
+  const authenticateWithTelegram = useCallback(
+    async (source: "widget" | "webapp", payload: TelegramWidgetPayload | string) => {
+      const res = await api.telegramAuth(source, payload);
+      setUser(res);
+      setBalanceState(await api.balance());
+      broadcastAuthChange();
+    },
+    []
+  );
+
   const logout = useCallback(async () => {
     try {
       await api.logout();
@@ -124,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         register,
+        authenticateWithTelegram,
         logout,
         refreshBalance,
         setBalance: setBalanceState,

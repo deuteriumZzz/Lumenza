@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
+import { TelegramAuthSection } from "@/components/telegram-auth-section";
 
 export default function RegisterPage() {
   // useSearchParams() выводит поддерево из статического рендеринга, если
@@ -89,6 +90,10 @@ function RegisterForm() {
           {submitting ? "Creating account…" : "Create account"}
         </button>
       </form>
+
+      <div className="mt-6">
+        <TelegramAuthSection label="Or sign up with Telegram" onSuccess={() => router.push("/chat")} />
+      </div>
 
       <p className="mt-6 text-sm text-muted">
         Already have an account?{" "}

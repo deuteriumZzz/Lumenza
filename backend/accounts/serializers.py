@@ -37,6 +37,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # Раскрывает только факт привязки, не сам telegram_id — фронтенду
+    # достаточно знать "привязан/не привязан", чтобы показать статус на
+    # /pricing, а не сам числовой Telegram ID пользователя.
+    telegram_linked = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username", "email")
+        fields = ("id", "username", "email", "telegram_linked")
+
+    def get_telegram_linked(self, obj) -> bool:
+        return obj.telegram_id is not None

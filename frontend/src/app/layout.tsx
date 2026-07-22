@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
 import { ZoneScope } from "@/components/zone";
 import { AccessibilityShell } from "@/components/accessibility-shell";
+import { TelegramWebAppProvider } from "@/components/telegram-webapp-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-bg text-ink">
+        <TelegramWebAppProvider />
         <AuthProvider>
           <AccessibilityShell navigation={<Nav />}>
             <ZoneScope>{children}</ZoneScope>

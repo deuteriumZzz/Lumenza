@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
+import { TelegramAuthSection } from "@/components/telegram-auth-section";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -61,6 +62,10 @@ export default function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </button>
       </form>
+
+      <div className="mt-6">
+        <TelegramAuthSection label="Or sign in with Telegram" onSuccess={() => router.push("/chat")} />
+      </div>
 
       <p className="mt-6 text-sm text-muted">
         No account yet?{" "}

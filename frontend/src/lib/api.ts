@@ -78,7 +78,24 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  telegram_linked: boolean;
 }
+
+export interface PublicConfig {
+  telegram_bot_username: string;
+}
+
+// Форма данных, которую официальный виджет "Login with Telegram"
+// передаёт в data-onauth callback — https://core.telegram.org/widgets/login.
+export type TelegramWidgetPayload = {
+  id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+};
 
 export interface Balance {
   balance: string;
@@ -263,6 +280,17 @@ export const api = {
     request<User>("/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/auth/logout/", { method: "POST" }),
   me: () => request<User>("/auth/me/"),
+  publicConfig: () => request<PublicConfig>("/config/"),
+  // Единый эндпоинт для входа/регистрации через Telegram и для привязки
+  // Telegram к уже залогиненному веб-аккаунту — see backend
+  // accounts.views.telegram_auth. `source: "widget"` — payload из
+  // window.Telegram Login Widget; `source: "webapp"` — сырой
+  // `Telegram.WebApp.initData` (см. TelegramWebAppProvider).
+  telegramAuth: (source: "widget" | "webapp", payload: TelegramWidgetPayload | string) =>
+    request<User>("/auth/telegram/", {
+      method: "POST",
+      body: JSON.stringify({ source, payload }),
+    }),
   balance: () => request<Balance>("/billing/balance/"),
   sandboxTopup: (amount: string) =>
     request<Balance>("/billing/topup/sandbox/", {

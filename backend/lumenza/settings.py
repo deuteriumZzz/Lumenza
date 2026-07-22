@@ -324,6 +324,12 @@ TELEGRAM_BOT_USERNAME = env("TELEGRAM_BOT_USERNAME", default="")
 # настоящий домен, а не дефолтный localhost для разработки).
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")
 TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
+# Публичный HTTPS-URL фронтенда (не бэкенда — PUBLIC_BASE_URL выше это он),
+# который Telegram откроет как Mini App — оставить пустым, чтобы не
+# показывать кнопку "Open App"/меню до того, как это будет настоящий
+# HTTPS-домен, зарегистрированный в BotFather (/newapp), иначе
+# WebAppInfo с пустым/localhost URL сломала бы саму отправку /start.
+MINI_APP_URL = env("MINI_APP_URL", default="")
 
 # Sandbox-эндпоинт пополнения баланса начисляет кредиты без реальной
 # оплаты за ними — заглушка на месте настоящей интеграции YooKassa. По

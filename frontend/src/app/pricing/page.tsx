@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
+import { TelegramAuthSection } from "@/components/telegram-auth-section";
 import { useAuth } from "@/lib/auth-context";
 import { api, ApiError, type ReferralStats, type Subscription } from "@/lib/api";
 
@@ -17,7 +18,7 @@ export default function PricingPage() {
 }
 
 function Pricing() {
-  const { balance, setBalance } = useAuth();
+  const { user, balance, setBalance } = useAuth();
   const [amount, setAmount] = useState(PRESETS[1]);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ kind: "success" | "unavailable" | "error"; message: string } | null>(
@@ -180,6 +181,22 @@ function Pricing() {
           <p role="status" className={`mt-3 text-sm ${subNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
             {subNotice.message}
           </p>
+        )}
+      </div>
+
+      <div className="mt-8 rounded-md border border-border bg-surface p-6">
+        <div className="text-sm font-medium text-ink">Telegram account</div>
+        {user?.telegram_linked ? (
+          <p className="mt-3 text-sm text-success">✓ Connected — your balance and history are shared with the bot.</p>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-muted">
+              Connect Telegram to use the same balance and history in the bot as here on the site.
+            </p>
+            <div className="mt-4">
+              <TelegramAuthSection label="Connect Telegram" />
+            </div>
+          </>
         )}
       </div>
 

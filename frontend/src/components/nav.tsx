@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import type { Balance } from "@/lib/api";
+import { TelegramCta } from "@/components/telegram-cta";
 
 const LINKS = [
   { href: "/chat", label: "Chat" },
@@ -142,6 +143,7 @@ export function Nav() {
         </nav>
 
         <div className="ml-auto hidden items-center gap-4 md:flex">
+          <TelegramCta className="text-sm text-muted transition-colors duration-150 hover:text-ink" />
           <BalanceDisplay balance={balance} />
           <button
             type="button"
@@ -216,6 +218,7 @@ export function Nav() {
               );
             })}
           </div>
+          <TelegramCta className="mx-auto mt-3 block w-full max-w-5xl rounded-md border border-border px-3 py-2 text-left text-sm text-muted transition-colors duration-150 hover:bg-surface hover:text-ink" />
           <button
             type="button"
             onClick={signOut}

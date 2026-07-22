@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TelegramCta } from "@/components/telegram-cta";
 
 export default function Home() {
   return (
@@ -6,6 +7,7 @@ export default function Home() {
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
         <span className="text-sm font-semibold tracking-tight text-ink">Lumenza</span>
         <div className="flex items-center gap-3 text-sm">
+          <TelegramCta className="text-muted transition-colors duration-150 hover:text-ink" />
           <Link href="/login" className="text-muted transition-colors duration-150 hover:text-ink">
             Sign in
           </Link>
