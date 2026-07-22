@@ -11,7 +11,7 @@ describe("LockedOptionPicker", () => {
     const onSelect = vi.fn();
     render(
       <LockedOptionPicker
-        ariaLabel="Task"
+        ariaLabel="Задача"
         options={options}
         selected="hook"
         onSelect={onSelect}
@@ -27,7 +27,7 @@ describe("LockedOptionPicker", () => {
     );
 
     const button = screen.getByRole("button", {
-      name: "Post. Locked — 2/5 requests, 1/3 days",
+      name: "Post. Заблокировано — 2/5 запросов, 1/3 дней",
     });
     expect(button.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(button);
@@ -38,7 +38,7 @@ describe("LockedOptionPicker", () => {
     const onSelect = vi.fn();
     render(
       <LockedOptionPicker
-        ariaLabel="Task"
+        ariaLabel="Задача"
         options={options}
         selected="other"
         onSelect={onSelect}

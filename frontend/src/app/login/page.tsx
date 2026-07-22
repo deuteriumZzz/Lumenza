@@ -23,7 +23,7 @@ export default function LoginPage() {
       await login(username, password);
       router.push("/chat");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      setError(err instanceof ApiError ? err.message : "Что-то пошло не так.");
     } finally {
       setSubmitting(false);
     }
@@ -31,11 +31,11 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Sign in</h1>
-      <p className="mt-2 text-sm text-muted">Welcome back — pick up your posts where you left off.</p>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Вход</h1>
+      <p className="mt-2 text-sm text-muted">С возвращением — продолжите с того же места.</p>
 
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <Field label="Username">
+        <Field label="Имя пользователя">
           <input
             required
             autoFocus
@@ -45,7 +45,7 @@ export default function LoginPage() {
             className="input"
           />
         </Field>
-        <Field label="Password">
+        <Field label="Пароль">
           <input
             required
             type="password"
@@ -59,18 +59,18 @@ export default function LoginPage() {
         {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
         <button type="submit" disabled={submitting} className="btn-primary mt-2">
-          {submitting ? "Signing in…" : "Sign in"}
+          {submitting ? "Входим…" : "Войти"}
         </button>
       </form>
 
       <div className="mt-6">
-        <TelegramAuthSection label="Or sign in with Telegram" onSuccess={() => router.push("/chat")} />
+        <TelegramAuthSection label="Или войдите через Telegram" onSuccess={() => router.push("/chat")} />
       </div>
 
       <p className="mt-6 text-sm text-muted">
-        No account yet?{" "}
+        Ещё нет аккаунта?{" "}
         <Link href="/register" className="font-medium text-accent hover:underline">
-          Create one
+          Создать
         </Link>
       </p>
     </div>

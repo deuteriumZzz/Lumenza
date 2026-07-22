@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from "react";
 type CopyStatus = "idle" | "copying" | "copied" | "error";
 
 const COPY_LABELS: Record<CopyStatus, { accessible: string; visible: string }> = {
-  idle: { accessible: "Copy response", visible: "Copy" },
-  copying: { accessible: "Copying response", visible: "Copying…" },
-  copied: { accessible: "Response copied", visible: "Copied" },
+  idle: { accessible: "Скопировать ответ", visible: "Копировать" },
+  copying: { accessible: "Копируется ответ", visible: "Копируется…" },
+  copied: { accessible: "Ответ скопирован", visible: "Скопировано" },
   error: {
-    accessible: "Could not copy response. Try again",
-    visible: "Try again",
+    accessible: "Не удалось скопировать ответ. Попробуйте снова",
+    visible: "Повторить",
   },
 };
 

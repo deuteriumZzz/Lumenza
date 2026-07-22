@@ -8,13 +8,13 @@ import type { Balance } from "@/lib/api";
 import { TelegramCta } from "@/components/telegram-cta";
 
 const LINKS = [
-  { href: "/chat", label: "Chat" },
-  { href: "/images", label: "Images" },
-  { href: "/voice", label: "Voice" },
-  { href: "/documents", label: "Documents" },
-  { href: "/analyze", label: "Analyze" },
-  { href: "/history", label: "History" },
-  { href: "/pricing", label: "Billing" },
+  { href: "/chat", label: "Чат" },
+  { href: "/images", label: "Картинки" },
+  { href: "/voice", label: "Голос" },
+  { href: "/documents", label: "Документы" },
+  { href: "/analyze", label: "Анализ" },
+  { href: "/history", label: "История" },
+  { href: "/pricing", label: "Оплата" },
 ];
 
 const LOW_BALANCE_THRESHOLD = 10;
@@ -64,8 +64,8 @@ function BalanceDisplay({ balance }: { balance: Balance | null }) {
       aria-atomic="true"
       aria-label={
         validBalance === null
-          ? "Balance unavailable"
-          : `Balance ${formattedBalance} credits`
+          ? "Баланс недоступен"
+          : `Баланс ${formattedBalance} кредитов`
       }
       data-balance-change={change}
       className="text-right leading-tight"
@@ -79,7 +79,7 @@ function BalanceDisplay({ balance }: { balance: Balance | null }) {
         {formattedBalance}
       </div>
       <div className={`text-[11px] ${isLow ? "text-danger" : "text-muted"}`}>
-        credits
+        кредитов
       </div>
     </div>
   );
@@ -122,7 +122,7 @@ export function Nav() {
           Lumenza
         </Link>
 
-        <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
           {LINKS.map((link) => {
             const active = pathname.startsWith(link.href);
             return (
@@ -150,7 +150,7 @@ export function Nav() {
             onClick={signOut}
             className="text-sm text-muted transition-colors duration-150 hover:text-ink"
           >
-            Sign out
+            Выйти
           </button>
         </div>
 
@@ -159,7 +159,7 @@ export function Nav() {
           <button
             ref={menuButtonRef}
             type="button"
-            aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
+            aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
             aria-controls="mobile-navigation"
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen((open) => !open)}
@@ -195,7 +195,7 @@ export function Nav() {
         <nav
           ref={mobileNavigationRef}
           id="mobile-navigation"
-          aria-label="Mobile navigation"
+          aria-label="Мобильная навигация"
           className="border-t border-border px-4 py-3 md:hidden"
         >
           <div className="mx-auto grid max-w-5xl grid-cols-2 gap-1">
@@ -224,7 +224,7 @@ export function Nav() {
             onClick={signOut}
             className="mx-auto mt-3 block w-full max-w-5xl rounded-md border border-border px-3 py-2 text-left text-sm text-muted transition-colors duration-150 hover:bg-surface hover:text-ink"
           >
-            Sign out
+            Выйти
           </button>
         </nav>
       )}

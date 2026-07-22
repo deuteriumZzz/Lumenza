@@ -49,13 +49,13 @@ function UnlockToast({
     >
       <span aria-hidden="true">🎉</span>
       <span>
-        <strong className="font-semibold">{label}</strong> unlocked!
+        <strong className="font-semibold">{label}</strong> разблокировано!
       </span>
       <button
         type="button"
         onClick={() => onDismiss(unlockKey)}
         className="ml-2 text-muted transition-colors duration-150 hover:text-ink"
-        aria-label="Dismiss"
+        aria-label="Закрыть"
       >
         ✕
       </button>

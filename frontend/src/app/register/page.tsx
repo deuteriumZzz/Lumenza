@@ -38,7 +38,7 @@ function RegisterForm() {
       await register(username, email, password, referralCode);
       router.push("/chat");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      setError(err instanceof ApiError ? err.message : "Что-то пошло не так.");
     } finally {
       setSubmitting(false);
     }
@@ -46,13 +46,13 @@ function RegisterForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Create an account</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Создать аккаунт</h1>
       <p className="mt-2 text-sm text-muted">
-        Starting balance included — enough for your first posts and visuals before you top up.
+        Стартовый баланс уже включён — хватит на первые посты и визуалы до пополнения.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <Field label="Username">
+        <Field label="Имя пользователя">
           <input
             required
             autoFocus
@@ -72,7 +72,7 @@ function RegisterForm() {
             className="input"
           />
         </Field>
-        <Field label="Password">
+        <Field label="Пароль">
           <input
             required
             type="password"
@@ -87,18 +87,18 @@ function RegisterForm() {
         {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
         <button type="submit" disabled={submitting} className="btn-primary mt-2">
-          {submitting ? "Creating account…" : "Create account"}
+          {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
         </button>
       </form>
 
       <div className="mt-6">
-        <TelegramAuthSection label="Or sign up with Telegram" onSuccess={() => router.push("/chat")} />
+        <TelegramAuthSection label="Или зарегистрируйтесь через Telegram" onSuccess={() => router.push("/chat")} />
       </div>
 
       <p className="mt-6 text-sm text-muted">
-        Already have an account?{" "}
+        Уже есть аккаунт?{" "}
         <Link href="/login" className="font-medium text-accent hover:underline">
-          Sign in
+          Войти
         </Link>
       </p>
     </div>

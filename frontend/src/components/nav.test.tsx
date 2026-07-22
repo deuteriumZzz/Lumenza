@@ -85,40 +85,40 @@ describe("Nav", () => {
   it("opens and closes an accessible mobile navigation menu", () => {
     render(<Nav />);
 
-    const trigger = screen.getByRole("button", { name: "Open navigation" });
+    const trigger = screen.getByRole("button", { name: "Открыть меню" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Мобильная навигация" })).toBeNull();
 
     fireEvent.click(trigger);
 
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    const mobileNavigation = screen.getByRole("navigation", { name: "Mobile navigation" });
-    expect(within(mobileNavigation).getByRole("link", { name: "Images" })).toBeDefined();
+    const mobileNavigation = screen.getByRole("navigation", { name: "Мобильная навигация" });
+    expect(within(mobileNavigation).getByRole("link", { name: "Картинки" })).toBeDefined();
 
-    fireEvent.click(within(mobileNavigation).getByRole("link", { name: "Images" }));
-    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).toBeNull();
+    fireEvent.click(within(mobileNavigation).getByRole("link", { name: "Картинки" }));
+    expect(screen.queryByRole("navigation", { name: "Мобильная навигация" })).toBeNull();
   });
 
   it("marks the current page in desktop and mobile navigation", () => {
     render(<Nav />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
-    const currentLinks = screen.getAllByRole("link", { name: "Chat", current: "page" });
+    const currentLinks = screen.getAllByRole("link", { name: "Чат", current: "page" });
     expect(currentLinks).toHaveLength(2);
   });
 
   it("closes the mobile menu with Escape", () => {
     render(<Nav />);
-    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
     fireEvent.keyDown(window, { key: "Enter" });
-    expect(screen.getByRole("navigation", { name: "Mobile navigation" })).toBeDefined();
+    expect(screen.getByRole("navigation", { name: "Мобильная навигация" })).toBeDefined();
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Open navigation" })).toBeDefined();
+    expect(screen.queryByRole("navigation", { name: "Мобильная навигация" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Открыть меню" })).toBeDefined();
   });
 
   it("announces balance changes and warns when the balance is low", () => {
@@ -127,14 +127,14 @@ describe("Nav", () => {
 
     expect(
       screen
-        .getAllByRole("status", { name: /Balance/ })
+        .getAllByRole("status", { name: /Баланс/ })
         .every((node) => node.dataset.balanceChange === "idle"),
     ).toBe(true);
 
     mocks.auth.balance = { balance: "5.00" };
     rerender(<Nav />);
 
-    const balances = screen.getAllByRole("status", { name: /Balance/ });
+    const balances = screen.getAllByRole("status", { name: /Баланс/ });
     expect(balances.every((node) => node.dataset.balanceChange === "decrease")).toBe(true);
     expect(
       balances.every((node) =>
@@ -146,14 +146,14 @@ describe("Nav", () => {
   it("animates an increase and returns to idle after the animation", () => {
     mocks.auth.balance = null;
     const { rerender } = render(<Nav />);
-    expect(screen.getAllByRole("status", { name: "Balance unavailable" })).toHaveLength(2);
+    expect(screen.getAllByRole("status", { name: "Баланс недоступен" })).toHaveLength(2);
 
     mocks.auth.balance = { balance: "100.00" };
     rerender(<Nav />);
     mocks.auth.balance = { balance: "125.00" };
     rerender(<Nav />);
 
-    const balances = screen.getAllByRole("status", { name: "Balance 125.00 credits" });
+    const balances = screen.getAllByRole("status", { name: "Баланс 125.00 кредитов" });
     expect(balances.every((node) => node.dataset.balanceChange === "increase")).toBe(true);
     balances.forEach((node) =>
       fireEvent.animationEnd(within(node).getByText("125.00")),
@@ -164,7 +164,7 @@ describe("Nav", () => {
   it("signs out and returns to login", async () => {
     render(<Nav />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Выйти" }));
 
     await waitFor(() => expect(mocks.logout).toHaveBeenCalledTimes(1));
     expect(mocks.replace).toHaveBeenCalledWith("/login");

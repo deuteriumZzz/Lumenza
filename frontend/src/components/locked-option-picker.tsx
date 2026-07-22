@@ -58,8 +58,8 @@ export function LockedOptionPicker({
             )
           : 0;
         const lockedHint = p
-          ? `Locked — ${p.current_requests}/${p.target_requests} requests, ${p.current_days}/${p.target_days} days`
-          : "Locked on your plan";
+          ? `Заблокировано — ${p.current_requests}/${p.target_requests} запросов, ${p.current_days}/${p.target_days} дней`
+          : "Заблокировано на вашем тарифе";
         return (
           <button
             key={option.value}

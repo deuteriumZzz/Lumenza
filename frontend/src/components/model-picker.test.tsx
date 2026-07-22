@@ -33,7 +33,7 @@ describe("ModelPicker", () => {
     const onSelect = vi.fn();
     render(<ModelPicker models={models} selectedModel={null} onSelect={onSelect} />);
 
-    const select = screen.getByRole("combobox", { name: "Model" });
+    const select = screen.getByRole("combobox", { name: "Модель" });
     expect((select as HTMLSelectElement).value).toBe("");
     expect(screen.getByRole("option", { name: "gpt-5-mini · openai" })).toBeDefined();
     fireEvent.change(select, { target: { value: "gpt-5-mini" } });
@@ -44,7 +44,7 @@ describe("ModelPicker", () => {
     render(<ModelPicker models={models} selectedModel={null} onSelect={vi.fn()} />);
 
     const locked = screen.getByRole("option", {
-      name: "claude-sonnet-4 · anthropic — locked: 2/5 requests, 1/3 days",
+      name: "claude-sonnet-4 · anthropic — заблокировано: 2/5 запросов, 1/3 дней",
     }) as HTMLOptionElement;
     expect(locked.disabled).toBe(true);
   });

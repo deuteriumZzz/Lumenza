@@ -19,13 +19,13 @@ describe("CopyResponseButton", () => {
     });
 
     render(<CopyResponseButton text={"First line\nSecond line"} />);
-    fireEvent.click(screen.getByRole("button", { name: "Copy response" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скопировать ответ" }));
 
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith("First line\nSecond line"),
     );
     expect(
-      screen.getByRole("button", { name: "Response copied" }),
+      screen.getByRole("button", { name: "Ответ скопирован" }),
     ).toBeDefined();
   });
 
@@ -36,11 +36,11 @@ describe("CopyResponseButton", () => {
     });
 
     render(<CopyResponseButton text="Assistant response" />);
-    fireEvent.click(screen.getByRole("button", { name: "Copy response" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скопировать ответ" }));
 
     expect(
       await screen.findByRole("button", {
-        name: "Could not copy response. Try again",
+        name: "Не удалось скопировать ответ. Попробуйте снова",
       }),
     ).toBeDefined();
   });
@@ -64,16 +64,16 @@ describe("CopyResponseButton", () => {
 
     render(<CopyResponseButton text="Assistant response" />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Copy response" }));
+      fireEvent.click(screen.getByRole("button", { name: "Скопировать ответ" }));
     });
-    expect(screen.getByRole("button", { name: "Response copied" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Ответ скопирован" })).toBeDefined();
 
     act(() => vi.advanceTimersByTime(1000));
-    fireEvent.click(screen.getByRole("button", { name: "Response copied" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ответ скопирован" }));
     act(() => vi.advanceTimersByTime(1000));
 
     expect(
-      screen.getByRole("button", { name: "Copying response" }),
+      screen.getByRole("button", { name: "Копируется ответ" }),
     ).toBeDefined();
     await act(async () => resolveSecondCopy?.());
   });
@@ -96,7 +96,7 @@ describe("CopyResponseButton", () => {
     const { unmount } = render(
       <CopyResponseButton text="Assistant response" />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Copy response" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скопировать ответ" }));
     unmount();
     await act(async () => resolveCopy?.());
 

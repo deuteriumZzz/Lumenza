@@ -15,17 +15,17 @@ function modelLabel(model: string): string {
 export function ModelPicker({ models, selectedModel, onSelect }: ModelPickerProps) {
   return (
     <label className="flex w-fit items-center gap-2 text-xs text-muted">
-      <span>Model</span>
+      <span>Модель</span>
       <select
         value={selectedModel ?? ""}
         onChange={(event) => onSelect(event.target.value || null)}
         className="max-w-64 rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-ink outline-none"
       >
-        <option value="">Auto</option>
+        <option value="">Авто</option>
         {models.map((entry) => {
           const label = modelLabel(entry.model);
           const labelWithProvider = `${label} · ${entry.provider}`;
-          const progress = `${entry.current_requests}/${entry.target_requests} requests, ${entry.current_days}/${entry.target_days} days`;
+          const progress = `${entry.current_requests}/${entry.target_requests} запросов, ${entry.current_days}/${entry.target_days} дней`;
           return (
             <option
               key={`${entry.provider}/${entry.model}`}
@@ -34,7 +34,7 @@ export function ModelPicker({ models, selectedModel, onSelect }: ModelPickerProp
             >
               {entry.unlocked
                 ? labelWithProvider
-                : `${labelWithProvider} — locked: ${progress}`}
+                : `${labelWithProvider} — заблокировано: ${progress}`}
             </option>
           );
         })}

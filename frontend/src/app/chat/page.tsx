@@ -23,12 +23,12 @@ interface Message {
 }
 
 const TASKS: { value: Task; label: string; hint: string }[] = [
-  { value: "hook", label: "Hook", hint: "A short, attention-grabbing opening line" },
-  { value: "longform", label: "Long-form", hint: "A full article or in-depth post" },
-  { value: "hashtags", label: "Hashtags", hint: "Tags for reach and discovery" },
-  { value: "content_plan", label: "Content plan", hint: "Ideas and a schedule for the week ahead" },
-  { value: "repurpose", label: "Repurpose", hint: "Adapt a post for another platform" },
-  { value: "translation", label: "Translation", hint: "Translate or localize a caption" },
+  { value: "hook", label: "Хук", hint: "Короткая цепляющая первая строка" },
+  { value: "longform", label: "Лонгформ", hint: "Полная статья или подробный пост" },
+  { value: "hashtags", label: "Хэштеги", hint: "Теги для охвата и обнаружения" },
+  { value: "content_plan", label: "Контент-план", hint: "Идеи и расписание на неделю вперёд" },
+  { value: "repurpose", label: "Репёрпоз", hint: "Адаптировать пост под другую платформу" },
+  { value: "translation", label: "Перевод", hint: "Перевести или локализовать подпись" },
 ];
 
 const TASK_LABELS: Record<string, string> = Object.fromEntries(
@@ -113,18 +113,18 @@ function Chat() {
       void refreshProgress();
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setError({ kind: "insufficient", message: "Not enough credits for this request. Top up to continue." });
+        setError({ kind: "insufficient", message: "Недостаточно кредитов для этого запроса. Пополните баланс, чтобы продолжить." });
       } else if (err instanceof ApiError && err.status === 403) {
         const code = (err.body as { code?: string } | null)?.code;
         setError({
           kind: "locked",
           message:
             code === "model_locked"
-              ? "This model isn't unlocked on your plan yet — pick another or keep leveling up."
-              : "This task isn't unlocked on your plan yet.",
+              ? "Эта модель ещё не разблокирована на вашем тарифе — выберите другую или продолжайте прокачку."
+              : "Эта задача ещё не разблокирована на вашем тарифе.",
         });
       } else if (err instanceof ApiError && err.status === 502) {
-        setError({ kind: "provider", message: "Every provider for this task failed. Nothing was charged." });
+        setError({ kind: "provider", message: "Все провайдеры для этой задачи не сработали. Списание не производилось." });
       } else {
         setError({ kind: "generic", message: apiErrorMessage(err) });
       }
@@ -138,7 +138,7 @@ function Chat() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6">
-      <h1 className="sr-only">Chat</h1>
+      <h1 className="sr-only">Чат</h1>
       <UnlockToasts
         unlockedKeys={justUnlocked}
         labelFor={(key) => TASK_LABELS[key] ?? key}
@@ -147,8 +147,8 @@ function Chat() {
       <div ref={listRef} className="flex-1 overflow-y-auto py-8">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-muted">
-            <p className="text-sm">Ask for a post, a repurposed caption, or a content plan.</p>
-            <p className="mt-1 text-xs">Pick a task below — cost shows after each reply.</p>
+            <p className="text-sm">Запросите пост, репёрпоз подписи или контент-план.</p>
+            <p className="mt-1 text-xs">Выберите задачу ниже — стоимость покажется после ответа.</p>
           </div>
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">
@@ -180,12 +180,12 @@ function Chat() {
           {error.message}
           {error.kind === "insufficient" && (
             <Link href="/pricing" className="ml-2 font-medium underline">
-              Go to billing
+              К оплате
             </Link>
           )}
           {error.kind === "locked" && (
             <Link href="/pricing" className="ml-2 font-medium underline">
-              Upgrade to unlock
+              Улучшить тариф
             </Link>
           )}
         </div>
@@ -193,7 +193,7 @@ function Chat() {
 
       <form onSubmit={onSubmit} className="mb-8 flex flex-col gap-3 border-t border-border pt-4">
         <LockedOptionPicker
-          ariaLabel="Task"
+          ariaLabel="Задача"
           options={TASKS}
           selected={task}
           onSelect={(value) => setTask(value as Task)}
@@ -219,8 +219,8 @@ function Chat() {
                 void sendPrompt();
               }
             }}
-            placeholder="Ask for a caption, post, or content idea…"
-            aria-label="Message"
+            placeholder="Запросите подпись, пост или идею для контента…"
+            aria-label="Сообщение"
             rows={2}
             maxLength={8000}
             className="input flex-1 resize-none"
@@ -232,7 +232,7 @@ function Chat() {
             transition={springs.snappy}
             className="btn-primary h-fit"
           >
-            Send
+            Отправить
           </motion.button>
         </div>
       </form>
@@ -258,9 +258,9 @@ function MessageBlock({ message }: { message: Message }) {
           <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted">
             <span>{message.meta.provider}/{message.meta.model}</span>
             <span>·</span>
-            <span>{message.meta.credits_charged} credits</span>
-            {message.meta.used_fallback && <span className="status-pill bg-accent">fallback</span>}
-            {message.meta.mocked && <span className="status-pill bg-surface-raised text-muted">mock</span>}
+            <span>{message.meta.credits_charged} кредитов</span>
+            {message.meta.used_fallback && <span className="status-pill bg-accent">резерв</span>}
+            {message.meta.mocked && <span className="status-pill bg-surface-raised text-muted">мок</span>}
           </div>
         )}
       </div>
