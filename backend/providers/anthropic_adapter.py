@@ -52,7 +52,7 @@ class AnthropicAdapter(ProviderAdapter):
     def _mock_result(
         self, prompt: str, model: str, start: float
     ) -> ProviderResult:
-        text = f"[mock:{self.name}/{model}] {prompt[:200]}"
+        text = prompt[:200]
         prompt_tokens = max(1, len(prompt) // 4)
         completion_tokens = max(1, len(text) // 4)
         latency_ms = int((time.monotonic() - start) * 1000)
