@@ -6,6 +6,7 @@ import { Nav } from "@/components/nav";
 import { ZoneScope } from "@/components/zone";
 import { AccessibilityShell } from "@/components/accessibility-shell";
 import { TelegramWebAppProvider } from "@/components/telegram-webapp-provider";
+import { TelegramLinkExistingAccount } from "@/components/telegram-link-existing-account";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <TelegramWebAppProvider />
         <AuthProvider>
           <AccessibilityShell navigation={<Nav />}>
+            <TelegramLinkExistingAccount />
             <ZoneScope>{children}</ZoneScope>
           </AccessibilityShell>
         </AuthProvider>

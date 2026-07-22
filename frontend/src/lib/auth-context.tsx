@@ -23,7 +23,7 @@ function broadcastAuthChange() {
 // balance() — иначе оба запроса стартуют параллельно и me() может
 // успеть 401-нуться и разлогинить раньше, чем обмен initData успеет
 // поднять cookie (гонка, а не просто медленный первый рендер).
-function getTelegramWebAppInitData(): string | null {
+export function getTelegramWebAppInitData(): string | null {
   if (typeof window === "undefined") return null;
   const telegram = (
     window as unknown as { Telegram?: { WebApp?: { initData?: string } } }
@@ -45,6 +45,13 @@ interface AuthState {
     source: "widget" | "webapp",
     payload: TelegramWidgetPayload | string
   ) => Promise<void>;
+  // True right after Telegram WebApp auto-login created a BRAND NEW
+  // account (not an existing telegram_id it recognized) — the signal the
+  // Mini App uses to offer "sign in to link an existing site account"
+  // instead of silently stranding the user on a fresh, empty one.
+  telegramJustCreated: boolean;
+  dismissTelegramJustCreated: () => void;
+  linkTelegramToExistingAccount: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   setBalance: (balance: Balance) => void;
@@ -56,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [balance, setBalanceState] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [telegramJustCreated, setTelegramJustCreated] = useState(false);
 
   // Защита от ответов, приходящих не по порядку: вызов, вытесненный более
   // новым (например, кросс-табовый broadcast срабатывает пока начальная
@@ -72,7 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       const initData = getTelegramWebAppInitData();
       const bootstrap = initData
-        ? api.telegramAuth("webapp", initData).catch(() => undefined)
+        ? api.telegramAuth("webapp", initData).then(
+            (res) => {
+              if (loadSessionSeq.current === seq) setTelegramJustCreated(res.created);
+            },
+            () => undefined
+          )
         : Promise.resolve(undefined);
 
       bootstrap
@@ -130,6 +143,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const dismissTelegramJustCreated = useCallback(() => {
+    setTelegramJustCreated(false);
+  }, []);
+
+  const linkTelegramToExistingAccount = useCallback(
+    async (username: string, password: string) => {
+      // Сначала обычный логин в существующий аккаунт — это меняет
+      // текущую сессию на него. Затем повторно шлём тот же initData:
+      // backend видит уже аутентифицированный запрос и привязывает
+      // telegram_id к ЭТОМУ (сайтовому) аккаунту, а не создаёт ещё один
+      // (см. accounts.views.telegram_auth — ветка is_authenticated).
+      await login(username, password);
+      const initData = getTelegramWebAppInitData();
+      if (initData) {
+        await api.telegramAuth("webapp", initData);
+      }
+      setTelegramJustCreated(false);
+    },
+    [login]
+  );
+
   const logout = useCallback(async () => {
     try {
       await api.logout();
@@ -163,6 +197,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         authenticateWithTelegram,
+        telegramJustCreated,
+        dismissTelegramJustCreated,
+        linkTelegramToExistingAccount,
         logout,
         refreshBalance,
         setBalance: setBalanceState,

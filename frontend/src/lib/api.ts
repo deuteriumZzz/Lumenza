@@ -287,7 +287,7 @@ export const api = {
   // window.Telegram Login Widget; `source: "webapp"` — сырой
   // `Telegram.WebApp.initData` (см. TelegramWebAppProvider).
   telegramAuth: (source: "widget" | "webapp", payload: TelegramWidgetPayload | string) =>
-    request<User>("/auth/telegram/", {
+    request<User & { created: boolean }>("/auth/telegram/", {
       method: "POST",
       body: JSON.stringify({ source, payload }),
     }),

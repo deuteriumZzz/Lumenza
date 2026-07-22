@@ -123,6 +123,7 @@ def test_telegram_auth_endpoint_creates_user_for_anonymous_widget_login():
     assert response.status_code == 200
     user = User.objects.get(telegram_id=111)
     assert response.data["id"] == user.id
+    assert response.data["created"] is True
 
 
 def test_telegram_auth_endpoint_reuses_existing_telegram_user():
@@ -141,6 +142,8 @@ def test_telegram_auth_endpoint_reuses_existing_telegram_user():
     )
     assert first.data["id"] == second.data["id"]
     assert User.objects.filter(telegram_id=222).count() == 1
+    assert first.data["created"] is True
+    assert second.data["created"] is False
 
 
 def test_telegram_auth_endpoint_links_to_authenticated_user():
@@ -154,6 +157,7 @@ def test_telegram_auth_endpoint_links_to_authenticated_user():
         format="json",
     )
     assert response.status_code == 200
+    assert response.data["created"] is False
     user.refresh_from_db()
     assert user.telegram_id == 333
 

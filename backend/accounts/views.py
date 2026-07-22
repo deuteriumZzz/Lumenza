@@ -36,7 +36,7 @@ def _set_auth_cookie(response, token_key: str) -> None:
     )
 
 
-def _token_response(request, user, http_status=status.HTTP_200_OK):
+def _token_response(request, user, http_status=status.HTTP_200_OK, extra_fields=None):
     token, _ = Token.objects.get_or_create(user=user)
     # Заставляет Django выставить cookie csrftoken на этом ответе —
     # нужно, поскольку здесь ничего не рендерит шаблон с {% csrf_token
@@ -44,7 +44,10 @@ def _token_response(request, user, http_status=status.HTTP_200_OK):
     # заголовок X-CSRFToken на каждом небезопасном запросе (см.
     # accounts.authentication.CookieTokenAuthentication._enforce_csrf).
     get_token(request)
-    response = Response(UserSerializer(user).data, status=http_status)
+    data = UserSerializer(user).data
+    if extra_fields:
+        data = {**data, **extra_fields}
+    response = Response(data, status=http_status)
     _set_auth_cookie(response, token.key)
     return response
 
@@ -145,11 +148,16 @@ def telegram_auth(request):
             )
         request.user.telegram_id = identity.id
         request.user.save(update_fields=["telegram_id"])
-        return _token_response(request, request.user)
+        return _token_response(
+            request, request.user, extra_fields={"created": False}
+        )
 
     # Реюз того же bootstrap, что использует бот при первом /start —
     # общая модель User/CreditAccount и welcome-бонус через post_save
     # применяются одинаково независимо от того, кто первым увидел этот
-    # telegram_id: бот-хендлер или этот эндпоинт.
-    user, _ = get_or_create_telegram_user(identity.id, identity.username)
-    return _token_response(request, user)
+    # telegram_id: бот-хендлер или этот эндпоинт. `created` — сигнал для
+    # Mini App: только что заведённому анонимом (без пароля) аккаунту
+    # имеет смысл предложить "войти в существующий сайтовый аккаунт",
+    # уже вернувшемуся — нет.
+    user, created = get_or_create_telegram_user(identity.id, identity.username)
+    return _token_response(request, user, extra_fields={"created": created})
