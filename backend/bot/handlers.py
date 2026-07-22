@@ -248,8 +248,33 @@ async def on_start(
         await sync_to_async(record_referral)(user, command.args)
     account = await sync_to_async(get_or_create_account)(user)
     await state.update_data(task=DEFAULT_TASK)
-    unlocked = await sync_to_async(get_unlocked_keys)(user)
     greeting = "Welcome to Lumenza!" if created else "Welcome back!"
+
+    if settings.MINI_APP_URL:
+        # Mini App покрывает тот же функционал, что и текстовый пикер
+        # ниже — держать оба как основной UI избыточно (два места, где
+        # может сломаться одно и то же). Команды (/task, /image, /voice,
+        # обычный текст) всё равно остаются рабочими без изменений —
+        # это осознанный fallback для клиентов Telegram, которые хуже
+        # открывают Web App (старые версии, некоторые десктопные).
+        await message.answer(
+            f"{greeting}\nBalance: {account.balance} credits.\n\n"
+            "Open the app below for the full experience. Prefer typing? "
+            "/task, /image, and /voice still work here too.",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Open App",
+                            web_app=WebAppInfo(url=settings.MINI_APP_URL),
+                        )
+                    ]
+                ]
+            ),
+        )
+        return
+
+    unlocked = await sync_to_async(get_unlocked_keys)(user)
     await message.answer(
         f"{greeting}\nBalance: {account.balance} credits.\n\n"
         "Send a message for a caption, post, or content idea — or use "

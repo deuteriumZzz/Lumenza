@@ -150,6 +150,27 @@ def test_on_start_greets_links_account_and_sets_default_task():
     state.update_data.assert_awaited_once_with(task="repurpose")
 
 
+def test_on_start_shows_open_app_button_when_mini_app_configured(settings):
+    settings.MINI_APP_URL = "https://example.com/chat"
+    message = _make_message(telegram_id=112)
+    state = _make_state()
+
+    asyncio.run(on_start(message, state, _make_command()))
+
+    message.answer.assert_awaited_once()
+    _, kwargs = message.answer.await_args
+    markup = kwargs["reply_markup"]
+    assert len(markup.inline_keyboard) == 1
+    assert len(markup.inline_keyboard[0]) == 1
+    button = markup.inline_keyboard[0][0]
+    assert button.text == "Open App"
+    assert button.web_app.url == "https://example.com/chat"
+    # Пикер задач в этом режиме не показывается вообще — Mini App его
+    # заменяет, но /task как отдельная команда всё равно продолжает
+    # работать (не тестируется здесь — она не изменилась).
+    state.update_data.assert_awaited_once_with(task="repurpose")
+
+
 def test_on_start_with_referral_deep_link_records_referral():
     referrer, _ = get_or_create_telegram_user(900, "referrer")
     message = _make_message(telegram_id=901)
