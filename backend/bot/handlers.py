@@ -1,3 +1,5 @@
+import io
+from collections.abc import Buffer
 from decimal import Decimal
 from pathlib import Path
 
@@ -6,10 +8,12 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
+    InaccessibleMessage,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
 )
+from aiogram.types import User as TelegramUser
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -26,6 +30,7 @@ from core.validators import (
     MAX_IMAGE_UPLOAD_BYTES,
 )
 from imagegen.services import start_image_edit, start_image_generation
+from imagegen.validation import normalize_generated_image
 from media_ops.services import (
     start_document_extraction,
     start_photo_analysis,
@@ -53,6 +58,21 @@ SUPPORTED_DOCUMENT_MIME_TYPES = frozenset(
 SUPPORTED_DOCUMENT_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
 
+class _UploadTooLargeError(Exception):
+    pass
+
+
+class _LimitedDownload(io.BytesIO):
+    def __init__(self, max_bytes: int):
+        super().__init__()
+        self.max_bytes = max_bytes
+
+    def write(self, data: Buffer) -> int:
+        if self.tell() + memoryview(data).nbytes > self.max_bytes:
+            raise _UploadTooLargeError
+        return super().write(data)
+
+
 async def _reject_oversized_upload(
     message: Message, file_size: int | None, max_bytes: int
 ) -> bool:
@@ -74,7 +94,10 @@ async def _get_verified_telegram_file(
     if await _reject_oversized_upload(message, reported_size, max_bytes):
         return None
 
-    file = await message.bot.get_file(file_id)
+    bot = message.bot
+    if bot is None:
+        return None
+    file = await bot.get_file(file_id)
     verified_size = (
         file.file_size
         if isinstance(getattr(file, "file_size", None), int)
@@ -91,8 +114,28 @@ async def _get_verified_telegram_file(
 
 
 async def _download_verified_upload(message: Message, file, max_bytes: int):
-    downloaded = await message.bot.download_file(file.file_path)
-    payload = downloaded.read()
+    bot = message.bot
+    if bot is None:
+        return None
+    file_path = getattr(file, "file_path", None)
+    if not isinstance(file_path, str) or not file_path:
+        await message.answer("Unable to download that file. Please try again.")
+        return None
+    destination = _LimitedDownload(max_bytes)
+    try:
+        downloaded = await bot.download_file(
+            file_path, destination=destination
+        )
+    except _UploadTooLargeError:
+        await _reject_oversized_upload(message, max_bytes + 1, max_bytes)
+        return None
+    if downloaded is None:
+        await message.answer("Unable to download that file. Please try again.")
+        return None
+    payload = downloaded.read(max_bytes + 1)
+    if not isinstance(payload, bytes):
+        await message.answer("Unable to read that file. Please try again.")
+        return None
     if await _reject_oversized_upload(message, len(payload), max_bytes):
         return None
     return payload
@@ -122,7 +165,41 @@ def _is_plain_text(message: Message) -> bool:
     # избегает зависимости от того, как ведёт себя
     # `F.text.startswith(...)`, когда text равен None (нетекстовые
     # сообщения: фото, стикеры и т.д.).
-    return bool(message.text) and not message.text.startswith("/")
+    text = message.text
+    return isinstance(text, str) and bool(text) and not text.startswith("/")
+
+
+async def _telegram_user_for(message: Message):
+    sender = await _telegram_sender_for(message)
+    if sender is None:
+        return None
+    return await _telegram_user_from_sender(sender)
+
+
+async def _telegram_sender_for(message: Message) -> TelegramUser | None:
+    sender = message.from_user
+    if sender is None:
+        await message.answer("Unable to identify your Telegram account.")
+        return None
+    return sender
+
+
+async def _telegram_user_from_sender(sender: TelegramUser):
+    return await sync_to_async(get_or_create_telegram_user)(
+        sender.id, sender.username or ""
+    )
+
+
+async def _normalize_uploaded_image(
+    message: Message, payload: bytes
+) -> bytes | None:
+    try:
+        return normalize_generated_image(payload)
+    except ValueError:
+        await message.answer(
+            "Invalid image. Send a valid JPEG, PNG, or WebP file."
+        )
+        return None
 
 
 async def _awaiting_photo_analysis(
@@ -135,7 +212,7 @@ async def _awaiting_photo_analysis(
     # on_document), так что одноразовое "взведение" /describe на
     # "следующее фото" вообще не требует трогать ни один из этих
     # обработчиков.
-    if message.photo is None:
+    if not message.photo:
         return False
     data = await state.get_data()
     return bool(data.get("awaiting_photo_analysis"))
@@ -145,9 +222,10 @@ async def _awaiting_photo_analysis(
 async def on_start(
     message: Message, state: FSMContext, command: CommandObject
 ) -> None:
-    user, created = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, created = user_result
     if created and command.args:
         # Прикрепить реферала может только совершенно новый пользователь
         # — почему это делает "один бонус на аккаунт" структурным
@@ -168,9 +246,10 @@ async def on_start(
 
 @router.message(Command("invite"))
 async def on_invite(message: Message) -> None:
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     link = await sync_to_async(referral_link_for)(user)
     await message.answer(
         "Invite friends and you'll both get bonus credits once they "
@@ -180,18 +259,20 @@ async def on_invite(message: Message) -> None:
 
 @router.message(Command("balance"))
 async def on_balance(message: Message) -> None:
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     account = await sync_to_async(get_or_create_account)(user)
     await message.answer(f"Balance: {account.balance} credits.")
 
 
 @router.message(Command("task"))
 async def on_task(message: Message, state: FSMContext) -> None:
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     data = await state.get_data()
     current = data.get("task", DEFAULT_TASK)
     unlocked = await sync_to_async(get_unlocked_keys)(user)
@@ -204,7 +285,11 @@ async def on_task(message: Message, state: FSMContext) -> None:
     lambda callback: (callback.data or "").startswith("task:")
 )
 async def on_task_selected(callback: CallbackQuery, state: FSMContext) -> None:
-    task = callback.data.split(":", 1)[1]
+    callback_data = callback.data
+    if not callback_data or not callback_data.startswith("task:"):
+        await callback.answer("Unknown task", show_alert=True)
+        return
+    task = callback_data.split(":", 1)[1]
     if task not in TASKS:
         await callback.answer("Unknown task", show_alert=True)
         return
@@ -218,7 +303,9 @@ async def on_task_selected(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     await state.update_data(task=task)
-    if callback.message is not None:
+    if callback.message is not None and not isinstance(
+        callback.message, InaccessibleMessage
+    ):
         await callback.message.edit_reply_markup(
             reply_markup=_task_keyboard(task, unlocked)
         )
@@ -234,9 +321,10 @@ async def on_image(message: Message, command: CommandObject) -> None:
         )
         return
 
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     outcome = await sync_to_async(start_image_generation)(
         user, prompt, DEFAULT_IMAGE_TASK, telegram_chat_id=message.chat.id
     )
@@ -260,9 +348,10 @@ async def on_image(message: Message, command: CommandObject) -> None:
 
 @router.message(Command("subscribe"))
 async def on_subscribe(message: Message) -> None:
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     outcome = await sync_to_async(start_subscription)(
         user, Decimal(str(settings.PRO_SUBSCRIPTION_PRICE_RUB))
     )
@@ -279,9 +368,10 @@ async def on_subscribe(message: Message) -> None:
 
 @router.message(Command("unsubscribe"))
 async def on_unsubscribe(message: Message) -> None:
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     canceled = await sync_to_async(cancel_subscription)(user)
     if canceled:
         await message.answer("Your Pro subscription has been canceled.")
@@ -291,10 +381,17 @@ async def on_unsubscribe(message: Message) -> None:
 
 @router.message(F.voice)
 async def on_voice(message: Message) -> None:
+    voice = message.voice
+    if voice is None:
+        await message.answer("Please send a voice message.")
+        return
+    sender = await _telegram_sender_for(message)
+    if sender is None:
+        return
     file = await _get_verified_telegram_file(
         message,
-        message.voice.file_id,
-        message.voice.file_size,
+        voice.file_id,
+        voice.file_size,
         MAX_AUDIO_UPLOAD_BYTES,
     )
     if file is None:
@@ -305,9 +402,7 @@ async def on_voice(message: Message) -> None:
     )
     if audio_bytes is None:
         return
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user, _ = await _telegram_user_from_sender(sender)
     audio_file = ContentFile(audio_bytes, name="voice.ogg")
 
     outcome = await sync_to_async(start_transcription)(
@@ -343,7 +438,14 @@ async def on_describe_prompt(message: Message, state: FSMContext) -> None:
 @router.message(_awaiting_photo_analysis)
 async def on_photo_analysis(message: Message, state: FSMContext) -> None:
     await state.update_data(awaiting_photo_analysis=False)
-    photo = message.photo[-1]
+    photos = message.photo
+    if not photos:
+        await message.answer("Please send a photo to analyze.")
+        return
+    sender = await _telegram_sender_for(message)
+    if sender is None:
+        return
+    photo = photos[-1]
     file = await _get_verified_telegram_file(
         message, photo.file_id, photo.file_size, MAX_IMAGE_UPLOAD_BYTES
     )
@@ -355,10 +457,11 @@ async def on_photo_analysis(message: Message, state: FSMContext) -> None:
     )
     if image_bytes is None:
         return
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
-    image_file = ContentFile(image_bytes, name="photo.jpg")
+    image_bytes = await _normalize_uploaded_image(message, image_bytes)
+    if image_bytes is None:
+        return
+    user, _ = await _telegram_user_from_sender(sender)
+    image_file = ContentFile(image_bytes, name="photo.png")
 
     outcome = await sync_to_async(start_photo_analysis)(
         user, image_file, telegram_chat_id=message.chat.id
@@ -386,7 +489,18 @@ async def on_photo_edit(message: Message) -> None:
     # чтобы фото С подписью трактовалось как "отредактируй это фото,
     # используя подпись как промпт" — фото без подписи всё равно
     # проваливается дальше в OCR.
-    photo = message.photo[-1]
+    caption = (message.caption or "").strip()
+    if not caption:
+        await message.answer("Add a caption describing the edit you want.")
+        return
+    photos = message.photo
+    if not photos:
+        await message.answer("Please send a photo to edit.")
+        return
+    sender = await _telegram_sender_for(message)
+    if sender is None:
+        return
+    photo = photos[-1]
     file = await _get_verified_telegram_file(
         message, photo.file_id, photo.file_size, MAX_IMAGE_UPLOAD_BYTES
     )
@@ -398,14 +512,15 @@ async def on_photo_edit(message: Message) -> None:
     )
     if image_bytes is None:
         return
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
-    image_file = ContentFile(image_bytes, name="source.jpg")
+    image_bytes = await _normalize_uploaded_image(message, image_bytes)
+    if image_bytes is None:
+        return
+    user, _ = await _telegram_user_from_sender(sender)
+    image_file = ContentFile(image_bytes, name="source.png")
 
     outcome = await sync_to_async(start_image_edit)(
         user,
-        message.caption.strip(),
+        caption,
         image_file,
         telegram_chat_id=message.chat.id,
     )
@@ -428,10 +543,18 @@ async def on_photo_edit(message: Message) -> None:
 
 @router.message(F.document | F.photo)
 async def on_document(message: Message) -> None:
-    upload = message.document or message.photo[-1]
-    if message.document:
-        mime_type = message.document.mime_type
-        extension = Path(message.document.file_name or "").suffix.lower()
+    document = message.document
+    photos = message.photo
+    upload = document or (photos[-1] if photos else None)
+    if upload is None:
+        await message.answer("Please upload an image document or photo.")
+        return
+    sender = await _telegram_sender_for(message)
+    if sender is None:
+        return
+    if document:
+        mime_type = document.mime_type
+        extension = Path(document.file_name or "").suffix.lower()
         supported_type = mime_type in SUPPORTED_DOCUMENT_MIME_TYPES or (
             not mime_type and extension in SUPPORTED_DOCUMENT_EXTENSIONS
         )
@@ -450,17 +573,16 @@ async def on_document(message: Message) -> None:
     if file is None:
         return
 
-    filename = message.document.file_name if message.document else "photo.jpg"
-
     document_bytes = await _download_verified_upload(
         message, file, MAX_DOCUMENT_UPLOAD_BYTES
     )
     if document_bytes is None:
         return
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
-    document_file = ContentFile(document_bytes, name=filename)
+    document_bytes = await _normalize_uploaded_image(message, document_bytes)
+    if document_bytes is None:
+        return
+    user, _ = await _telegram_user_from_sender(sender)
+    document_file = ContentFile(document_bytes, name="document.png")
 
     outcome = await sync_to_async(start_document_extraction)(
         user, document_file, telegram_chat_id=message.chat.id
@@ -485,13 +607,17 @@ async def on_document(message: Message) -> None:
 
 @router.message(_is_plain_text)
 async def on_text(message: Message, state: FSMContext) -> None:
-    prompt = message.text.strip()
+    text = message.text
+    if text is None:
+        return
+    prompt = text.strip()
     if not prompt:
         return
 
-    user, _ = await sync_to_async(get_or_create_telegram_user)(
-        message.from_user.id, message.from_user.username or ""
-    )
+    user_result = await _telegram_user_for(message)
+    if user_result is None:
+        return
+    user, _ = user_result
     data = await state.get_data()
     task = data.get("task", DEFAULT_TASK)
 

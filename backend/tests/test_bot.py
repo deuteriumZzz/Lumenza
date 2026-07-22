@@ -1,9 +1,11 @@
 import asyncio
+import io
 import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from django.contrib.auth import get_user_model
+from PIL import Image
 
 from billing.models import CreditAccount
 from bot.handlers import (
@@ -12,19 +14,19 @@ from bot.handlers import (
     on_document,
     on_image,
     on_invite,
-    on_photo_edit,
     on_photo_analysis,
+    on_photo_edit,
     on_start,
     on_task_selected,
     on_text,
     on_voice,
 )
+from bot.services import get_or_create_telegram_user
 from core.validators import (
     MAX_AUDIO_UPLOAD_BYTES,
     MAX_DOCUMENT_UPLOAD_BYTES,
     MAX_IMAGE_UPLOAD_BYTES,
 )
-from bot.services import get_or_create_telegram_user
 from imagegen.models import GeneratedImage
 from providers.models import RequestLog
 from referrals.models import Referral
@@ -70,13 +72,17 @@ def _make_command(args=None):
     return command
 
 
+def _valid_png_bytes():
+    output = io.BytesIO()
+    Image.new("RGB", (2, 2), color="blue").save(output, format="PNG")
+    return output.getvalue()
+
+
 def _make_photo_message(telegram_id=111, username="tester"):
     message = MagicMock()
     message.text = None
     message.caption = None
-    message.photo = [
-        MagicMock(file_id="photo_file_id", file_size=1024)
-    ]
+    message.photo = [MagicMock(file_id="photo_file_id", file_size=1024)]
     message.from_user = MagicMock(id=telegram_id, username=username)
     message.chat = MagicMock(id=telegram_id)
     message.answer = AsyncMock()
@@ -84,7 +90,7 @@ def _make_photo_message(telegram_id=111, username="tester"):
         return_value=MagicMock(file_path="path/to/photo.jpg")
     )
     downloaded = MagicMock()
-    downloaded.read = MagicMock(return_value=b"\x89PNG\r\n\x1a\nfakebytes")
+    downloaded.read = MagicMock(return_value=_valid_png_bytes())
     message.bot.download_file = AsyncMock(return_value=downloaded)
     return message
 
@@ -247,6 +253,18 @@ def test_on_voice_rejects_upload_when_size_cannot_be_verified():
     assert "verify" in message.answer.await_args.args[0].lower()
 
 
+def test_on_voice_rejects_file_without_download_path():
+    message = _make_voice_message(1024)
+    message.bot.get_file.return_value = MagicMock(
+        file_path=None, file_size=1024
+    )
+
+    asyncio.run(on_voice(message))
+
+    message.bot.download_file.assert_not_awaited()
+    assert "download" in message.answer.await_args.args[0].lower()
+
+
 def test_on_voice_rejects_download_larger_than_verified_metadata():
     message = _make_voice_message(1024)
     message.bot.get_file.return_value = MagicMock(
@@ -263,6 +281,34 @@ def test_on_voice_rejects_download_larger_than_verified_metadata():
     assert not User.objects.filter(telegram_id=111).exists()
 
 
+def test_on_voice_caps_stream_while_downloading():
+    message = _make_voice_message(1024)
+    message.bot.get_file.return_value = MagicMock(
+        file_path="path/to/voice.ogg", file_size=1024
+    )
+
+    async def oversized_download(_path, destination):
+        destination.write(b"x" * (MAX_AUDIO_UPLOAD_BYTES + 1))
+        return destination
+
+    message.bot.download_file.side_effect = oversized_download
+
+    asyncio.run(on_voice(message))
+
+    assert "too large" in message.answer.await_args.args[0].lower()
+    assert not User.objects.filter(telegram_id=111).exists()
+
+
+def test_on_voice_rejects_missing_sender_before_download():
+    message = _make_voice_message(1024)
+    message.from_user = None
+
+    asyncio.run(on_voice(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+
+
 def test_on_photo_analysis_rejects_oversized_upload_and_clears_flag():
     message = _make_photo_message(telegram_id=907)
     message.photo[-1].file_size = MAX_IMAGE_UPLOAD_BYTES + 1
@@ -270,12 +316,21 @@ def test_on_photo_analysis_rejects_oversized_upload_and_clears_flag():
 
     asyncio.run(on_photo_analysis(message, state))
 
-    state.update_data.assert_awaited_once_with(
-        awaiting_photo_analysis=False
-    )
+    state.update_data.assert_awaited_once_with(awaiting_photo_analysis=False)
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
     assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_photo_analysis_rejects_missing_sender_before_download():
+    message = _make_photo_message(telegram_id=9071)
+    message.from_user = None
+    state = _make_state({"awaiting_photo_analysis": True})
+
+    asyncio.run(on_photo_analysis(message, state))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
 
 
 def test_on_photo_edit_rejects_oversized_upload_before_download():
@@ -288,6 +343,17 @@ def test_on_photo_edit_rejects_oversized_upload_before_download():
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
     assert "too large" in message.answer.await_args.args[0].lower()
+
+
+def test_on_photo_edit_rejects_missing_sender_before_download():
+    message = _make_photo_message(telegram_id=9081)
+    message.caption = "Make it brighter"
+    message.from_user = None
+
+    asyncio.run(on_photo_edit(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
 
 
 def test_on_document_rejects_oversized_upload_before_download():
@@ -324,6 +390,31 @@ def test_on_document_rejects_spoofed_image_extension_before_download():
     assert "unsupported" in message.answer.await_args.args[0].lower()
 
 
+def test_on_document_rejects_missing_sender_before_download():
+    message = _make_document_message(1024, telegram_id=9091)
+    message.from_user = None
+
+    asyncio.run(on_document(message))
+
+    message.bot.get_file.assert_not_awaited()
+    message.bot.download_file.assert_not_awaited()
+
+
+def test_on_document_rejects_invalid_image_content():
+    message = _make_document_message(1024, telegram_id=9092)
+    message.bot.get_file.return_value = MagicMock(
+        file_path="path/to/document.png", file_size=1024
+    )
+    downloaded = MagicMock()
+    downloaded.read.return_value = b"not-an-image"
+    message.bot.download_file.return_value = downloaded
+
+    asyncio.run(on_document(message))
+
+    assert "invalid image" in message.answer.await_args.args[0].lower()
+    assert not User.objects.filter(telegram_id=9092).exists()
+
+
 def test_on_balance_reports_current_balance():
     get_or_create_telegram_user(222, "bal")
     message = _make_message(telegram_id=222)
@@ -332,6 +423,53 @@ def test_on_balance_reports_current_balance():
 
     message.answer.assert_awaited_once()
     assert "credits" in message.answer.await_args.args[0]
+
+
+def test_on_balance_rejects_update_without_sender():
+    message = _make_message()
+    message.from_user = None
+
+    asyncio.run(on_balance(message))
+
+    assert "identify" in message.answer.await_args.args[0].lower()
+
+
+def test_on_voice_rejects_update_without_voice_payload():
+    message = _make_message()
+    message.voice = None
+
+    asyncio.run(on_voice(message))
+
+    assert "voice" in message.answer.await_args.args[0].lower()
+
+
+def test_on_voice_rejects_update_without_bot_context():
+    message = _make_voice_message(1024)
+    message.bot = None
+
+    asyncio.run(on_voice(message))
+
+    message.answer.assert_not_awaited()
+
+
+def test_on_photo_edit_rejects_missing_caption_before_download():
+    message = _make_photo_message()
+    message.caption = None
+
+    asyncio.run(on_photo_edit(message))
+
+    message.bot.get_file.assert_not_awaited()
+    assert "caption" in message.answer.await_args.args[0].lower()
+
+
+def test_on_document_rejects_update_without_upload():
+    message = _make_message()
+    message.document = None
+    message.photo = None
+
+    asyncio.run(on_document(message))
+
+    assert "upload" in message.answer.await_args.args[0].lower()
 
 
 def test_on_text_runs_chat_and_reports_cost():
@@ -351,6 +489,15 @@ def test_on_text_runs_chat_and_reports_cost():
 
 def test_on_text_ignores_blank_message():
     message = _make_message(text="   ", telegram_id=444)
+    state = _make_state()
+
+    asyncio.run(on_text(message, state))
+
+    message.answer.assert_not_awaited()
+
+
+def test_on_text_ignores_update_without_text():
+    message = _make_message(text=None, telegram_id=445)
     state = _make_state()
 
     asyncio.run(on_text(message, state))
@@ -437,6 +584,17 @@ def test_on_task_selected_rejects_locked_task():
         "Not unlocked on your plan yet", show_alert=True
     )
     callback.message.edit_reply_markup.assert_not_awaited()
+
+
+def test_on_task_selected_rejects_missing_callback_data():
+    callback = MagicMock()
+    callback.data = None
+    callback.answer = AsyncMock()
+    state = _make_state()
+
+    asyncio.run(on_task_selected(callback, state))
+
+    callback.answer.assert_awaited_once_with("Unknown task", show_alert=True)
 
 
 def _telegram_update_payload(
