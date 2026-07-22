@@ -18,14 +18,14 @@ import { statusPillClass } from "@/lib/status-styles";
 import { useUnlockProgress } from "@/lib/use-unlock-progress";
 
 const TASKS: { value: ImageTask; label: string; hint: string }[] = [
-  { value: "realistic", label: "Realistic", hint: "Best quality, photo-like" },
-  { value: "illustration", label: "Illustration", hint: "Fast and cheap, stylized" },
-  { value: "premium", label: "Premium", hint: "Higher-quality general-purpose generation" },
+  { value: "realistic", label: "Реализм", hint: "Лучшее качество, фотореалистично" },
+  { value: "illustration", label: "Иллюстрация", hint: "Быстро и дёшево, стилизовано" },
+  { value: "premium", label: "Премиум", hint: "Более высокое качество, универсальная генерация" },
 ];
 
 const TASK_LABELS: Record<string, string> = {
   ...Object.fromEntries(TASKS.map((option) => [option.value, option.label])),
-  edit: "Edit photo",
+  edit: "Редактировать фото",
 };
 
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
@@ -71,7 +71,7 @@ function Images() {
       },
       (err) => {
         if (cancelled) return;
-        setError(apiErrorMessage(err, "Couldn't load images."));
+        setError(apiErrorMessage(err, "Не удалось загрузить картинки."));
       }
     );
     return () => {
@@ -146,9 +146,9 @@ function Images() {
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setSubmitError("Not enough credits for this request.");
+        setSubmitError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setSubmitError("This visual style isn't unlocked on your plan yet.");
+        setSubmitError("Этот визуальный стиль ещё не разблокирован на вашем тарифе.");
       } else {
         setSubmitError(apiErrorMessage(err));
       }
@@ -179,9 +179,9 @@ function Images() {
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setEditSubmitError("Not enough credits for this request.");
+        setEditSubmitError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setEditSubmitError("Image editing isn't unlocked on your plan yet.");
+        setEditSubmitError("Редактирование фото ещё не разблокировано на вашем тарифе.");
       } else {
         setEditSubmitError(apiErrorMessage(err));
       }
@@ -197,15 +197,15 @@ function Images() {
         labelFor={(key) => TASK_LABELS[key] ?? key}
         onDismiss={dismissUnlock}
       />
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Images</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Картинки</h1>
       <p className="mt-1 text-sm text-muted">
-        Generate visuals for your posts — results land in the gallery below.
+        Генерируйте визуалы для постов — результаты попадают в галерею ниже.
       </p>
 
       <div className="mt-6 flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
         <div
           role="group"
-          aria-label="Image mode"
+          aria-label="Режим работы с картинкой"
           className="flex items-center gap-1 self-start rounded-md border border-border bg-bg p-1"
         >
           <button
@@ -216,7 +216,7 @@ function Images() {
               mode === "generate" ? "bg-primary text-bg" : "text-muted hover:text-ink"
             }`}
           >
-            Generate
+            Сгенерировать
           </button>
           <button
             type="button"
@@ -226,7 +226,7 @@ function Images() {
               mode === "edit" ? "bg-primary text-bg" : "text-muted hover:text-ink"
             }`}
           >
-            {!isUnlocked("edit") && "🔒 "}Edit photo
+            {!isUnlocked("edit") && "🔒 "}Редактировать фото
           </button>
         </div>
 
@@ -237,15 +237,15 @@ function Images() {
                 {(() => {
                   const p = progressFor("edit");
                   return p
-                    ? `Locked — ${p.current_requests}/${p.target_requests} requests, ${p.current_days}/${p.target_days} days`
-                    : "Locked on your plan";
+                    ? `Заблокировано — ${p.current_requests}/${p.target_requests} запросов, ${p.current_days}/${p.target_days} дней`
+                    : "Заблокировано на вашем тарифе";
                 })()}
               </p>
             )}
             <input
               type="file"
               accept="image/*"
-              aria-label="Source photo"
+              aria-label="Исходное фото"
               onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
               className="text-sm text-muted"
             />
@@ -253,8 +253,8 @@ function Images() {
               <textarea
                 value={editPrompt}
                 onChange={(event) => setEditPrompt(event.target.value)}
-                placeholder='Describe the edit — e.g. "make the background blue"…'
-                aria-label="Edit prompt"
+                placeholder='Опишите правку — например, "сделай фон синим"…'
+                aria-label="Промпт для редактирования"
                 rows={2}
                 maxLength={4000}
                 className="input flex-1 resize-none"
@@ -265,7 +265,7 @@ function Images() {
                 disabled={editSubmitting || !editPrompt.trim() || !editFile || !isUnlocked("edit")}
                 className="btn-primary h-fit"
               >
-                {editSubmitting ? "Editing…" : "Edit"}
+                {editSubmitting ? "Редактируем…" : "Редактировать"}
               </button>
             </div>
             {editSubmitError && (
@@ -277,7 +277,7 @@ function Images() {
         ) : (
           <>
         <LockedOptionPicker
-          ariaLabel="Image task"
+          ariaLabel="Тип картинки"
           options={TASKS}
           selected={task}
           onSelect={(value) => setTask(value as ImageTask)}
@@ -290,8 +290,8 @@ function Images() {
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Describe the visual for your post…"
-            aria-label="Image prompt"
+            placeholder="Опишите визуал для вашего поста…"
+            aria-label="Промпт для картинки"
             rows={2}
             maxLength={4000}
             className="input flex-1 resize-none"
@@ -302,7 +302,7 @@ function Images() {
             disabled={submitting || !prompt.trim()}
             className="btn-primary h-fit"
           >
-            {submitting ? "Generating…" : "Generate"}
+            {submitting ? "Генерируем…" : "Сгенерировать"}
           </button>
         </div>
 
@@ -321,10 +321,10 @@ function Images() {
         </p>
       )}
 
-      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Loading…</p>}
+      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Загрузка…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
-        <p className="mt-10 text-sm text-muted">No visuals yet — generate one above.</p>
+        <p className="mt-10 text-sm text-muted">Пока нет визуалов — сгенерируйте один выше.</p>
       )}
 
       {!error && data && data.results.length > 0 && (
@@ -346,7 +346,7 @@ function Images() {
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             className="btn-secondary disabled:opacity-40"
           >
-            Previous
+            Назад
           </button>
           <button
             type="button"
@@ -354,7 +354,7 @@ function Images() {
             onClick={() => setPage((p) => p + 1)}
             className="btn-secondary disabled:opacity-40"
           >
-            Next
+            Далее
           </button>
         </div>
       )}
@@ -375,10 +375,10 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
           />
         ) : inProgress ? (
           <span className="text-xs text-muted" aria-live="polite">
-            Generating…
+            Генерируем…
           </span>
         ) : (
-          <span className="text-xs text-muted">No image</span>
+          <span className="text-xs text-muted">Нет картинки</span>
         )}
       </div>
       <div className="flex flex-col gap-1 p-3">
@@ -387,10 +387,10 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={entry.source_image_url}
-              alt="Original photo"
+              alt="Исходное фото"
               className="h-8 w-8 rounded object-cover"
             />
-            <span className="text-[11px] text-muted">Edited photo</span>
+            <span className="text-[11px] text-muted">Отредактированное фото</span>
           </div>
         )}
         <p className="line-clamp-2 text-xs text-muted">{entry.prompt}</p>

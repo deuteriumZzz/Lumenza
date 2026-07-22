@@ -9,7 +9,7 @@ import { usePolledStatus } from "@/lib/use-polled-status";
 import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
-const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
+const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
 export default function DocumentsPage() {
   return (
@@ -34,9 +34,9 @@ function Documents() {
       void refreshBalance();
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setError("Not enough credits for this request.");
+        setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Document extraction isn't unlocked on your plan yet.");
+        setError("Извлечение текста из документов ещё не разблокировано на вашем тарифе.");
       } else {
         setError(apiErrorMessage(err));
       }
@@ -58,15 +58,15 @@ function Documents() {
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Documents</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Документы</h1>
       <p className="mt-1 text-sm text-muted">
-        Extract text from a screenshot, image, or scanned document — useful for repurposing a competitor&apos;s post.
+        Извлеките текст из скриншота, картинки или скана документа — удобно для репёрпоза поста конкурента.
       </p>
 
       <div className="mt-6 rounded-md border border-border bg-surface p-4">
         <FileUploadButton
           accept="image/*,.pdf"
-          label={submitting ? "Uploading…" : "Upload image or PDF"}
+          label={submitting ? "Загружаем…" : "Загрузить картинку или PDF"}
           onFile={(file) => void submitDocument(file)}
           disabled={submitting}
         />
@@ -84,12 +84,12 @@ function Documents() {
             <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
-            {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}
+            {entry.mocked && <span className="status-pill bg-surface-raised">мок</span>}
           </div>
           {entry.status === "ok" && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{entry.text}</p>}
           {entry.status === "error" && (
             <p className="mt-2 text-sm text-danger">
-              Something went wrong processing this — credits were refunded. Please try again.
+              Что-то пошло не так при обработке — кредиты возвращены. Попробуйте ещё раз.
             </p>
           )}
         </div>

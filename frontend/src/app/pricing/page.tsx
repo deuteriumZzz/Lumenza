@@ -64,9 +64,9 @@ function Pricing() {
       window.location.href = payment.confirmation_url;
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
-        setSubNotice({ kind: "unavailable", message: "Subscriptions aren't configured in this environment." });
+        setSubNotice({ kind: "unavailable", message: "Подписки не настроены в этом окружении." });
       } else {
-        setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Couldn't start subscription." });
+        setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Не удалось оформить подписку." });
       }
       setSubActionPending(false);
     }
@@ -79,7 +79,7 @@ function Pricing() {
       await api.unsubscribe();
       setSubscription((prev) => (prev ? { ...prev, status: "canceled" } : prev));
     } catch (err) {
-      setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Couldn't cancel subscription." });
+      setSubNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Не удалось отменить подписку." });
     } finally {
       setSubActionPending(false);
     }
@@ -91,15 +91,15 @@ function Pricing() {
     try {
       const res = await api.sandboxTopup(amount);
       setBalance(res);
-      setNotice({ kind: "success", message: `Added ${amount} credits.` });
+      setNotice({ kind: "success", message: `Начислено ${amount} кредитов.` });
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setNotice({
           kind: "unavailable",
-          message: "Real payments aren't live yet in this environment — sandbox top-up is disabled.",
+          message: "Реальные платежи ещё не подключены в этом окружении — тестовое пополнение отключено.",
         });
       } else {
-        setNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Top-up failed." });
+        setNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Пополнение не удалось." });
       }
     } finally {
       setSubmitting(false);
@@ -118,9 +118,9 @@ function Pricing() {
       window.location.href = payment.confirmation_url;
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
-        setCardNotice({ kind: "unavailable", message: "Card payments aren't configured in this environment." });
+        setCardNotice({ kind: "unavailable", message: "Оплата картой не настроена в этом окружении." });
       } else {
-        setCardNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Payment failed to start." });
+        setCardNotice({ kind: "error", message: err instanceof ApiError ? err.message : "Не удалось начать оплату." });
       }
       setPayingWithCard(false);
     }
@@ -128,34 +128,34 @@ function Pricing() {
 
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Billing</h1>
-      <p className="mt-1 text-sm text-muted">Current balance and top-up.</p>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Оплата</h1>
+      <p className="mt-1 text-sm text-muted">Текущий баланс и пополнение.</p>
 
       <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-xs uppercase tracking-wide text-muted">Balance</div>
+        <div className="text-xs uppercase tracking-wide text-muted">Баланс</div>
         <div className="mt-1 font-mono text-3xl tabular-nums text-ink">
           {balance ? Number(balance.balance).toFixed(2) : "—"}
-          <span className="ml-2 text-base font-sans text-muted">credits</span>
+          <span className="ml-2 text-base font-sans text-muted">кредитов</span>
         </div>
         <p className="mt-3 text-xs text-muted">
-          Credits cover posts, captions, and visuals — the exact cost of each shows right after you send it.
+          Кредиты покрывают посты, подписи и визуалы — точная стоимость показывается сразу после отправки запроса.
         </p>
       </div>
 
       <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-sm font-medium text-ink">Pro subscription</div>
+        <div className="text-sm font-medium text-ink">Подписка Pro</div>
         <p className="mt-1 text-xs text-muted">
-          Instant access to every model — no gradual unlocking. 990₽/month, cancel anytime.
+          Мгновенный доступ ко всем моделям — без постепенной разблокировки. 990₽/месяц, отмена в любой момент.
         </p>
 
         {subscription === undefined ? (
-          <p className="mt-4 text-xs text-muted">Loading…</p>
+          <p className="mt-4 text-xs text-muted">Загрузка…</p>
         ) : subscription && (subscription.status === "active" || subscription.status === "non_renewing") ? (
           <div className="mt-4">
             <p className="text-sm text-ink">
               {subscription.status === "active"
-                ? `Active — renews ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                : `Active until ${new Date(subscription.current_period_end).toLocaleDateString()} — won't renew automatically`}
+                ? `Активна — продлится ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                : `Активна до ${new Date(subscription.current_period_end).toLocaleDateString()} — автопродление отключено`}
             </p>
             <button
               type="button"
@@ -163,7 +163,7 @@ function Pricing() {
               disabled={subActionPending}
               className="btn-secondary mt-3"
             >
-              {subActionPending ? "Canceling…" : "Cancel subscription"}
+              {subActionPending ? "Отменяем…" : "Отменить подписку"}
             </button>
           </div>
         ) : (
@@ -173,7 +173,7 @@ function Pricing() {
             disabled={subActionPending}
             className="btn-primary mt-4 w-full"
           >
-            {subActionPending ? "Redirecting…" : "Subscribe to Pro"}
+            {subActionPending ? "Переходим…" : "Оформить Pro"}
           </button>
         )}
 
@@ -185,16 +185,16 @@ function Pricing() {
       </div>
 
       <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-sm font-medium text-ink">Telegram account</div>
+        <div className="text-sm font-medium text-ink">Аккаунт Telegram</div>
         {user?.telegram_linked ? (
-          <p className="mt-3 text-sm text-success">✓ Connected — your balance and history are shared with the bot.</p>
+          <p className="mt-3 text-sm text-success">✓ Привязан — баланс и история общие с ботом.</p>
         ) : (
           <>
             <p className="mt-1 text-xs text-muted">
-              Connect Telegram to use the same balance and history in the bot as here on the site.
+              Привяжите Telegram, чтобы использовать тот же баланс и историю в боте, что и на сайте.
             </p>
             <div className="mt-4">
-              <TelegramAuthSection label="Connect Telegram" />
+              <TelegramAuthSection label="Привязать Telegram" />
             </div>
           </>
         )}
@@ -202,33 +202,33 @@ function Pricing() {
 
       {referralStats && (
         <div className="mt-8 rounded-md border border-border bg-surface p-6">
-          <div className="text-sm font-medium text-ink">Invite friends</div>
+          <div className="text-sm font-medium text-ink">Пригласить друзей</div>
           <p className="mt-1 text-xs text-muted">
-            You both get {Number(referralStats.reward_credits).toFixed(0)} credits once they try Lumenza.
+            Вы оба получите {Number(referralStats.reward_credits).toFixed(0)} кредитов, как только они попробуют Lumenza.
           </p>
           <div className="mt-4 flex items-center gap-2">
             <input
               readOnly
               value={referralStats.referral_link}
-              aria-label="Referral link"
+              aria-label="Реферальная ссылка"
               className="input flex-1 text-xs"
               onFocus={(event) => event.target.select()}
             />
             <button type="button" onClick={() => void copyReferralLink()} className="btn-secondary">
-              {copied ? "Copied!" : "Copy"}
+              {copied ? "Скопировано!" : "Копировать"}
             </button>
           </div>
           <p className="mt-3 text-xs text-muted">
-            {referralStats.referred_count} invited · {referralStats.rewarded_count} rewarded
+            Приглашено: {referralStats.referred_count} · Награждено: {referralStats.rewarded_count}
           </p>
         </div>
       )}
 
       <div className="mt-8">
-        <div className="text-sm font-medium text-ink">Top up (sandbox)</div>
-        <p className="mt-1 text-xs text-muted">Sandbox top-up for testing — no real payment.</p>
+        <div className="text-sm font-medium text-ink">Пополнение (тест)</div>
+        <p className="mt-1 text-xs text-muted">Тестовое пополнение для проверки — без реального платежа.</p>
 
-        <div role="group" aria-label="Top-up amount" className="mt-4 flex items-center gap-2">
+        <div role="group" aria-label="Сумма пополнения" className="mt-4 flex items-center gap-2">
           {PRESETS.map((preset) => (
             <button
               key={preset}
@@ -252,7 +252,7 @@ function Pricing() {
           disabled={submitting}
           className="btn-primary mt-4 w-full"
         >
-          {submitting ? "Adding…" : `Add ${amount} credits (sandbox)`}
+          {submitting ? "Начисляем…" : `Начислить ${amount} кредитов (тест)`}
         </button>
 
         {notice && (
@@ -272,10 +272,10 @@ function Pricing() {
       </div>
 
       <div className="mt-8 border-t border-border pt-8">
-        <div className="text-sm font-medium text-ink">Pay with card</div>
-        <p className="mt-1 text-xs text-muted">Real payment via YooKassa — redirects to their checkout.</p>
+        <div className="text-sm font-medium text-ink">Оплата картой</div>
+        <p className="mt-1 text-xs text-muted">Реальный платёж через ЮKassa — переход на их страницу оплаты.</p>
 
-        <div role="group" aria-label="Top-up amount (RUB)" className="mt-4 flex items-center gap-2">
+        <div role="group" aria-label="Сумма пополнения (₽)" className="mt-4 flex items-center gap-2">
           {RUB_PRESETS.map((preset) => (
             <button
               key={preset}
@@ -299,7 +299,7 @@ function Pricing() {
           disabled={payingWithCard}
           className="btn-primary mt-4 w-full"
         >
-          {payingWithCard ? "Redirecting…" : `Pay ${rubAmount}₽`}
+          {payingWithCard ? "Переходим…" : `Оплатить ${rubAmount}₽`}
         </button>
 
         {cardNotice && (

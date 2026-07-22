@@ -21,12 +21,12 @@ export default function HistoryPage() {
 }
 
 const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
-  ok: "ok",
-  error: "error",
-  insufficient_credits: "insufficient credits",
-  blocked: "blocked",
-  task_locked: "task locked",
-  model_locked: "model locked",
+  ok: "ок",
+  error: "ошибка",
+  insufficient_credits: "недостаточно кредитов",
+  blocked: "заблокировано",
+  task_locked: "задача заблокирована",
+  model_locked: "модель заблокирована",
 };
 
 function History() {
@@ -53,7 +53,7 @@ function History() {
       },
       (err) => {
         if (cancelled) return;
-        setError(apiErrorMessage(err, "Couldn't load history."));
+        setError(apiErrorMessage(err, "Не удалось загрузить историю."));
       }
     );
     return () => {
@@ -67,8 +67,8 @@ function History() {
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">History</h1>
-      <p className="mt-1 text-sm text-muted">Every request, with the credits it charged.</p>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">История</h1>
+      <p className="mt-1 text-sm text-muted">Каждый запрос вместе со списанными кредитами.</p>
 
       <HistoryFilters
         onApply={(nextFilters) => {
@@ -84,13 +84,13 @@ function History() {
         </p>
       )}
 
-      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Loading…</p>}
+      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Загрузка…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
         <p className="mt-10 text-sm text-muted">
           {filtersActive
-            ? "No requests match these filters."
-            : "No requests yet — start a chat to see it here."}
+            ? "Нет запросов, подходящих под эти фильтры."
+            : "Пока нет запросов — начните чат, чтобы увидеть их здесь."}
         </p>
       )}
 
@@ -108,8 +108,8 @@ function History() {
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
                   {new Date(entry.created_at).toLocaleString()}
-                  {entry.used_fallback && <span className="ml-2">· fallback used</span>}
-                  {entry.mocked && <span className="ml-2">· mock</span>}
+                  {entry.used_fallback && <span className="ml-2">· использован резерв</span>}
+                  {entry.mocked && <span className="ml-2">· мок</span>}
                 </div>
               </div>
               <span className={`status-pill ${statusPillClass(entry.status)}`}>{STATUS_LABEL[entry.status]}</span>
@@ -127,7 +127,7 @@ function History() {
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             className="btn-secondary disabled:opacity-40"
           >
-            Previous
+            Назад
           </button>
           <button
             type="button"
@@ -135,7 +135,7 @@ function History() {
             onClick={() => setPage((p) => p + 1)}
             className="btn-secondary disabled:opacity-40"
           >
-            Next
+            Далее
           </button>
         </div>
       )}

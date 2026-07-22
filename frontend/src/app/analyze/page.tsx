@@ -9,7 +9,7 @@ import { usePolledStatus } from "@/lib/use-polled-status";
 import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
-const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
+const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
 export default function AnalyzePage() {
   return (
@@ -40,9 +40,9 @@ function Analyze() {
       void refreshBalance();
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setError("Not enough credits for this request.");
+        setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Photo analysis isn't unlocked on your plan yet.");
+        setError("Анализ фото ещё не разблокирован на вашем тарифе.");
       } else {
         setError(apiErrorMessage(err));
       }
@@ -64,16 +64,16 @@ function Analyze() {
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Analyze</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Анализ</h1>
       <p className="mt-1 text-sm text-muted">
-        Upload a photo and get a caption idea for it — describes the content, not literal text in the image
-        (for that, use Documents).
+        Загрузите фото и получите идею для подписи — описывает содержание, а не буквальный текст на картинке
+        (для этого используйте Документы).
       </p>
 
       <div className="mt-6 rounded-md border border-border bg-surface p-4">
         <FileUploadButton
           accept="image/*"
-          label={submitting ? "Uploading…" : "Upload photo"}
+          label={submitting ? "Загружаем…" : "Загрузить фото"}
           onFile={onFileChosen}
           disabled={submitting}
         />
@@ -89,19 +89,19 @@ function Analyze() {
         <div className="mt-4 flex gap-4 rounded-md border border-border bg-surface p-4">
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Uploaded photo" className="h-24 w-24 flex-shrink-0 rounded object-cover" />
+            <img src={preview} alt="Загруженное фото" className="h-24 w-24 flex-shrink-0 rounded object-cover" />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs text-muted">
               <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
                 {entry.status}
               </span>
-              {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}
+              {entry.mocked && <span className="status-pill bg-surface-raised">мок</span>}
             </div>
             {entry.status === "ok" && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{entry.text}</p>}
             {entry.status === "error" && (
               <p className="mt-2 text-sm text-danger">
-                Something went wrong processing this — credits were refunded. Please try again.
+                Что-то пошло не так при обработке — кредиты возвращены. Попробуйте ещё раз.
               </p>
             )}
           </div>

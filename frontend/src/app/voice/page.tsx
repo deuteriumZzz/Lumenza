@@ -9,7 +9,7 @@ import { usePolledStatus } from "@/lib/use-polled-status";
 import { FileUploadButton } from "@/components/file-upload-button";
 
 const IN_PROGRESS = new Set(["pending", "processing"]);
-const STALLED_MESSAGE = "Lost connection while checking status — please refresh the page.";
+const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
 export default function VoicePage() {
   return (
@@ -22,8 +22,8 @@ export default function VoicePage() {
 function Voice() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Voice</h1>
-      <p className="mt-1 text-sm text-muted">Turn a voice note into text, or text into a spoken clip.</p>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Голос</h1>
+      <p className="mt-1 text-sm text-muted">Превратите голосовую заметку в текст, или текст — в озвучку.</p>
 
       <TranscribeSection />
       <div className="my-10 border-t border-border" />
@@ -57,7 +57,7 @@ function TranscribeSection() {
       mediaRecorderRef.current = recorder;
       setRecording(true);
     } catch {
-      setError("Couldn't access the microphone — check browser permissions, or upload a file instead.");
+      setError("Не удалось получить доступ к микрофону — проверьте разрешения браузера, либо загрузите файл.");
     }
   }
 
@@ -75,9 +75,9 @@ function TranscribeSection() {
       void refreshBalance();
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setError("Not enough credits for this request.");
+        setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Voice transcription isn't unlocked on your plan yet.");
+        setError("Расшифровка голоса ещё не разблокирована на вашем тарифе.");
       } else {
         setError(apiErrorMessage(err));
       }
@@ -99,7 +99,7 @@ function TranscribeSection() {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-ink">Voice-to-text</h2>
+      <h2 className="text-sm font-semibold text-ink">Голос в текст</h2>
       <div className="mt-3 flex items-center gap-3">
         <button
           type="button"
@@ -107,16 +107,16 @@ function TranscribeSection() {
           disabled={submitting}
           className="btn-primary"
         >
-          {recording ? "Stop recording" : "Record"}
+          {recording ? "Остановить запись" : "Записать"}
         </button>
         <FileUploadButton
           accept="audio/*"
-          label="Upload audio file"
+          label="Загрузить аудиофайл"
           onFile={(file) => void submitAudio(file, file.name)}
           disabled={submitting}
           className="btn-secondary"
         />
-        {submitting && <span className="text-sm text-muted">Uploading…</span>}
+        {submitting && <span className="text-sm text-muted">Загружаем…</span>}
       </div>
 
       {error && (
@@ -131,12 +131,12 @@ function TranscribeSection() {
             <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
-            {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}
+            {entry.mocked && <span className="status-pill bg-surface-raised">мок</span>}
           </div>
           {entry.status === "ok" && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{entry.text}</p>}
           {entry.status === "error" && (
             <p className="mt-2 text-sm text-danger">
-              Something went wrong processing this — credits were refunded. Please try again.
+              Что-то пошло не так при обработке — кредиты возвращены. Попробуйте ещё раз.
             </p>
           )}
         </div>
@@ -163,9 +163,9 @@ function SpeechSection() {
       void refreshBalance();
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
-        setError("Not enough credits for this request.");
+        setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Text-to-speech isn't unlocked on your plan yet.");
+        setError("Озвучка текста ещё не разблокирована на вашем тарифе.");
       } else {
         setError(apiErrorMessage(err));
       }
@@ -187,19 +187,19 @@ function SpeechSection() {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-ink">Text-to-speech</h2>
+      <h2 className="text-sm font-semibold text-ink">Текст в озвучку</h2>
       <div className="mt-3 flex items-end gap-3">
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Text to turn into a spoken clip…"
-          aria-label="Text to speak"
+          placeholder="Текст, который нужно озвучить…"
+          aria-label="Текст для озвучки"
           rows={3}
           maxLength={4000}
           className="input flex-1 resize-none"
         />
         <button type="button" onClick={() => void generate()} disabled={submitting || !text.trim()} className="btn-primary h-fit">
-          {submitting ? "Generating…" : "Generate"}
+          {submitting ? "Генерируем…" : "Сгенерировать"}
         </button>
       </div>
 
@@ -215,7 +215,7 @@ function SpeechSection() {
             <span role="status" className={`status-pill ${statusPillClass(entry.status)}`}>
               {entry.status}
             </span>
-            {entry.mocked && <span className="status-pill bg-surface-raised">mock</span>}
+            {entry.mocked && <span className="status-pill bg-surface-raised">мок</span>}
           </div>
           {entry.status === "ok" && entry.audio_url && (
             <audio controls src={entry.audio_url} className="mt-3 w-full">
@@ -224,7 +224,7 @@ function SpeechSection() {
           )}
           {entry.status === "error" && (
             <p className="mt-2 text-sm text-danger">
-              Something went wrong processing this — credits were refunded. Please try again.
+              Что-то пошло не так при обработке — кредиты возвращены. Попробуйте ещё раз.
             </p>
           )}
         </div>
