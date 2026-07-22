@@ -8,7 +8,7 @@ export function AccessibilityShell({
   return (
     <>
       <a href="#main-content" className="skip-link">
-        Skip to main content
+        Перейти к основному содержимому
       </a>
       {navigation}
       <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col">

@@ -32,20 +32,20 @@ describe("ImageLightbox", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Open image: Sunset over the sea",
+      name: "Открыть картинку: Sunset over the sea",
     });
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole("dialog", {
-      name: "Image preview: Sunset over the sea",
+      name: "Просмотр картинки: Sunset over the sea",
     });
     expect(within(dialog).getByRole("img", { name: "Sunset over the sea" })).toBeDefined();
     expect(document.body.style.overflow).toBe("hidden");
 
     const closeButton = within(dialog).getByRole("button", {
-      name: "Close image preview",
+      name: "Закрыть просмотр",
     });
-    const zoomInButton = within(dialog).getByRole("button", { name: "Zoom in" });
+    const zoomInButton = within(dialog).getByRole("button", { name: "Увеличить" });
     expect(document.activeElement).toBe(closeButton);
     fireEvent.keyDown(window, { key: "Tab" });
     expect(document.activeElement).toBe(zoomInButton);
@@ -68,12 +68,12 @@ describe("ImageLightbox", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Open image: Campaign poster" }),
+      screen.getByRole("button", { name: "Открыть картинку: Campaign poster" }),
     );
     const dialog = screen.getByRole("dialog");
     const preview = within(dialog).getByRole("img", { name: "Campaign poster" });
-    const zoomOut = within(dialog).getByRole("button", { name: "Zoom out" });
-    const zoomIn = within(dialog).getByRole("button", { name: "Zoom in" });
+    const zoomOut = within(dialog).getByRole("button", { name: "Уменьшить" });
+    const zoomIn = within(dialog).getByRole("button", { name: "Увеличить" });
 
     expect(zoomOut.hasAttribute("disabled")).toBe(true);
     fireEvent.click(zoomIn);
@@ -126,9 +126,9 @@ describe("ImageLightbox", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Open image: Generated visual" }),
+      screen.getByRole("button", { name: "Открыть картинку: Generated visual" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Download image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скачать картинку" }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -136,10 +136,10 @@ describe("ImageLightbox", () => {
         expect.objectContaining({ credentials: "include" }),
       ),
     );
-    expect(screen.getByRole("button", { name: "Downloading image" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Скачивается картинка" })).toBeDefined();
     await act(async () => resolveBlob?.(imageBlob));
     expect(
-      screen.getByRole("button", { name: "Image downloaded" }),
+      screen.getByRole("button", { name: "Картинка скачана" }),
     ).toBeDefined();
     expect(downloadedName).toBe("lumenza-image-99.webp");
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
@@ -158,13 +158,13 @@ describe("ImageLightbox", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Open image: Generated visual" }),
+      screen.getByRole("button", { name: "Открыть картинку: Generated visual" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Download image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скачать картинку" }));
 
     expect(
       await screen.findByRole("button", {
-        name: "Could not download image. Try again",
+        name: "Не удалось скачать картинку. Попробуйте снова",
       }),
     ).toBeDefined();
   });

@@ -11,7 +11,7 @@ export function ResponseSkeleton() {
 
   return (
     <div role="status" aria-live="polite" className="mt-6 max-w-xl">
-      <span className="sr-only">Generating response…</span>
+      <span className="sr-only">Генерируем ответ…</span>
       <div aria-hidden="true" className="flex items-center gap-1.5 py-1.5">
         {[0, 1, 2].map((i) => (
           <motion.span

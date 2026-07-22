@@ -8,7 +8,7 @@ describe("ResponseSkeleton", () => {
   it("announces generation without exposing decorative shimmer lines", () => {
     const { container } = render(<ResponseSkeleton />);
 
-    expect(screen.getByRole("status").textContent).toContain("Generating response");
+    expect(screen.getByRole("status").textContent).toContain("Генерируем ответ");
     const visual = container.querySelector('[aria-hidden="true"]');
     expect(visual).not.toBeNull();
     expect(visual?.querySelectorAll("span")).toHaveLength(3);

@@ -20,12 +20,12 @@ const EMPTY_FILTERS: FilterForm = {
 };
 
 const TASK_OPTIONS: { value: Task; label: string }[] = [
-  { value: "hook", label: "Hook" },
-  { value: "longform", label: "Long-form" },
-  { value: "hashtags", label: "Hashtags" },
-  { value: "content_plan", label: "Content plan" },
-  { value: "repurpose", label: "Repurpose" },
-  { value: "translation", label: "Translation" },
+  { value: "hook", label: "Хук" },
+  { value: "longform", label: "Лонгформ" },
+  { value: "hashtags", label: "Хэштеги" },
+  { value: "content_plan", label: "Контент-план" },
+  { value: "repurpose", label: "Репёрпоз" },
+  { value: "translation", label: "Перевод" },
 ];
 
 const PROVIDER_OPTIONS = ["openai", "anthropic", "google", "nvidia"];
@@ -34,12 +34,12 @@ const STATUS_OPTIONS: {
   value: HistoryEntry["status"];
   label: string;
 }[] = [
-  { value: "ok", label: "OK" },
-  { value: "error", label: "Error" },
-  { value: "insufficient_credits", label: "Insufficient credits" },
-  { value: "blocked", label: "Blocked" },
-  { value: "task_locked", label: "Task locked" },
-  { value: "model_locked", label: "Model locked" },
+  { value: "ok", label: "ОК" },
+  { value: "error", label: "Ошибка" },
+  { value: "insufficient_credits", label: "Недостаточно кредитов" },
+  { value: "blocked", label: "Заблокировано" },
+  { value: "task_locked", label: "Задача заблокирована" },
+  { value: "model_locked", label: "Модель заблокирована" },
 ];
 
 function localDateBoundary(value: string, nextDay = false): string {
@@ -59,7 +59,7 @@ export function HistoryFilters({
   function applyFilters(event: FormEvent) {
     event.preventDefault();
     if (form.dateFrom && form.dateTo && form.dateFrom > form.dateTo) {
-      setError("From date must not be after to date.");
+      setError("Дата «с» не может быть позже даты «по».");
       return;
     }
 
@@ -87,15 +87,15 @@ export function HistoryFilters({
 
   return (
     <form
-      aria-label="History filters"
+      aria-label="Фильтры истории"
       onSubmit={applyFilters}
       className="mt-6 rounded-md border border-border bg-surface p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className="flex min-w-0 flex-col gap-1 text-xs text-muted">
-          Task
+          Задача
           <select
-            aria-label="Task"
+            aria-label="Задача"
             value={form.task}
             onChange={(event) =>
               setForm((current) => ({
@@ -105,7 +105,7 @@ export function HistoryFilters({
             }
             className={fieldClass}
           >
-            <option value="">All tasks</option>
+            <option value="">Все задачи</option>
             {TASK_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -115,9 +115,9 @@ export function HistoryFilters({
         </label>
 
         <label className="flex min-w-0 flex-col gap-1 text-xs text-muted">
-          Provider
+          Провайдер
           <select
-            aria-label="Provider"
+            aria-label="Провайдер"
             value={form.provider}
             onChange={(event) =>
               setForm((current) => ({
@@ -127,7 +127,7 @@ export function HistoryFilters({
             }
             className={fieldClass}
           >
-            <option value="">All providers</option>
+            <option value="">Все провайдеры</option>
             {PROVIDER_OPTIONS.map((provider) => (
               <option key={provider} value={provider}>
                 {provider}
@@ -137,9 +137,9 @@ export function HistoryFilters({
         </label>
 
         <label className="flex min-w-0 flex-col gap-1 text-xs text-muted">
-          Status
+          Статус
           <select
-            aria-label="Status"
+            aria-label="Статус"
             value={form.status}
             onChange={(event) =>
               setForm((current) => ({
@@ -149,7 +149,7 @@ export function HistoryFilters({
             }
             className={fieldClass}
           >
-            <option value="">All statuses</option>
+            <option value="">Все статусы</option>
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -159,10 +159,10 @@ export function HistoryFilters({
         </label>
 
         <label className="flex min-w-0 flex-col gap-1 text-xs text-muted">
-          From date
+          С даты
           <input
             type="date"
-            aria-label="From date"
+            aria-label="С даты"
             value={form.dateFrom}
             onChange={(event) =>
               setForm((current) => ({
@@ -175,10 +175,10 @@ export function HistoryFilters({
         </label>
 
         <label className="flex min-w-0 flex-col gap-1 text-xs text-muted">
-          To date
+          По дату
           <input
             type="date"
-            aria-label="To date"
+            aria-label="По дату"
             value={form.dateTo}
             onChange={(event) =>
               setForm((current) => ({
@@ -199,14 +199,14 @@ export function HistoryFilters({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="submit" className="btn-primary px-3 py-1.5 text-xs">
-          Apply filters
+          Применить фильтры
         </button>
         <button
           type="button"
           onClick={clearFilters}
           className="btn-secondary px-3 py-1.5 text-xs"
         >
-          Clear filters
+          Сбросить фильтры
         </button>
       </div>
     </form>

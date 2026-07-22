@@ -29,7 +29,7 @@ export function TelegramCta({ className }: TelegramCtaProps) {
       rel="noreferrer"
       className={className}
     >
-      Open in Telegram
+      Открыть в Telegram
     </a>
   );
 }

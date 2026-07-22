@@ -9,22 +9,22 @@ describe("HistoryFilters", () => {
     const onApply = vi.fn();
     render(<HistoryFilters onApply={onApply} />);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Task" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Задача" }), {
       target: { value: "repurpose" },
     });
-    fireEvent.change(screen.getByRole("combobox", { name: "Provider" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Провайдер" }), {
       target: { value: "openai" },
     });
-    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Статус" }), {
       target: { value: "ok" },
     });
-    fireEvent.change(screen.getByLabelText("From date"), {
+    fireEvent.change(screen.getByLabelText("С даты"), {
       target: { value: "2026-07-20" },
     });
-    fireEvent.change(screen.getByLabelText("To date"), {
+    fireEvent.change(screen.getByLabelText("По дату"), {
       target: { value: "2026-07-20" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Применить фильтры" }));
 
     const start = new Date("2026-07-20T00:00:00");
     const end = new Date("2026-07-20T00:00:00");
@@ -42,22 +42,22 @@ describe("HistoryFilters", () => {
     const onApply = vi.fn();
     render(<HistoryFilters onApply={onApply} />);
 
-    fireEvent.change(screen.getByLabelText("From date"), {
+    fireEvent.change(screen.getByLabelText("С даты"), {
       target: { value: "2026-07-21" },
     });
-    fireEvent.change(screen.getByLabelText("To date"), {
+    fireEvent.change(screen.getByLabelText("По дату"), {
       target: { value: "2026-07-20" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Применить фильтры" }));
 
     expect(screen.getByRole("alert").textContent).toContain(
-      "From date must not be after to date",
+      "Дата «с» не может быть позже даты «по»",
     );
     expect(onApply).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Сбросить фильтры" }));
     expect(onApply).toHaveBeenCalledWith({});
-    expect(screen.getByLabelText<HTMLInputElement>("From date").value).toBe("");
-    expect(screen.getByLabelText<HTMLInputElement>("To date").value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("С даты").value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("По дату").value).toBe("");
   });
 });

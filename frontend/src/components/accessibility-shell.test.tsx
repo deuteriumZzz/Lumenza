@@ -26,7 +26,7 @@ describe("AccessibilityShell", () => {
       </AccessibilityShell>,
     );
 
-    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
+    const skipLink = screen.getByRole("link", { name: "Перейти к основному содержимому" });
     expect(skipLink.getAttribute("href")).toBe("#main-content");
     expect(
       skipLink.compareDocumentPosition(screen.getByRole("navigation")) & Node.DOCUMENT_POSITION_FOLLOWING,

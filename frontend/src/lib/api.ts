@@ -24,7 +24,7 @@ export class ApiError extends Error {
 // Единая точка для catch-блоков: ApiError уже несёт сообщение, пригодное для
 // показа пользователю (см. extractMessage выше), а любая другая ошибка
 // (сеть, таймаут, JS-исключение) — нет, отсюда общий fallback.
-export function apiErrorMessage(err: unknown, fallback = "Something went wrong."): string {
+export function apiErrorMessage(err: unknown, fallback = "Что-то пошло не так."): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 

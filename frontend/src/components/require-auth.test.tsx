@@ -28,7 +28,7 @@ describe("RequireAuth", () => {
   it("announces the authentication loading state", () => {
     render(<RequireAuth>Private content</RequireAuth>);
 
-    expect(screen.getByRole("status").textContent).toBe("Loading…");
+    expect(screen.getByRole("status").textContent).toBe("Загрузка…");
   });
 
   it("renders private content after authentication", () => {

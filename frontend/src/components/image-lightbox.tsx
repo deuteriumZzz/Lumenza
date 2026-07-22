@@ -12,12 +12,12 @@ const DOWNLOAD_LABELS: Record<
   DownloadStatus,
   { accessible: string; visible: string }
 > = {
-  idle: { accessible: "Download image", visible: "Download" },
-  downloading: { accessible: "Downloading image", visible: "Downloading…" },
-  downloaded: { accessible: "Image downloaded", visible: "Downloaded" },
+  idle: { accessible: "Скачать картинку", visible: "Скачать" },
+  downloading: { accessible: "Скачивается картинка", visible: "Скачивается…" },
+  downloaded: { accessible: "Картинка скачана", visible: "Скачано" },
   error: {
-    accessible: "Could not download image. Try again",
-    visible: "Try again",
+    accessible: "Не удалось скачать картинку. Попробуйте снова",
+    visible: "Повторить",
   },
 };
 
@@ -170,7 +170,7 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
         ref={triggerRef}
         type="button"
         onClick={openPreview}
-        aria-label={`Open image: ${alt}`}
+        aria-label={`Открыть картинку: ${alt}`}
         className="h-full w-full cursor-zoom-in overflow-hidden"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -188,14 +188,14 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            aria-label={`Image preview: ${alt}`}
+            aria-label={`Просмотр картинки: ${alt}`}
             className="mx-auto flex min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/15 bg-bg shadow-2xl"
           >
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-4">
               <p className="mr-auto min-w-0 truncate text-sm text-muted">{alt}</p>
               <button
                 type="button"
-                aria-label="Zoom out"
+                aria-label="Уменьшить"
                 disabled={zoom <= MIN_ZOOM}
                 onClick={() => setZoom((value) => Math.max(MIN_ZOOM, value - ZOOM_STEP))}
                 className="btn-secondary px-2 py-1 disabled:opacity-40"
@@ -207,7 +207,7 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
               </span>
               <button
                 type="button"
-                aria-label="Zoom in"
+                aria-label="Увеличить"
                 disabled={zoom >= MAX_ZOOM}
                 onClick={() => setZoom((value) => Math.min(MAX_ZOOM, value + ZOOM_STEP))}
                 className="btn-secondary px-2 py-1 disabled:opacity-40"
@@ -228,7 +228,7 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
               <button
                 ref={closeRef}
                 type="button"
-                aria-label="Close image preview"
+                aria-label="Закрыть просмотр"
                 onClick={() => setOpen(false)}
                 className="btn-secondary px-2 py-1"
               >
