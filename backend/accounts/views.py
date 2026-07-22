@@ -77,7 +77,7 @@ def login_view(request):
     )
     if user is None:
         return Response(
-            {"detail": "Invalid credentials"},
+            {"detail": "Неверные логин или пароль"},
             status=status.HTTP_401_UNAUTHORIZED,
         )
     return _token_response(request, user)
@@ -123,12 +123,12 @@ def telegram_auth(request):
             identity = verify_webapp_init_data(payload)
         else:
             return Response(
-                {"detail": "Unknown source"},
+                {"detail": "Неизвестный источник"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
     except TelegramAuthError:
         return Response(
-            {"detail": "Invalid Telegram authentication"},
+            {"detail": "Недействительная авторизация Telegram"},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -141,8 +141,8 @@ def telegram_auth(request):
         if conflict:
             return Response(
                 {
-                    "detail": "This Telegram account is already linked "
-                    "to another account."
+                    "detail": "Этот аккаунт Telegram уже привязан "
+                    "к другому аккаунту."
                 },
                 status=status.HTTP_409_CONFLICT,
             )

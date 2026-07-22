@@ -79,8 +79,8 @@ async def _reject_oversized_upload(
 ) -> bool:
     if isinstance(file_size, int) and file_size > max_bytes:
         await message.answer(
-            f"File is too large. Maximum size is "
-            f"{max_bytes // (1024 * 1024)} MB."
+            f"Файл слишком большой. Максимальный размер — "
+            f"{max_bytes // (1024 * 1024)} МБ."
         )
         return True
     return False
@@ -106,7 +106,7 @@ async def _get_verified_telegram_file(
     )
     if not isinstance(verified_size, int):
         await message.answer(
-            "Unable to verify file size. Please send a different file."
+            "Не удалось проверить размер файла. Отправьте другой файл."
         )
         return None
     if await _reject_oversized_upload(message, verified_size, max_bytes):
@@ -120,7 +120,7 @@ async def _download_verified_upload(message: Message, file, max_bytes: int):
         return None
     file_path = getattr(file, "file_path", None)
     if not isinstance(file_path, str) or not file_path:
-        await message.answer("Unable to download that file. Please try again.")
+        await message.answer("Не удалось скачать файл. Попробуйте ещё раз.")
         return None
     destination = _LimitedDownload(max_bytes)
     try:
@@ -131,11 +131,11 @@ async def _download_verified_upload(message: Message, file, max_bytes: int):
         await _reject_oversized_upload(message, max_bytes + 1, max_bytes)
         return None
     if downloaded is None:
-        await message.answer("Unable to download that file. Please try again.")
+        await message.answer("Не удалось скачать файл. Попробуйте ещё раз.")
         return None
     payload = downloaded.read(max_bytes + 1)
     if not isinstance(payload, bytes):
-        await message.answer("Unable to read that file. Please try again.")
+        await message.answer("Не удалось прочитать файл. Попробуйте ещё раз.")
         return None
     if await _reject_oversized_upload(message, len(payload), max_bytes):
         return None
@@ -166,7 +166,7 @@ def _task_keyboard(current: str, unlocked: frozenset) -> InlineKeyboardMarkup:
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="Open App",
+                    text="Открыть приложение",
                     web_app=WebAppInfo(url=settings.MINI_APP_URL),
                 )
             ]
@@ -193,7 +193,7 @@ async def _telegram_user_for(message: Message):
 async def _telegram_sender_for(message: Message) -> TelegramUser | None:
     sender = message.from_user
     if sender is None:
-        await message.answer("Unable to identify your Telegram account.")
+        await message.answer("Не удалось определить ваш аккаунт Telegram.")
         return None
     return sender
 
@@ -211,7 +211,7 @@ async def _normalize_uploaded_image(
         return normalize_generated_image(payload)
     except ValueError:
         await message.answer(
-            "Invalid image. Send a valid JPEG, PNG, or WebP file."
+            "Некорректная картинка. Отправьте файл JPEG, PNG или WebP."
         )
         return None
 
@@ -248,7 +248,7 @@ async def on_start(
         await sync_to_async(record_referral)(user, command.args)
     account = await sync_to_async(get_or_create_account)(user)
     await state.update_data(task=DEFAULT_TASK)
-    greeting = "Welcome to Lumenza!" if created else "Welcome back!"
+    greeting = "Добро пожаловать в Lumenza!" if created else "С возвращением!"
 
     if settings.MINI_APP_URL:
         # Mini App покрывает тот же функционал, что и текстовый пикер
@@ -258,14 +258,14 @@ async def on_start(
         # это осознанный fallback для клиентов Telegram, которые хуже
         # открывают Web App (старые версии, некоторые десктопные).
         await message.answer(
-            f"{greeting}\nBalance: {account.balance} credits.\n\n"
-            "Open the app below for the full experience. Prefer typing? "
-            "/task, /image, and /voice still work here too.",
+            f"{greeting}\nБаланс: {account.balance} кредитов.\n\n"
+            "Откройте приложение ниже для полного интерфейса. Предпочитаете "
+            "команды? /task, /image и /voice тоже по-прежнему работают.",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="Open App",
+                            text="Открыть приложение",
                             web_app=WebAppInfo(url=settings.MINI_APP_URL),
                         )
                     ]
@@ -276,9 +276,9 @@ async def on_start(
 
     unlocked = await sync_to_async(get_unlocked_keys)(user)
     await message.answer(
-        f"{greeting}\nBalance: {account.balance} credits.\n\n"
-        "Send a message for a caption, post, or content idea — or use "
-        "/image <prompt> for a visual. Pick a task below:",
+        f"{greeting}\nБаланс: {account.balance} кредитов.\n\n"
+        "Отправьте сообщение для подписи, поста или идеи контента — или "
+        "используйте /image <промпт> для визуала. Выберите задачу ниже:",
         reply_markup=_task_keyboard(DEFAULT_TASK, unlocked),
     )
 
@@ -291,8 +291,8 @@ async def on_invite(message: Message) -> None:
     user, _ = user_result
     link = await sync_to_async(referral_link_for)(user)
     await message.answer(
-        "Invite friends and you'll both get bonus credits once they "
-        f"try Lumenza:\n{link}"
+        "Пригласите друзей — вы оба получите бонусные кредиты, как только "
+        f"они попробуют Lumenza:\n{link}"
     )
 
 
@@ -303,7 +303,7 @@ async def on_balance(message: Message) -> None:
         return
     user, _ = user_result
     account = await sync_to_async(get_or_create_account)(user)
-    await message.answer(f"Balance: {account.balance} credits.")
+    await message.answer(f"Баланс: {account.balance} кредитов.")
 
 
 @router.message(Command("task"))
@@ -316,7 +316,7 @@ async def on_task(message: Message, state: FSMContext) -> None:
     current = data.get("task", DEFAULT_TASK)
     unlocked = await sync_to_async(get_unlocked_keys)(user)
     await message.answer(
-        "Pick a task:", reply_markup=_task_keyboard(current, unlocked)
+        "Выберите задачу:", reply_markup=_task_keyboard(current, unlocked)
     )
 
 
@@ -326,11 +326,11 @@ async def on_task(message: Message, state: FSMContext) -> None:
 async def on_task_selected(callback: CallbackQuery, state: FSMContext) -> None:
     callback_data = callback.data
     if not callback_data or not callback_data.startswith("task:"):
-        await callback.answer("Unknown task", show_alert=True)
+        await callback.answer("Неизвестная задача", show_alert=True)
         return
     task = callback_data.split(":", 1)[1]
     if task not in TASKS:
-        await callback.answer("Unknown task", show_alert=True)
+        await callback.answer("Неизвестная задача", show_alert=True)
         return
 
     user, _ = await sync_to_async(get_or_create_telegram_user)(
@@ -338,7 +338,7 @@ async def on_task_selected(callback: CallbackQuery, state: FSMContext) -> None:
     )
     unlocked = await sync_to_async(get_unlocked_keys)(user)
     if task not in unlocked:
-        await callback.answer("Not unlocked on your plan yet", show_alert=True)
+        await callback.answer("Ещё не разблокировано на вашем тарифе", show_alert=True)
         return
 
     await state.update_data(task=task)
@@ -348,7 +348,7 @@ async def on_task_selected(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_reply_markup(
             reply_markup=_task_keyboard(task, unlocked)
         )
-    await callback.answer(f"Task set to {task}")
+    await callback.answer(f"Задача установлена: {task}")
 
 
 @router.message(Command("image"))
@@ -356,7 +356,7 @@ async def on_image(message: Message, command: CommandObject) -> None:
     prompt = (command.args or "").strip()
     if not prompt:
         await message.answer(
-            "Usage: /image a description of the visual you want"
+            "Использование: /image описание нужного визуала"
         )
         return
 
@@ -370,18 +370,18 @@ async def on_image(message: Message, command: CommandObject) -> None:
 
     if outcome.status == "task_locked":
         await message.answer(
-            "This visual style isn't unlocked on your plan yet."
+            "Этот визуальный стиль ещё не разблокирован на вашем тарифе."
         )
     elif outcome.status == "insufficient_credits":
-        await message.answer("Not enough credits for this request.")
+        await message.answer("Недостаточно кредитов для этого запроса.")
     elif outcome.status == "enqueue_failed":
         await message.answer(
-            "Image generation is temporarily unavailable — please try "
-            "again shortly."
+            "Генерация картинки временно недоступна — попробуйте "
+            "чуть позже."
         )
     else:
         await message.answer(
-            "Generating your image — I'll send it here when it's ready."
+            "Генерирую картинку — пришлю сюда, как только будет готово."
         )
 
 
@@ -396,12 +396,12 @@ async def on_subscribe(message: Message) -> None:
     )
 
     if outcome.status == "already_subscribed":
-        await message.answer("You're already subscribed to Pro.")
+        await message.answer("Вы уже подписаны на Pro.")
     elif outcome.status == "unavailable":
-        await message.answer("Subscriptions aren't available right now.")
+        await message.answer("Подписки сейчас недоступны.")
     else:
         await message.answer(
-            f"Complete your subscription here:\n{outcome.confirmation_url}"
+            f"Завершите оформление подписки здесь:\n{outcome.confirmation_url}"
         )
 
 
@@ -413,16 +413,16 @@ async def on_unsubscribe(message: Message) -> None:
     user, _ = user_result
     canceled = await sync_to_async(cancel_subscription)(user)
     if canceled:
-        await message.answer("Your Pro subscription has been canceled.")
+        await message.answer("Ваша подписка Pro отменена.")
     else:
-        await message.answer("You don't have an active subscription.")
+        await message.answer("У вас нет активной подписки.")
 
 
 @router.message(F.voice)
 async def on_voice(message: Message) -> None:
     voice = message.voice
     if voice is None:
-        await message.answer("Please send a voice message.")
+        await message.answer("Отправьте голосовое сообщение.")
         return
     sender = await _telegram_sender_for(message)
     if sender is None:
@@ -450,19 +450,19 @@ async def on_voice(message: Message) -> None:
 
     if outcome.status == "task_locked":
         await message.answer(
-            "Voice transcription isn't unlocked on your plan yet."
+            "Расшифровка голоса ещё не разблокирована на вашем тарифе."
         )
     elif outcome.status == "insufficient_credits":
-        await message.answer("Not enough credits for this request.")
+        await message.answer("Недостаточно кредитов для этого запроса.")
     elif outcome.status == "enqueue_failed":
         await message.answer(
-            "Transcription is temporarily unavailable — please try "
-            "again shortly."
+            "Расшифровка временно недоступна — попробуйте "
+            "чуть позже."
         )
     else:
         await message.answer(
-            "Transcribing your voice note — I'll send the text here "
-            "when it's ready."
+            "Расшифровываю голосовое — пришлю текст сюда, "
+            "как только будет готово."
         )
 
 
@@ -470,7 +470,7 @@ async def on_voice(message: Message) -> None:
 async def on_describe_prompt(message: Message, state: FSMContext) -> None:
     await state.update_data(awaiting_photo_analysis=True)
     await message.answer(
-        "Send me a photo and I'll write a caption idea for it."
+        "Отправьте мне фото — напишу для него идею подписи."
     )
 
 
@@ -479,7 +479,7 @@ async def on_photo_analysis(message: Message, state: FSMContext) -> None:
     await state.update_data(awaiting_photo_analysis=False)
     photos = message.photo
     if not photos:
-        await message.answer("Please send a photo to analyze.")
+        await message.answer("Отправьте фото для анализа.")
         return
     sender = await _telegram_sender_for(message)
     if sender is None:
@@ -507,18 +507,18 @@ async def on_photo_analysis(message: Message, state: FSMContext) -> None:
     )
 
     if outcome.status == "task_locked":
-        await message.answer("Photo analysis isn't unlocked on your plan yet.")
+        await message.answer("Анализ фото ещё не разблокирован на вашем тарифе.")
     elif outcome.status == "insufficient_credits":
-        await message.answer("Not enough credits for this request.")
+        await message.answer("Недостаточно кредитов для этого запроса.")
     elif outcome.status == "enqueue_failed":
         await message.answer(
-            "Photo analysis is temporarily unavailable — please try "
-            "again shortly."
+            "Анализ фото временно недоступен — попробуйте "
+            "чуть позже."
         )
     else:
         await message.answer(
-            "Looking at your photo — I'll send a caption idea here "
-            "when it's ready."
+            "Смотрю на ваше фото — пришлю идею подписи сюда, "
+            "как только будет готово."
         )
 
 
@@ -530,11 +530,11 @@ async def on_photo_edit(message: Message) -> None:
     # проваливается дальше в OCR.
     caption = (message.caption or "").strip()
     if not caption:
-        await message.answer("Add a caption describing the edit you want.")
+        await message.answer("Добавьте подпись с описанием нужной правки.")
         return
     photos = message.photo
     if not photos:
-        await message.answer("Please send a photo to edit.")
+        await message.answer("Отправьте фото для редактирования.")
         return
     sender = await _telegram_sender_for(message)
     if sender is None:
@@ -565,18 +565,18 @@ async def on_photo_edit(message: Message) -> None:
     )
 
     if outcome.status == "task_locked":
-        await message.answer("Image editing isn't unlocked on your plan yet.")
+        await message.answer("Редактирование фото ещё не разблокировано на вашем тарифе.")
     elif outcome.status == "insufficient_credits":
-        await message.answer("Not enough credits for this request.")
+        await message.answer("Недостаточно кредитов для этого запроса.")
     elif outcome.status == "enqueue_failed":
         await message.answer(
-            "Image editing is temporarily unavailable — please try "
-            "again shortly."
+            "Редактирование фото временно недоступно — попробуйте "
+            "чуть позже."
         )
     else:
         await message.answer(
-            "Editing your photo — I'll send the result here when "
-            "it's ready."
+            "Редактирую фото — пришлю результат сюда, как только "
+            "будет готово."
         )
 
 
@@ -586,7 +586,7 @@ async def on_document(message: Message) -> None:
     photos = message.photo
     upload = document or (photos[-1] if photos else None)
     if upload is None:
-        await message.answer("Please upload an image document or photo.")
+        await message.answer("Загрузите картинку-документ или фото.")
         return
     sender = await _telegram_sender_for(message)
     if sender is None:
@@ -599,7 +599,7 @@ async def on_document(message: Message) -> None:
         )
         if not supported_type:
             await message.answer(
-                "Unsupported document type. Send a JPEG, PNG, or WebP image."
+                "Неподдерживаемый тип документа. Отправьте картинку JPEG, PNG или WebP."
             )
             return
 
@@ -629,18 +629,18 @@ async def on_document(message: Message) -> None:
 
     if outcome.status == "task_locked":
         await message.answer(
-            "Document extraction isn't unlocked on your plan yet."
+            "Извлечение текста из документов ещё не разблокировано на вашем тарифе."
         )
     elif outcome.status == "insufficient_credits":
-        await message.answer("Not enough credits for this request.")
+        await message.answer("Недостаточно кредитов для этого запроса.")
     elif outcome.status == "enqueue_failed":
         await message.answer(
-            "Extraction is temporarily unavailable — please try again shortly."
+            "Извлечение временно недоступно — попробуйте чуть позже."
         )
     else:
         await message.answer(
-            "Reading your document — I'll send the extracted text "
-            "here when it's ready."
+            "Читаю ваш документ — пришлю извлечённый текст "
+            "сюда, как только будет готово."
         )
 
 
@@ -664,25 +664,25 @@ async def on_text(message: Message, state: FSMContext) -> None:
 
     if outcome.status == "task_locked":
         await message.answer(
-            "This task isn't unlocked on your plan yet. Send /task "
-            "to see options."
+            "Эта задача ещё не разблокирована на вашем тарифе. Отправьте "
+            "/task, чтобы увидеть варианты."
         )
     elif outcome.status == "insufficient_credits":
         await message.answer(
-            "Not enough credits for this request. Top up in the web "
-            "app to continue."
+            "Недостаточно кредитов для этого запроса. Пополните баланс "
+            "в веб-приложении, чтобы продолжить."
         )
     elif outcome.status == "provider_error":
         await message.answer(
-            "Every provider for this task failed. Nothing was charged."
+            "Все провайдеры для этой задачи не сработали. Списание не производилось."
         )
     elif outcome.status == "blocked":
         await message.answer(
-            "That message was blocked by moderation. Nothing was charged."
+            "Это сообщение заблокировано модерацией. Списание не производилось."
         )
     else:
         await message.answer(
             f"{outcome.text}\n\n— {outcome.provider}/{outcome.model} "
-            f"({task}) · {outcome.credits_charged} credits · "
-            f"balance {outcome.balance}"
+            f"({task}) · {outcome.credits_charged} кредитов · "
+            f"баланс {outcome.balance}"
         )

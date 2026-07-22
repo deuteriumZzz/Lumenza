@@ -57,7 +57,7 @@ def sandbox_topup(request):
     # неограниченные кредиты в тесном цикле.
     if not settings.SANDBOX_TOPUP_ENABLED:
         return Response(
-            {"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND
+            {"detail": "Не найдено"}, status=status.HTTP_404_NOT_FOUND
         )
 
     serializer = SandboxTopupSerializer(data=request.data)
@@ -84,7 +84,7 @@ def topup(request):
 
     if outcome.status == "unavailable":
         return Response(
-            {"detail": "Real top-up is not available right now"},
+            {"detail": "Реальное пополнение сейчас недоступно"},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
@@ -159,11 +159,11 @@ def subscribe(request):
 
     if outcome.status == "already_subscribed":
         return Response(
-            {"detail": "Already subscribed"}, status=status.HTTP_409_CONFLICT
+            {"detail": "Подписка уже оформлена"}, status=status.HTTP_409_CONFLICT
         )
     if outcome.status == "unavailable":
         return Response(
-            {"detail": "Subscriptions are not available right now"},
+            {"detail": "Подписки сейчас недоступны"},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
@@ -178,7 +178,7 @@ def unsubscribe(request):
     canceled = cancel_subscription(request.user)
     if not canceled:
         return Response(
-            {"detail": "No active subscription"},
+            {"detail": "Нет активной подписки"},
             status=status.HTTP_404_NOT_FOUND,
         )
     return Response(status=status.HTTP_204_NO_CONTENT)

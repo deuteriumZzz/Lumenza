@@ -34,7 +34,7 @@ def chat(request):
     if outcome.status == "task_locked":
         return Response(
             {
-                "detail": "This task isn't unlocked on your plan yet",
+                "detail": "Эта задача ещё не разблокирована на вашем тарифе",
                 "code": "task_locked",
             },
             status=status.HTTP_403_FORBIDDEN,
@@ -42,23 +42,23 @@ def chat(request):
     if outcome.status == "model_locked":
         return Response(
             {
-                "detail": "This model isn't unlocked on your plan yet",
+                "detail": "Эта модель ещё не разблокирована на вашем тарифе",
                 "code": "model_locked",
             },
             status=status.HTTP_403_FORBIDDEN,
         )
     if outcome.status == "insufficient_credits":
         return Response(
-            {"detail": "Insufficient credits"},
+            {"detail": "Недостаточно кредитов"},
             status=status.HTTP_402_PAYMENT_REQUIRED,
         )
     if outcome.status == "provider_error":
         return Response(
-            {"detail": "Provider error"}, status=status.HTTP_502_BAD_GATEWAY
+            {"detail": "Ошибка провайдера"}, status=status.HTTP_502_BAD_GATEWAY
         )
     if outcome.status == "blocked":
         return Response(
-            {"detail": "This prompt was blocked by moderation"},
+            {"detail": "Этот промпт заблокирован модерацией"},
             status=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 

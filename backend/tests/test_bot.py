@@ -143,7 +143,7 @@ def test_on_start_greets_links_account_and_sets_default_task():
 
     message.answer.assert_awaited_once()
     text = message.answer.await_args.args[0]
-    assert "Welcome to Lumenza" in text
+    assert "Добро пожаловать в Lumenza" in text
 
     user = User.objects.get(telegram_id=111)
     assert user.username == "tg_111"
@@ -163,7 +163,7 @@ def test_on_start_shows_open_app_button_when_mini_app_configured(settings):
     assert len(markup.inline_keyboard) == 1
     assert len(markup.inline_keyboard[0]) == 1
     button = markup.inline_keyboard[0][0]
-    assert button.text == "Open App"
+    assert button.text == "Открыть приложение"
     assert button.web_app.url == "https://example.com/chat"
     # Пикер задач в этом режиме не показывается вообще — Mini App его
     # заменяет, но /task как отдельная команда всё равно продолжает
@@ -242,7 +242,7 @@ def test_on_photo_analysis_starts_analysis_and_clears_flag():
     state.update_data.assert_awaited_once_with(awaiting_photo_analysis=False)
     message.answer.assert_awaited_once()
     text = message.answer.await_args.args[0]
-    assert "caption idea" in text.lower()
+    assert "идею подписи" in text.lower()
 
     from media_ops.models import PhotoAnalysis
 
@@ -258,7 +258,7 @@ def test_on_voice_rejects_oversized_upload_before_download():
 
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
 
 
 def test_on_voice_rejects_upload_when_size_cannot_be_verified():
@@ -271,7 +271,7 @@ def test_on_voice_rejects_upload_when_size_cannot_be_verified():
 
     message.bot.get_file.assert_awaited_once()
     message.bot.download_file.assert_not_awaited()
-    assert "verify" in message.answer.await_args.args[0].lower()
+    assert "проверить" in message.answer.await_args.args[0].lower()
 
 
 def test_on_voice_rejects_file_without_download_path():
@@ -283,7 +283,7 @@ def test_on_voice_rejects_file_without_download_path():
     asyncio.run(on_voice(message))
 
     message.bot.download_file.assert_not_awaited()
-    assert "download" in message.answer.await_args.args[0].lower()
+    assert "скачать" in message.answer.await_args.args[0].lower()
 
 
 def test_on_voice_rejects_download_larger_than_verified_metadata():
@@ -298,7 +298,7 @@ def test_on_voice_rejects_download_larger_than_verified_metadata():
     asyncio.run(on_voice(message))
 
     message.bot.download_file.assert_awaited_once()
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
     assert not User.objects.filter(telegram_id=111).exists()
 
 
@@ -316,7 +316,7 @@ def test_on_voice_caps_stream_while_downloading():
 
     asyncio.run(on_voice(message))
 
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
     assert not User.objects.filter(telegram_id=111).exists()
 
 
@@ -340,7 +340,7 @@ def test_on_photo_analysis_rejects_oversized_upload_and_clears_flag():
     state.update_data.assert_awaited_once_with(awaiting_photo_analysis=False)
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
 
 
 def test_on_photo_analysis_rejects_missing_sender_before_download():
@@ -363,7 +363,7 @@ def test_on_photo_edit_rejects_oversized_upload_before_download():
 
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
 
 
 def test_on_photo_edit_rejects_missing_sender_before_download():
@@ -384,7 +384,7 @@ def test_on_document_rejects_oversized_upload_before_download():
 
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "too large" in message.answer.await_args.args[0].lower()
+    assert "слишком большой" in message.answer.await_args.args[0].lower()
 
 
 def test_on_document_rejects_unsupported_file_type_before_download():
@@ -396,7 +396,7 @@ def test_on_document_rejects_unsupported_file_type_before_download():
 
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "unsupported" in message.answer.await_args.args[0].lower()
+    assert "неподдерживаемый" in message.answer.await_args.args[0].lower()
 
 
 def test_on_document_rejects_spoofed_image_extension_before_download():
@@ -408,7 +408,7 @@ def test_on_document_rejects_spoofed_image_extension_before_download():
 
     message.bot.get_file.assert_not_awaited()
     message.bot.download_file.assert_not_awaited()
-    assert "unsupported" in message.answer.await_args.args[0].lower()
+    assert "неподдерживаемый" in message.answer.await_args.args[0].lower()
 
 
 def test_on_document_rejects_missing_sender_before_download():
@@ -432,7 +432,7 @@ def test_on_document_rejects_invalid_image_content():
 
     asyncio.run(on_document(message))
 
-    assert "invalid image" in message.answer.await_args.args[0].lower()
+    assert "некорректная картинка" in message.answer.await_args.args[0].lower()
     assert not User.objects.filter(telegram_id=9092).exists()
 
 
@@ -443,7 +443,7 @@ def test_on_balance_reports_current_balance():
     asyncio.run(on_balance(message))
 
     message.answer.assert_awaited_once()
-    assert "credits" in message.answer.await_args.args[0]
+    assert "кредитов" in message.answer.await_args.args[0]
 
 
 def test_on_balance_rejects_update_without_sender():
@@ -452,7 +452,7 @@ def test_on_balance_rejects_update_without_sender():
 
     asyncio.run(on_balance(message))
 
-    assert "identify" in message.answer.await_args.args[0].lower()
+    assert "определить" in message.answer.await_args.args[0].lower()
 
 
 def test_on_voice_rejects_update_without_voice_payload():
@@ -461,7 +461,7 @@ def test_on_voice_rejects_update_without_voice_payload():
 
     asyncio.run(on_voice(message))
 
-    assert "voice" in message.answer.await_args.args[0].lower()
+    assert "голосовое" in message.answer.await_args.args[0].lower()
 
 
 def test_on_voice_rejects_update_without_bot_context():
@@ -480,7 +480,7 @@ def test_on_photo_edit_rejects_missing_caption_before_download():
     asyncio.run(on_photo_edit(message))
 
     message.bot.get_file.assert_not_awaited()
-    assert "caption" in message.answer.await_args.args[0].lower()
+    assert "подпись" in message.answer.await_args.args[0].lower()
 
 
 def test_on_document_rejects_update_without_upload():
@@ -490,7 +490,7 @@ def test_on_document_rejects_update_without_upload():
 
     asyncio.run(on_document(message))
 
-    assert "upload" in message.answer.await_args.args[0].lower()
+    assert "загрузите" in message.answer.await_args.args[0].lower()
 
 
 def test_on_text_runs_chat_and_reports_cost():
@@ -502,7 +502,7 @@ def test_on_text_runs_chat_and_reports_cost():
     message.answer.assert_awaited_once()
     reply = message.answer.await_args.args[0]
     assert "openai" in reply
-    assert "credits" in reply
+    assert "кредитов" in reply
 
     user = User.objects.get(telegram_id=333)
     assert RequestLog.objects.filter(user=user, status="ok").exists()
@@ -533,7 +533,7 @@ def test_on_text_reports_moderation_block_without_charging():
     asyncio.run(on_text(message, state))
 
     message.answer.assert_awaited_once()
-    assert "blocked" in message.answer.await_args.args[0].lower()
+    assert "заблокировано" in message.answer.await_args.args[0].lower()
 
     user = User.objects.get(telegram_id=888)
     assert RequestLog.objects.filter(user=user, status="blocked").exists()
@@ -546,7 +546,7 @@ def test_on_image_command_starts_generation_for_the_telegram_chat():
     asyncio.run(on_image(message, command))
 
     message.answer.assert_awaited_once()
-    assert "Generating" in message.answer.await_args.args[0]
+    assert "Генерирую" in message.answer.await_args.args[0]
 
     user = User.objects.get(telegram_id=666)
     record = GeneratedImage.objects.get(user=user)
@@ -563,7 +563,7 @@ def test_on_image_without_prompt_shows_usage_and_does_not_charge():
     asyncio.run(on_image(message, command))
 
     message.answer.assert_awaited_once_with(
-        "Usage: /image a description of the visual you want"
+        "Использование: /image описание нужного визуала"
     )
     assert not GeneratedImage.objects.filter(user__telegram_id=777).exists()
 
@@ -602,7 +602,7 @@ def test_on_task_selected_rejects_locked_task():
 
     state.update_data.assert_not_awaited()
     callback.answer.assert_awaited_once_with(
-        "Not unlocked on your plan yet", show_alert=True
+        "Ещё не разблокировано на вашем тарифе", show_alert=True
     )
     callback.message.edit_reply_markup.assert_not_awaited()
 
@@ -615,7 +615,7 @@ def test_on_task_selected_rejects_missing_callback_data():
 
     asyncio.run(on_task_selected(callback, state))
 
-    callback.answer.assert_awaited_once_with("Unknown task", show_alert=True)
+    callback.answer.assert_awaited_once_with("Неизвестная задача", show_alert=True)
 
 
 def _telegram_update_payload(
