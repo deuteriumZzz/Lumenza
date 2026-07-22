@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { motionTokens, springs } from "@/lib/motion";
 import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
@@ -151,9 +153,14 @@ function Chat() {
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">
             {messages.map((message) => (
-              <li key={message.id}>
+              <motion.li
+                key={message.id}
+                initial={{ opacity: 0, y: motionTokens.distance.sm }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={springs.gentle}
+              >
                 <MessageBlock message={message} />
-              </li>
+              </motion.li>
             ))}
           </ol>
         )}
@@ -218,9 +225,15 @@ function Chat() {
             maxLength={8000}
             className="input flex-1 resize-none"
           />
-          <button type="submit" disabled={sending || !prompt.trim()} className="btn-primary h-fit">
+          <motion.button
+            type="submit"
+            disabled={sending || !prompt.trim()}
+            whileTap={{ scale: motionTokens.scale.press }}
+            transition={springs.snappy}
+            className="btn-primary h-fit"
+          >
             Send
-          </button>
+          </motion.button>
         </div>
       </form>
     </div>
