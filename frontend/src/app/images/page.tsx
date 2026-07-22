@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 import { useUnlockProgress } from "@/lib/use-unlock-progress";
+import { redirect } from "next/navigation";
 
 const TASKS: { value: ImageTask; label: string; hint: string }[] = [
   { value: "realistic", label: "Реализм", hint: "Лучшее качество, фотореалистично" },
@@ -31,15 +32,13 @@ const TASK_LABELS: Record<string, string> = {
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
 const POLL_INTERVAL_MS = 2000;
 
+// /images теперь режим внутри единой студии (/chat) — старая прямая
+// ссылка остаётся рабочей, просто ведёт туда же.
 export default function ImagesPage() {
-  return (
-    <RequireAuth>
-      <Images />
-    </RequireAuth>
-  );
+  redirect("/chat");
 }
 
-function Images() {
+export function Images() {
   const { refreshBalance } = useAuth();
   const [page, setPage] = useState(1);
   // Тот же паттерн пометки страницы, что и на странице history: `loading`

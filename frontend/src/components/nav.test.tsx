@@ -93,9 +93,9 @@ describe("Nav", () => {
 
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     const mobileNavigation = screen.getByRole("navigation", { name: "Мобильная навигация" });
-    expect(within(mobileNavigation).getByRole("link", { name: "Картинки" })).toBeDefined();
+    expect(within(mobileNavigation).getByRole("link", { name: "История" })).toBeDefined();
 
-    fireEvent.click(within(mobileNavigation).getByRole("link", { name: "Картинки" }));
+    fireEvent.click(within(mobileNavigation).getByRole("link", { name: "История" }));
     expect(screen.queryByRole("navigation", { name: "Мобильная навигация" })).toBeNull();
   });
 
@@ -104,7 +104,7 @@ describe("Nav", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
-    const currentLinks = screen.getAllByRole("link", { name: "Чат", current: "page" });
+    const currentLinks = screen.getAllByRole("link", { name: "Студия", current: "page" });
     expect(currentLinks).toHaveLength(2);
   });
 

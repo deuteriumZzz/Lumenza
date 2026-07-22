@@ -14,6 +14,20 @@ import { UnlockToasts } from "@/components/unlock-toast";
 import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type ChatResponse, type ModelProgress, type Task } from "@/lib/api";
 import { useUnlockProgress } from "@/lib/use-unlock-progress";
+import { Images } from "@/app/images/page";
+import { Voice } from "@/app/voice/page";
+import { Documents } from "@/app/documents/page";
+import { Analyze } from "@/app/analyze/page";
+
+type Mode = "chat" | "images" | "voice" | "documents" | "analyze";
+
+const MODES: { key: Mode; icon: string; label: string }[] = [
+  { key: "chat", icon: "✍️", label: "Текст" },
+  { key: "images", icon: "🎨", label: "Картинки" },
+  { key: "voice", icon: "🎙️", label: "Голос" },
+  { key: "documents", icon: "📄", label: "Документы" },
+  { key: "analyze", icon: "🖼️", label: "Анализ фото" },
+];
 
 interface Message {
   id: string;
@@ -38,8 +52,49 @@ const TASK_LABELS: Record<string, string> = Object.fromEntries(
 export default function ChatPage() {
   return (
     <RequireAuth>
-      <Chat />
+      <Studio />
     </RequireAuth>
+  );
+}
+
+// Единая "студия": один экран вместо пяти отдельных страниц
+// (chat/images/voice/documents/analyze) — категории переключаются
+// pill-кнопками, ничего никуда не уходит. Каждый режим переиспользует
+// ровно тот же компонент/эндпоинты, что раньше жили на своей странице —
+// это перестройка навигации, а не новый функционал.
+function Studio() {
+  const [mode, setMode] = useState<Mode>("chat");
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <nav
+        aria-label="Режим студии"
+        className="mx-auto mt-4 flex w-full max-w-3xl flex-wrap items-center justify-center gap-2 px-6"
+      >
+        {MODES.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            aria-pressed={mode === option.key}
+            onClick={() => setMode(option.key)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors duration-150 ${
+              mode === option.key
+                ? "border-primary bg-primary/10 text-ink"
+                : "border-border bg-surface text-muted hover:text-ink"
+            }`}
+          >
+            <span aria-hidden="true">{option.icon}</span>
+            {option.label}
+          </button>
+        ))}
+      </nav>
+
+      {mode === "chat" && <Chat />}
+      {mode === "images" && <Images />}
+      {mode === "voice" && <Voice />}
+      {mode === "documents" && <Documents />}
+      {mode === "analyze" && <Analyze />}
+    </div>
   );
 }
 
@@ -146,9 +201,10 @@ function Chat() {
       />
       <div ref={listRef} className="flex-1 overflow-y-auto py-8">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center text-muted">
-            <p className="text-sm">Запросите пост, репёрпоз подписи или контент-план.</p>
-            <p className="mt-1 text-xs">Выберите задачу ниже — стоимость покажется после ответа.</p>
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">Чем займёмся сегодня?</h2>
+            <p className="mt-2 text-sm text-muted">Запросите пост, репёрпоз подписи или контент-план.</p>
+            <p className="mt-1 text-xs text-muted">Выберите задачу ниже — стоимость покажется после ответа.</p>
           </div>
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RequireAuth } from "@/components/require-auth";
+import { redirect } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type PhotoAnalysisEntry } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
@@ -11,15 +11,12 @@ import { FileUploadButton } from "@/components/file-upload-button";
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
+// /analyze теперь режим внутри единой студии (/chat).
 export default function AnalyzePage() {
-  return (
-    <RequireAuth>
-      <Analyze />
-    </RequireAuth>
-  );
+  redirect("/chat");
 }
 
-function Analyze() {
+export function Analyze() {
   const { refreshBalance } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

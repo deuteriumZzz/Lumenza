@@ -8,11 +8,7 @@ import type { Balance } from "@/lib/api";
 import { TelegramCta } from "@/components/telegram-cta";
 
 const LINKS = [
-  { href: "/chat", label: "Чат" },
-  { href: "/images", label: "Картинки" },
-  { href: "/voice", label: "Голос" },
-  { href: "/documents", label: "Документы" },
-  { href: "/analyze", label: "Анализ" },
+  { href: "/chat", label: "Студия" },
   { href: "/history", label: "История" },
   { href: "/pricing", label: "Оплата" },
 ];

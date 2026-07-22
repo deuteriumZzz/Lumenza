@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { RequireAuth } from "@/components/require-auth";
+import { redirect } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api, apiErrorMessage, ApiError, type SpeechClipEntry, type TranscriptionEntry } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
@@ -11,15 +11,12 @@ import { FileUploadButton } from "@/components/file-upload-button";
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
+// /voice теперь режим внутри единой студии (/chat).
 export default function VoicePage() {
-  return (
-    <RequireAuth>
-      <Voice />
-    </RequireAuth>
-  );
+  redirect("/chat");
 }
 
-function Voice() {
+export function Voice() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">Голос</h1>
