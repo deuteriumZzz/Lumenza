@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from celery import shared_task
@@ -16,6 +17,32 @@ from imagegen.registry import get_image_adapter
 from imagegen.telegram_notify import notify_image_failed, notify_image_ready
 from progression.services import check_and_unlock
 from referrals.services import check_referral_reward
+
+
+_CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")
+
+
+def _translate_prompt_to_english(prompt: str) -> str:
+    """Картиночные адаптеры (DALL-E 3, Replicate flux-schnell, NVIDIA
+    flux.1-dev) обучены почти целиком на английских подписях и дают
+    плохой/нерелевантный результат на русских промптах, хотя сам продукт
+    русскоязычный — переводим перед генерацией, но `record.prompt`
+    остаётся на языке пользователя для его собственной истории."""
+    if not _CYRILLIC_RE.search(prompt):
+        return prompt
+    try:
+        from providers.registry import get_adapter
+
+        result = get_adapter("nvidia").complete(
+            "Translate the following image generation prompt to English. "
+            f"Reply with ONLY the translated prompt, no commentary:\n\n{prompt}",
+            model="nvidia/nvidia-nemotron-nano-9b-v2",
+        )
+        return result.text.strip() or prompt
+    except Exception:
+        # Перевод — это удобство, а не обязательное условие: сбой
+        # перевода не должен блокировать саму генерацию картинки.
+        return prompt
 
 
 def _claim(image_id: int) -> "GeneratedImage | None":
@@ -100,7 +127,9 @@ def generate_image(image_id: int) -> None:
 
     adapter = get_image_adapter(record.provider)
     try:
-        result = adapter.generate(record.prompt, model=record.model)
+        result = adapter.generate(
+            _translate_prompt_to_english(record.prompt), model=record.model
+        )
     except Exception as exc:
         _fail_provider_error(
             record, exc, "Sorry, image generation failed. Credits refunded."
@@ -125,7 +154,11 @@ def edit_image(image_id: int) -> None:
     try:
         with record.source_image.open("rb") as source_file:
             source_bytes = source_file.read()
-        result = adapter.edit(record.prompt, source_bytes, model=record.model)
+        result = adapter.edit(
+            _translate_prompt_to_english(record.prompt),
+            source_bytes,
+            model=record.model,
+        )
     except Exception as exc:
         _fail_provider_error(
             record, exc, "Sorry, image editing failed. Credits refunded."
