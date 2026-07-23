@@ -49,16 +49,38 @@ def check_prompt(prompt: str) -> None:
         if pattern.search(prompt):
             raise ModerationBlocked("Prompt matched a blocked pattern")
 
+    # Оба провайдерских слоя ниже — подстраховка поверх обязательного
+    # regex-префильтра выше, а не единственная линия защиты (см.
+    # комментарий у BLOCKED_PATTERNS). Транзиентный сбой самого вызова
+    # (rate limit, таймаут, сетевая ошибка) поэтому не должен ронять весь
+    # запрос целиком — раньше именно так и происходило: необработанный
+    # openai.RateLimitError из client.moderations.create() долетал
+    # необработанным до Django и превращался в 500 на /api/chat/ (и на
+    # любом другом вызывающем check_prompt) вместо штатной обработки
+    # ошибки провайдера, которая уже есть в фолбэк-цепочке
+    # providers.services.run_chat. ModerationBlocked (осознанное решение
+    # заблокировать) по-прежнему пробрасывается как есть — перехватывается
+    # только транспортный сбой самого вызова.
     if settings.OPENAI_API_KEY:
         from openai import OpenAI
 
         client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=10)
-        result = client.moderations.create(input=prompt)
-        if result.results[0].flagged:
-            raise ModerationBlocked("Flagged by provider moderation endpoint")
+        try:
+            result = client.moderations.create(input=prompt)
+            if result.results[0].flagged:
+                raise ModerationBlocked("Flagged by provider moderation endpoint")
+        except ModerationBlocked:
+            raise
+        except Exception:
+            pass
 
     if settings.NVIDIA_API_KEY:
-        _check_nvidia_safety(prompt)
+        try:
+            _check_nvidia_safety(prompt)
+        except ModerationBlocked:
+            raise
+        except Exception:
+            pass
 
 
 def _check_nvidia_safety(prompt: str) -> None:

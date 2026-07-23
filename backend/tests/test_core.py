@@ -1,10 +1,12 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client, override_settings
 
 from core.models import AnomalyFlag
+from core.moderation import ModerationBlocked, check_prompt
 from core.services import (
     flag_repeated_moderation_blocks,
     margin_dashboard_data,
@@ -186,3 +188,65 @@ def test_flag_repeated_moderation_blocks_does_not_duplicate_within_window():
     # блокировке №4 — всё равно ровно один флаг, а не по одному на
     # каждую блокировку после порога.
     assert AnomalyFlag.objects.filter(user=user).count() == 1
+
+
+def test_check_prompt_fails_open_when_openai_moderation_call_errors(
+    monkeypatch, settings
+):
+    # Регрессия: необработанный openai.RateLimitError (или любой другой
+    # транспортный сбой самого вызова client.moderations.create) раньше
+    # долетал необработанным до вызывающего кода и ронял весь запрос
+    # 500-й — например, /api/chat/ и /api/threads/<id>/messages/, оба
+    # вызывающие run_chat -> check_prompt. Провайдерская модерация — лишь
+    # подстраховка поверх обязательного regex-префильтра, поэтому её
+    # собственный сбой должен просто пропускать этот слой, а не
+    # блокировать доставку сообщения целиком.
+    settings.OPENAI_API_KEY = "test-openai-key"
+    settings.NVIDIA_API_KEY = ""
+
+    import openai
+
+    def _raise(**_kwargs):
+        raise RuntimeError("rate limited")
+
+    client = SimpleNamespace(moderations=SimpleNamespace(create=_raise))
+    monkeypatch.setattr(openai, "OpenAI", lambda **_kwargs: client)
+
+    check_prompt("a perfectly normal prompt")  # не должно бросить исключение
+
+
+def test_check_prompt_still_blocks_when_openai_moderation_flags_prompt(
+    monkeypatch, settings
+):
+    settings.OPENAI_API_KEY = "test-openai-key"
+    settings.NVIDIA_API_KEY = ""
+
+    import openai
+
+    response = SimpleNamespace(results=[SimpleNamespace(flagged=True)])
+    client = SimpleNamespace(
+        moderations=SimpleNamespace(create=lambda **_kwargs: response)
+    )
+    monkeypatch.setattr(openai, "OpenAI", lambda **_kwargs: client)
+
+    with pytest.raises(ModerationBlocked):
+        check_prompt("some prompt")
+
+
+def test_check_prompt_fails_open_when_nvidia_safety_call_errors(
+    monkeypatch, settings
+):
+    settings.OPENAI_API_KEY = ""
+    settings.NVIDIA_API_KEY = "test-nvidia-key"
+
+    import openai
+
+    def _raise(**_kwargs):
+        raise RuntimeError("rate limited")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=_raise))
+    )
+    monkeypatch.setattr(openai, "OpenAI", lambda **_kwargs: client)
+
+    check_prompt("a perfectly normal prompt")  # не должно бросить исключение
