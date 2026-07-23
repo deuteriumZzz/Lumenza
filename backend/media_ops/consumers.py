@@ -21,7 +21,13 @@ from media_ops.pricing import estimate_live_voice_cost_usd
 # отсекает совсем пустой баланс до того, как открыт дорогой сокет к
 # Gemini.
 MIN_MINUTES_BALANCE_CHECK = 1
-GEMINI_LIVE_MODEL = "gemini-2.0-flash-live-001"
+# gemini-2.0-flash-live-001 (изначальный выбор) снят с v1beta bidiGenerateContent
+# — подтверждено вживую через client.models.list() с реальным ключом
+# пользователя: только gemini-2.5-flash-native-audio-latest,
+# gemini-3.1-flash-live-preview и датированные preview-варианты поддерживают
+# bidiGenerateContent сейчас. Взят "latest"-алиас, а не датированный preview,
+# чтобы не привязываться к снимку, который тоже могут снять с поддержки.
+GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 
 
 class VoiceLiveConsumer(AsyncWebsocketConsumer):
