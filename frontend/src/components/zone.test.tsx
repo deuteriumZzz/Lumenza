@@ -18,10 +18,8 @@ describe("ZoneScope", () => {
 
   it.each([
     ["/chat", "desk"],
-    ["/images", "studio"],
-    ["/analyze/new", "studio"],
-    ["/voice", "voice"],
-    ["/documents", "archive"],
+    ["/studio", "studio"],
+    ["/studio/images", "studio"],
   ])("maps %s to the %s zone", (pathname, zone) => {
     mocks.pathname = pathname;
     render(<ZoneScope>Content</ZoneScope>);

@@ -135,6 +135,25 @@ export interface HistoryQuery {
   created_before?: string;
 }
 
+export interface ChatThread {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatThreadMessage {
+  id: number;
+  role: "user" | "assistant";
+  text: string;
+  provider: string;
+  model: string;
+  mocked: boolean;
+  used_fallback: boolean;
+  credits_charged: string;
+  created_at: string;
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;
@@ -308,6 +327,15 @@ export const api = {
   referralStats: () => request<ReferralStats>("/referrals/"),
   chat: (prompt: string, task: Task, model?: string) =>
     request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, task, model }) }),
+  threads: (page = 1) => request<Paginated<ChatThread>>(`/threads/?page=${page}`),
+  createThread: () => request<ChatThread>("/threads/", { method: "POST", body: "{}" }),
+  thread: (id: number) => request<ChatThread & { messages: ChatThreadMessage[] }>(`/threads/${id}/`),
+  deleteThread: (id: number) => request<void>(`/threads/${id}/`, { method: "DELETE" }),
+  sendThreadMessage: (threadId: number, prompt: string, task: Task, model?: string) =>
+    request<ChatResponse>(`/threads/${threadId}/messages/`, {
+      method: "POST",
+      body: JSON.stringify({ prompt, task, model }),
+    }),
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
   history: (page = 1, filters: HistoryQuery = {}) => {
     const params = new URLSearchParams({ page: String(page) });

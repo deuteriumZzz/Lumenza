@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from providers.models import RequestLog
+from providers.models import Message, RequestLog, Thread
 
 CHAT_TASK_CHOICES = (
     "hook",
@@ -77,3 +77,32 @@ class RequestLogSerializer(serializers.ModelSerializer):
             "used_fallback",
             "created_at",
         )
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = (
+            "id",
+            "role",
+            "text",
+            "provider",
+            "model",
+            "mocked",
+            "used_fallback",
+            "credits_charged",
+            "created_at",
+        )
+
+
+class ThreadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Thread
+        fields = ("id", "title", "created_at", "updated_at")
+
+
+class ThreadDetailSerializer(ThreadSerializer):
+    messages = MessageSerializer(many=True, read_only=True)
+
+    class Meta(ThreadSerializer.Meta):
+        fields = ThreadSerializer.Meta.fields + ("messages",)

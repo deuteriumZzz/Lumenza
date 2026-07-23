@@ -3,18 +3,21 @@
 import { usePathname } from "next/navigation";
 
 // Какой префикс роута принадлежит какой "зоне" — см. раздел Zones в
-// DESIGN.md. Порядок важен только в том смысле, что более специфичные
-// префиксы должны идти первыми, если они когда-нибудь пересекутся; сегодня
-// таких нет. Роуты, не попавшие в список (chat, history, pricing, login,
+// DESIGN.md. Роуты, не попавшие в список (chat, history, pricing, login,
 // register), проваливаются в "desk", что намеренно ничего не делает —
 // корневая палитра в globals.css УЖЕ и есть зона desk, так что для неё
 // ничего нового рендерить не нужно.
-const ZONE_BY_PREFIX: [string, string][] = [
-  ["/images", "studio"],
-  ["/analyze", "studio"],
-  ["/voice", "voice"],
-  ["/documents", "archive"],
-];
+//
+// /images, /voice, /documents, /analyze раньше имели разные зоны, но с тех
+// пор, как эти страницы стали чистыми redirect("/chat")/redirect("/studio")
+// (единая творческая студия с переключением режима пилюлями, а не
+// отдельными URL), pathname никогда не остаётся на этих префиксах достаточно
+// долго, чтобы зона успела примениться — они были фактически мертвы. Вся
+// студия теперь под одним "/studio", так что здесь одна зона на всю неё;
+// тонкая тонировка по конкретному режиму пилюли — отдельная фича (нужен
+// клиентский zone-context, реагирующий на выбранную пилюлю, а не на
+// pathname).
+const ZONE_BY_PREFIX: [string, string][] = [["/studio", "studio"]];
 
 function zoneForPath(pathname: string): string {
   for (const [prefix, zone] of ZONE_BY_PREFIX) {

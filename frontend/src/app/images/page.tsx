@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
-import { RequireAuth } from "@/components/require-auth";
 import { UnlockToasts } from "@/components/unlock-toast";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -32,10 +31,10 @@ const TASK_LABELS: Record<string, string> = {
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
 const POLL_INTERVAL_MS = 2000;
 
-// /images теперь режим внутри единой студии (/chat) — старая прямая
+// /images теперь режим внутри творческой студии (/studio) — старая прямая
 // ссылка остаётся рабочей, просто ведёт туда же.
 export default function ImagesPage() {
-  redirect("/chat");
+  redirect("/studio");
 }
 
 export function Images() {

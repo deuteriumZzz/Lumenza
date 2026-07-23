@@ -39,3 +39,49 @@ class RequestLog(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.provider}/{self.model} {self.status}"
+
+
+class Thread(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_threads",
+    )
+    title = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Обновляется через auto_now при добавлении сообщения — сортировка
+    # сайдбара по последней активности, а не по дате создания (как в
+    # ChatGPT: последний активный тред всегда сверху).
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title or f"Thread {self.pk}"
+
+
+class Message(models.Model):
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        ASSISTANT = "assistant", "Assistant"
+
+    thread = models.ForeignKey(
+        Thread, on_delete=models.CASCADE, related_name="messages"
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    text = models.TextField()
+    provider = models.CharField(max_length=32, blank=True, default="")
+    model = models.CharField(max_length=64, blank=True, default="")
+    mocked = models.BooleanField(default=False)
+    used_fallback = models.BooleanField(default=False)
+    credits_charged = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.thread_id} {self.role}"

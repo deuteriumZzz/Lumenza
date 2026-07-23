@@ -104,7 +104,7 @@ describe("Nav", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
-    const currentLinks = screen.getAllByRole("link", { name: "Студия", current: "page" });
+    const currentLinks = screen.getAllByRole("link", { name: "Чат", current: "page" });
     expect(currentLinks).toHaveLength(2);
   });
 

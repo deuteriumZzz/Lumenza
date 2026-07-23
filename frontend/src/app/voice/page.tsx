@@ -12,9 +12,9 @@ import { FileUploadButton } from "@/components/file-upload-button";
 const IN_PROGRESS = new Set(["pending", "processing"]);
 const STALLED_MESSAGE = "Потеряна связь при проверке статуса — обновите страницу.";
 
-// /voice теперь режим внутри единой студии (/chat).
+// /voice теперь режим внутри творческой студии (/studio).
 export default function VoicePage() {
-  redirect("/chat");
+  redirect("/studio");
 }
 
 export function Voice() {
