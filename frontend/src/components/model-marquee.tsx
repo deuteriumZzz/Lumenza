@@ -13,14 +13,20 @@ const ITEMS = [
 ];
 
 // Бесшовный бесконечный скролл — контент продублирован дважды подряд,
-// @keyframes уезжает ровно на -50% (globals.css: model-marquee-scroll),
-// так что конец первой копии стыкуется с началом второй без видимого шва.
+// @keyframes уезжает ровно на -50% (globals.css: model-marquee-scroll).
+// Отступ между пунктами задан на каждом <span> (pr-8), а не через gap на
+// внешнем flex-контейнере — gap на плоском списке из 12 элементов даёт
+// 11 промежутков, а не 12, из-за чего -50% попадает на пол-отступа мимо
+// начала второй копии (виден рывок на стыке). Одинаковый паддинг на
+// каждом элементе, включая последний элемент каждой копии, гарантирует,
+// что обе копии — ровно одинаковой ширины, и -50% всегда попадает точно
+// на начало второй копии.
 export function ModelMarquee() {
   return (
     <div aria-hidden="true" className="overflow-hidden select-none">
-      <div className="flex w-max animate-[model-marquee-scroll_28s_linear_infinite] gap-8 text-xs tracking-wide text-muted uppercase">
+      <div className="flex w-max animate-[model-marquee-scroll_28s_linear_infinite] text-xs tracking-wide text-muted uppercase">
         {[...ITEMS, ...ITEMS].map((item, index) => (
-          <span key={index} className="whitespace-nowrap">
+          <span key={index} className="whitespace-nowrap pr-8">
             {item}
           </span>
         ))}
