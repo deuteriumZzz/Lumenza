@@ -104,11 +104,19 @@ class VoiceLiveConsumer(AsyncWebsocketConsumer):
         self._gemini_task = asyncio.create_task(self._relay_from_gemini())
 
     async def _relay_from_gemini(self):
+        # session.receive() отдаёт асинхронный генератор РОВНО НА ОДИН ход
+        # разговора — он завершается сам, когда модель закончила отвечать
+        # на текущую реплику. Без внешнего цикла эта задача просто
+        # заканчивалась после первого же ответа Gemini, и second+ реплики
+        # пользователя улетали в сессию, но релей ответа на них никто
+        # больше не слушал — снаружи это выглядело как "отвечает только на
+        # первое сообщение, диалог не получается".
         try:
-            async for message in self._session.receive():
-                data = getattr(message, "data", None)
-                if data:
-                    await self.send(bytes_data=data)
+            while True:
+                async for message in self._session.receive():
+                    data = getattr(message, "data", None)
+                    if data:
+                        await self.send(bytes_data=data)
         except asyncio.CancelledError:
             raise
         except Exception:
