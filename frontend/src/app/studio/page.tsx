@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
 import { Images } from "@/app/images/page";
 import { Voice } from "@/app/voice/page";
@@ -19,7 +20,12 @@ const MODES: { key: Mode; icon: string; label: string }[] = [
 export default function StudioPage() {
   return (
     <RequireAuth>
-      <Studio />
+      {/* useSearchParams() выводит поддерево из статического рендеринга,
+          если оно не изолировано за Suspense — тот же паттерн, что уже
+          есть в register/page.tsx. */}
+      <Suspense fallback={null}>
+        <Studio />
+      </Suspense>
     </RequireAuth>
   );
 }
@@ -31,7 +37,13 @@ export default function StudioPage() {
 // тот же компонент/эндпоинты, что и раньше, перенос навигации, а не новый
 // функционал.
 function Studio() {
-  const [mode, setMode] = useState<Mode>("images");
+  const searchParams = useSearchParams();
+  // ?mode=voice&autostart=1 — так сюда попадает глобальный хоткей живого
+  // голоса (GlobalHotkeys) из любого места приложения, не только когда
+  // пользователь уже открыл вкладку "Голос" вручную.
+  const initialMode = searchParams.get("mode") === "voice" ? "voice" : "images";
+  const autoStart = searchParams.get("autostart") === "1";
+  const [mode, setMode] = useState<Mode>(initialMode);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -58,7 +70,7 @@ function Studio() {
       </nav>
 
       {mode === "images" && <Images />}
-      {mode === "voice" && <Voice />}
+      {mode === "voice" && <Voice autoStart={autoStart} />}
       {mode === "documents" && <Documents />}
       {mode === "analyze" && <Analyze />}
     </div>

@@ -73,6 +73,7 @@ class Message(models.Model):
     text = models.TextField()
     provider = models.CharField(max_length=32, blank=True, default="")
     model = models.CharField(max_length=64, blank=True, default="")
+    task = models.CharField(max_length=16, blank=True, default="")
     mocked = models.BooleanField(default=False)
     used_fallback = models.BooleanField(default=False)
     credits_charged = models.DecimalField(

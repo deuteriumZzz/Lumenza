@@ -52,6 +52,25 @@ def test_thread_message_persists_messages_and_sets_title_from_first_prompt():
     assert messages[1].credits_charged == starting_balance - account.balance
 
 
+def test_thread_message_without_task_gets_auto_classified(monkeypatch):
+    import providers.intent
+
+    monkeypatch.setattr(
+        providers.intent, "classify_task", lambda prompt, valid_tasks: "repurpose"
+    )
+    client, user = authed_client()
+    thread = Thread.objects.create(user=user)
+
+    response = client.post(
+        f"/api/threads/{thread.id}/messages/",
+        {"prompt": "просто помоги мне с текстом"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["task"] == "repurpose"
+
+
 def test_thread_message_truncates_long_first_prompt_for_title():
     client, user = authed_client()
     thread = Thread.objects.create(user=user)

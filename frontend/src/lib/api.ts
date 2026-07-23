@@ -102,12 +102,20 @@ export interface Balance {
   updated_at: string;
 }
 
-export type Task = "hook" | "longform" | "hashtags" | "content_plan" | "repurpose" | "translation";
+export type Task =
+  | "hook"
+  | "longform"
+  | "hashtags"
+  | "content_plan"
+  | "repurpose"
+  | "translation"
+  | "search";
 
 export interface ChatResponse {
   text: string;
   provider: string;
   model: string;
+  task: Task;
   mocked: boolean;
   used_fallback: boolean;
   credits_charged: string;
@@ -148,6 +156,7 @@ export interface ChatThreadMessage {
   text: string;
   provider: string;
   model: string;
+  task: Task | "";
   mocked: boolean;
   used_fallback: boolean;
   credits_charged: string;
@@ -331,7 +340,10 @@ export const api = {
   createThread: () => request<ChatThread>("/threads/", { method: "POST", body: "{}" }),
   thread: (id: number) => request<ChatThread & { messages: ChatThreadMessage[] }>(`/threads/${id}/`),
   deleteThread: (id: number) => request<void>(`/threads/${id}/`, { method: "DELETE" }),
-  sendThreadMessage: (threadId: number, prompt: string, task: Task, model?: string) =>
+  // task не передан -> бэкенд сам определяет тему по смыслу промпта
+  // (providers.services.run_chat -> classify_task) — веб-чат больше не
+  // заставляет выбирать тему вручную по умолчанию.
+  sendThreadMessage: (threadId: number, prompt: string, task?: Task, model?: string) =>
     request<ChatResponse>(`/threads/${threadId}/messages/`, {
       method: "POST",
       body: JSON.stringify({ prompt, task, model }),

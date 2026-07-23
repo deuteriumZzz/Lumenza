@@ -69,6 +69,7 @@ def _chat_outcome_response(outcome):
             "text": outcome.text,
             "provider": outcome.provider,
             "model": outcome.model,
+            "task": outcome.task,
             "mocked": outcome.mocked,
             "used_fallback": outcome.used_fallback,
             "credits_charged": str(outcome.credits_charged),
@@ -86,7 +87,7 @@ def chat(request):
     outcome = run_chat(
         request.user,
         serializer.validated_data["prompt"],
-        serializer.validated_data["task"],
+        task=serializer.validated_data.get("task") or None,
         model=serializer.validated_data.get("model") or None,
     )
     return _chat_outcome_response(outcome)
@@ -127,24 +128,26 @@ def thread_message(request, thread_id):
     serializer = ChatRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     prompt = serializer.validated_data["prompt"]
-    task = serializer.validated_data["task"]
 
     outcome = run_chat(
         request.user,
         prompt,
-        task,
+        task=serializer.validated_data.get("task") or None,
         model=serializer.validated_data.get("model") or None,
     )
 
     if outcome.status == "ok":
         with transaction.atomic():
-            Message.objects.create(thread=thread, role=Message.Role.USER, text=prompt)
+            Message.objects.create(
+                thread=thread, role=Message.Role.USER, text=prompt
+            )
             Message.objects.create(
                 thread=thread,
                 role=Message.Role.ASSISTANT,
                 text=outcome.text,
                 provider=outcome.provider,
                 model=outcome.model,
+                task=outcome.task or "",
                 mocked=outcome.mocked,
                 used_fallback=outcome.used_fallback,
                 credits_charged=outcome.credits_charged,

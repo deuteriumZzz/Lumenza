@@ -9,6 +9,7 @@ CHAT_TASK_CHOICES = (
     "content_plan",
     "repurpose",
     "translation",
+    "search",
 )
 
 
@@ -16,9 +17,15 @@ class ChatRequestSerializer(serializers.Serializer):
     prompt = serializers.CharField(
         max_length=8000, trim_whitespace=True, allow_blank=False
     )
+    # Отсутствие/пустая строка означает "определи сам" — веб-чат больше не
+    # заставляет выбирать тему вручную, providers.services.run_chat
+    # классифицирует промпт, если task не передан (см. providers/intent.py).
     task = serializers.ChoiceField(
         choices=CHAT_TASK_CHOICES,
-        default="repurpose",
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
     )
     # Необязательный явный выбор модели (геймифицированная разблокировка
     # на ступень ниже категории задачи) — здесь не проверяется по
@@ -88,6 +95,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "text",
             "provider",
             "model",
+            "task",
             "mocked",
             "used_fallback",
             "credits_charged",

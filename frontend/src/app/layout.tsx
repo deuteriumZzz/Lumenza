@@ -7,6 +7,7 @@ import { ZoneScope } from "@/components/zone";
 import { AccessibilityShell } from "@/components/accessibility-shell";
 import { TelegramWebAppProvider } from "@/components/telegram-webapp-provider";
 import { TelegramLinkExistingAccount } from "@/components/telegram-link-existing-account";
+import { GlobalHotkeys } from "@/components/global-hotkeys";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-bg text-ink">
         <TelegramWebAppProvider />
+        <GlobalHotkeys />
         <AuthProvider>
           <AccessibilityShell navigation={<Nav />}>
             <TelegramLinkExistingAccount />

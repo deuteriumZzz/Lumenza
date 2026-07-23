@@ -52,6 +52,46 @@ def _authed_client(username="chatter", tier=UserModel.Tier.PAID):
     return _shared_authed_client(username, tier=tier)
 
 
+def test_chat_without_task_gets_auto_classified(monkeypatch):
+    import providers.intent
+
+    monkeypatch.setattr(
+        providers.intent, "classify_task", lambda prompt, valid_tasks: "longform"
+    )
+    client, user = _authed_client()
+
+    response = client.post(
+        "/api/chat/", {"prompt": "напиши длинную статью"}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert response.data["task"] == "longform"
+
+    log = RequestLog.objects.get(user=user)
+    assert log.task == "longform"
+
+
+def test_chat_with_explicit_task_skips_classification(monkeypatch):
+    import providers.intent
+
+    called = {"count": 0}
+
+    def _spy(prompt, valid_tasks):
+        called["count"] += 1
+        return "hook"
+
+    monkeypatch.setattr(providers.intent, "classify_task", _spy)
+    client, _ = _authed_client()
+
+    response = client.post(
+        "/api/chat/", {"prompt": "x", "task": "repurpose"}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert response.data["task"] == "repurpose"
+    assert called["count"] == 0
+
+
 def test_chat_with_explicit_model_prefers_it_over_the_default_primary():
     client, user = _authed_client()  # PAID -> все модели разблокированы
     routes = TASK_ROUTES["repurpose"]

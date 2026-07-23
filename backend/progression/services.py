@@ -28,6 +28,7 @@ ALL_KEYS = frozenset(
         "content_plan",
         "repurpose",
         "translation",
+        "search",
         "realistic",
         "illustration",
         "premium",

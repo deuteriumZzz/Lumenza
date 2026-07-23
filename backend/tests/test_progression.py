@@ -50,6 +50,18 @@ def test_paid_user_has_everything_unlocked():
     assert get_unlocked_keys(user) == ALL_KEYS
 
 
+def test_all_keys_covers_every_chat_task_route():
+    # ALL_KEYS — вручную поддерживаемый литерал (не живое чтение
+    # providers.TASK_ROUTES), тот же класс риска рассинхронизации, что уже
+    # защищён для ModelUnlockable в test_model_unlockable_catalog_matches_task_routes
+    # ниже — реальный баг (PAID-пользователь получал task_locked на новую
+    # категорию "search", потому что её забыли добавить сюда при добавлении
+    # в TASK_ROUTES) обнаружен вживую, эта проверка — чтобы не повторилось.
+    from providers.services import TASK_ROUTES
+
+    assert set(TASK_ROUTES.keys()) <= ALL_KEYS
+
+
 def test_check_and_unlock_unlocks_once_thresholds_met():
     user = _make_user()
     translation = UnlockableResource.objects.get(key="translation")

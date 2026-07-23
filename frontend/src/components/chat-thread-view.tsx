@@ -8,7 +8,6 @@ import { motionTokens, springs } from "@/lib/motion";
 import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
-import { ModelPicker } from "@/components/model-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { UnlockToasts } from "@/components/unlock-toast";
 import { useAuth } from "@/lib/auth-context";
@@ -17,7 +16,6 @@ import {
   apiErrorMessage,
   ApiError,
   type ChatThreadMessage,
-  type ModelProgress,
   type Task,
   type TranscriptionEntry,
 } from "@/lib/api";
@@ -30,7 +28,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
-  meta?: Pick<ChatThreadMessage, "provider" | "model" | "mocked" | "used_fallback" | "credits_charged">;
+  meta?: Pick<ChatThreadMessage, "provider" | "model" | "task" | "mocked" | "used_fallback" | "credits_charged">;
 }
 
 const TASKS: { value: Task; label: string; hint: string }[] = [
@@ -40,6 +38,7 @@ const TASKS: { value: Task; label: string; hint: string }[] = [
   { value: "content_plan", label: "Контент-план", hint: "Идеи и расписание на неделю вперёд" },
   { value: "repurpose", label: "Репёрпоз", hint: "Адаптировать пост под другую платформу" },
   { value: "translation", label: "Перевод", hint: "Перевести или локализовать подпись" },
+  { value: "search", label: "Поиск", hint: "Ответ с опорой на свежие результаты веб-поиска" },
 ];
 
 const TASK_LABELS: Record<string, string> = Object.fromEntries(
@@ -56,6 +55,7 @@ function toLocalMessage(entry: ChatThreadMessage): Message {
         ? {
             provider: entry.provider,
             model: entry.model,
+            task: entry.task,
             mocked: entry.mocked,
             used_fallback: entry.used_fallback,
             credits_charged: entry.credits_charged,
@@ -73,7 +73,12 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(threadId !== null);
   const [prompt, setPrompt] = useState("");
-  const [task, setTask] = useState<Task>("repurpose");
+  // Тема больше не выбирается вручную по умолчанию — bэкенд сам определяет
+  // её по смыслу промпта (providers.services.classify_task). forcedTask —
+  // одноразовый override на следующее отправляемое сообщение (кнопки
+  // "Выберите тему"/"Искать в интернете" ниже), не липкий на весь разговор.
+  const [forcedTask, setForcedTask] = useState<Task | null>(null);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<{
     kind: "insufficient" | "provider" | "locked" | "generic";
@@ -84,27 +89,16 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const [dictationEntry, setDictationEntry] = useState<TranscriptionEntry | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcribing = dictationEntry !== null && TRANSCRIPTION_IN_PROGRESS.has(dictationEntry.status);
   const { refreshProgress, isUnlocked, progressFor, justUnlocked, dismissUnlock } = useUnlockProgress();
   const listRef = useRef<HTMLDivElement>(null);
 
-  const [models, setModels] = useState<ModelProgress[] | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [prevTask, setPrevTask] = useState(task);
-  if (task !== prevTask) {
-    setPrevTask(task);
-    setSelectedModel(null);
-  }
-
-  useEffect(() => {
-    api.modelsProgress(task).then(setModels).catch(() => setModels(null));
-  }, [task]);
-
   // Смена треда (переход по сайдбару на другой /chat/[threadId]) должна
   // сбросить список сообщений сразу — иначе на миг видно сообщения
   // предыдущего треда, пока не подгрузятся новые. Синхронный сброс во
-  // время рендера (тот же паттерн, что и у prevTask выше), а не setState
-  // внутри тела эффекта — эффект ниже только выполняет сам fetch.
+  // время рендера, а не setState внутри тела эффекта — эффект ниже только
+  // выполняет сам fetch.
   const [prevThreadId, setPrevThreadId] = useState(threadId);
   if (threadId !== prevThreadId) {
     setPrevThreadId(threadId);
@@ -132,6 +126,20 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     };
   }, [threadId]);
 
+  // Ctrl/Cmd+Shift+M — быстрая надиктовка, не отвлекаясь на мышь.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        if (dictating) stopDictation();
+        else void startDictation();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictating]);
+
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     void sendPrompt();
@@ -145,6 +153,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     const userMessage: Message = { id: crypto.randomUUID(), role: "user", text: trimmed };
     setMessages((prev) => [...prev, userMessage]);
     setPrompt("");
+    const taskOverride = forcedTask ?? undefined;
+    setForcedTask(null);
     setSending(true);
 
     try {
@@ -154,7 +164,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         activeThreadId = created.id;
       }
 
-      const res = await api.sendThreadMessage(activeThreadId, trimmed, task, selectedModel ?? undefined);
+      const res = await api.sendThreadMessage(activeThreadId, trimmed, taskOverride);
       setMessages((prev) => [
         ...prev,
         {
@@ -164,6 +174,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           meta: {
             provider: res.provider,
             model: res.model,
+            task: res.task,
             mocked: res.mocked,
             used_fallback: res.used_fallback,
             credits_charged: res.credits_charged,
@@ -188,7 +199,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           message:
             code === "model_locked"
               ? "Эта модель ещё не разблокирована на вашем тарифе — выберите другую или продолжайте прокачку."
-              : "Эта задача ещё не разблокирована на вашем тарифе.",
+              : "Эта тема ещё не разблокирована на вашем тарифе.",
         });
       } else if (err instanceof ApiError && err.status === 502) {
         setError({ kind: "provider", message: "Все провайдеры для этой задачи не сработали. Списание не производилось." });
@@ -261,6 +272,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     () => setMicError("Потеряна связь при распознавании голоса — попробуйте ещё раз.")
   );
 
+  const showQuickActions = !loadingThread && messages.length === 0;
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6">
       <h1 className="sr-only">Чат</h1>
@@ -275,8 +288,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <h2 className="text-2xl font-semibold tracking-tight text-ink">Чем займёмся сегодня?</h2>
-            <p className="mt-2 text-sm text-muted">Запросите пост, репёрпоз подписи или контент-план.</p>
-            <p className="mt-1 text-xs text-muted">Выберите задачу ниже — стоимость покажется после ответа.</p>
+            <p className="mt-2 text-sm text-muted">Просто опишите, что нужно — тему подберём сами.</p>
           </div>
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">
@@ -325,26 +337,53 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         </p>
       )}
 
+      {showQuickActions && (
+        <div className="relative mb-4 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setThemePickerOpen((open) => !open)}
+            aria-expanded={themePickerOpen}
+            className="btn-secondary text-sm"
+          >
+            🎯 Выберите тему{forcedTask ? `: ${TASK_LABELS[forcedTask]}` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setForcedTask("search");
+              textareaRef.current?.focus();
+            }}
+            className="btn-secondary text-sm"
+          >
+            🔎 Искать в интернете
+          </button>
+          <button type="button" onClick={() => router.push("/studio")} className="btn-secondary text-sm">
+            🎨 Создать изображение
+          </button>
+
+          {themePickerOpen && (
+            <div className="absolute top-full z-10 mt-2 rounded-md border border-border bg-surface p-2 shadow-lg">
+              <LockedOptionPicker
+                ariaLabel="Тема"
+                options={TASKS}
+                selected={forcedTask ?? ""}
+                onSelect={(value) => {
+                  setForcedTask(value as Task);
+                  setThemePickerOpen(false);
+                  textareaRef.current?.focus();
+                }}
+                isUnlocked={isUnlocked}
+                progressFor={progressFor}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <form onSubmit={onSubmit} className="mb-8 flex flex-col gap-3 border-t border-border pt-4">
-        <LockedOptionPicker
-          ariaLabel="Задача"
-          options={TASKS}
-          selected={task}
-          onSelect={(value) => setTask(value as Task)}
-          isUnlocked={isUnlocked}
-          progressFor={progressFor}
-        />
-
-        {models && models.length > 1 && (
-          <ModelPicker
-            models={models}
-            selectedModel={selectedModel}
-            onSelect={setSelectedModel}
-          />
-        )}
-
         <div className="flex items-end gap-3">
           <textarea
+            ref={textareaRef}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={(event) => {
@@ -353,7 +392,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
                 void sendPrompt();
               }
             }}
-            placeholder="Запросите подпись, пост или идею для контента…"
+            placeholder="Напишите, что нужно…"
             aria-label="Сообщение"
             rows={2}
             maxLength={8000}
@@ -364,8 +403,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             onClick={() => (dictating ? stopDictation() : void startDictation())}
             disabled={transcribing}
             aria-pressed={dictating}
-            aria-label={dictating ? "Остановить надиктовку" : "Надиктовать сообщение"}
-            title={dictating ? "Остановить надиктовку" : "Надиктовать сообщение"}
+            aria-label={dictating ? "Остановить надиктовку (Ctrl/Cmd+Shift+M)" : "Надиктовать сообщение (Ctrl/Cmd+Shift+M)"}
+            title={dictating ? "Остановить надиктовку (Ctrl/Cmd+Shift+M)" : "Надиктовать сообщение (Ctrl/Cmd+Shift+M)"}
             className={`inline-flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ${
               dictating
                 ? "border-danger bg-danger/10 text-danger"
@@ -414,6 +453,12 @@ function MessageBlock({ message }: { message: Message }) {
         {message.meta && (
           <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted">
             <span>{message.meta.provider}/{message.meta.model}</span>
+            {message.meta.task && (
+              <>
+                <span>·</span>
+                <span>{TASK_LABELS[message.meta.task] ?? message.meta.task}</span>
+              </>
+            )}
             <span>·</span>
             <span>{message.meta.credits_charged} кредитов</span>
             {message.meta.used_fallback && <span className="status-pill bg-accent">резерв</span>}

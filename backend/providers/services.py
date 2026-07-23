@@ -139,6 +139,9 @@ TASK_ROUTES = {
         ("nvidia", "thinkingmachines/inkling"),
         ("nvidia", "openai/gpt-oss-20b"),
     ],
+    # Единственный реальный поисковый провайдер сейчас — без запасных
+    # вариантов, в отличие от остальных категорий (см. providers/search_adapter.py).
+    "search": [("search", "gpt-4o-mini")],
 }
 
 # У каждого вызова адаптера уже есть свой собственный таймаут на вызов
@@ -167,6 +170,7 @@ class ChatOutcome:
     text: Optional[str] = None
     provider: Optional[str] = None
     model: Optional[str] = None
+    task: Optional[str] = None
     mocked: bool = False
     used_fallback: bool = False
     credits_charged: Optional[Decimal] = None
@@ -190,11 +194,23 @@ def _route_hold_credits(routes, prompt):
 
 
 def run_chat(
-    user, prompt: str, task: str, model: Optional[str] = None
+    user, prompt: str, task: Optional[str] = None, model: Optional[str] = None
 ) -> ChatOutcome:
     """Общая функция для /api/chat/ и для Telegram-бота — это единственные
     два вызывающих слоя провайдеров, поэтому логика резервирования/сверки
-    кредитов существует ровно в одном месте."""
+    кредитов существует ровно в одном месте.
+
+    task=None (веб-чат больше не заставляет выбирать тему вручную —
+    Telegram-бот и явный override через UI по-прежнему передают строку
+    напрямую) запускает лёгкую классификацию по смыслу промпта вместо
+    отсутствующего выбора пользователя. Гейт unlock-прогрессии ниже
+    применяется к результату классификации точно так же, как и к ручному
+    выбору — авто-роутинг не обходит монетизационный гейт."""
+    if not task:
+        from providers.intent import classify_task
+
+        task = classify_task(prompt, tuple(TASK_ROUTES.keys()))
+
     routes = TASK_ROUTES[task]
 
     # Проверяется до модерации и до списания кредитов —
@@ -209,7 +225,7 @@ def run_chat(
             task=task,
             status=RequestLog.Status.TASK_LOCKED,
         )
-        return ChatOutcome(status="task_locked")
+        return ChatOutcome(status="task_locked", task=task)
 
     # Явный выбор модели (геймифицированная разблокировка на уровне
     # модели, на ступень ниже разблокировки категории выше)
@@ -228,7 +244,7 @@ def run_chat(
                 task=task,
                 status=RequestLog.Status.MODEL_LOCKED,
             )
-            return ChatOutcome(status="model_locked")
+            return ChatOutcome(status="model_locked", task=task)
         routes = [chosen] + [route for route in routes if route != chosen]
 
     # Проверяется до того, как вообще затронуты кредиты, и до вызова
@@ -249,7 +265,7 @@ def run_chat(
             error_message=str(exc)[:ERROR_MESSAGE_MAX_LEN],
         )
         flag_repeated_moderation_blocks(user)
-        return ChatOutcome(status="blocked")
+        return ChatOutcome(status="blocked", task=task)
 
     get_or_create_account(user)
     hold_credits = _route_hold_credits(routes, prompt)
@@ -266,7 +282,7 @@ def run_chat(
             task=task,
             status=RequestLog.Status.INSUFFICIENT_CREDITS,
         )
-        return ChatOutcome(status="insufficient_credits")
+        return ChatOutcome(status="insufficient_credits", task=task)
 
     result = None
     provider_name = matched_model = None
@@ -309,7 +325,7 @@ def run_chat(
             error_message=error_message,
             used_fallback=attempt_index > 0,
         )
-        return ChatOutcome(status="provider_error")
+        return ChatOutcome(status="provider_error", task=task)
 
     actual_credits = usd_to_credits(result.cost_usd)
     refund = hold_credits - actual_credits
@@ -340,6 +356,7 @@ def run_chat(
         text=result.text,
         provider=provider_name,
         model=matched_model,
+        task=task,
         mocked=result.mocked,
         used_fallback=used_fallback,
         credits_charged=actual_credits,

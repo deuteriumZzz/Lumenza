@@ -17,13 +17,13 @@ export default function VoicePage() {
   redirect("/studio");
 }
 
-export function Voice() {
+export function Voice({ autoStart = false }: { autoStart?: boolean } = {}) {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">Голос</h1>
       <p className="mt-1 text-sm text-muted">Превратите голосовую заметку в текст, или текст — в озвучку.</p>
 
-      <LiveVoiceSection />
+      <LiveVoiceSection autoStart={autoStart} />
       <div className="my-10 border-t border-border" />
       <TranscribeSection />
       <div className="my-10 border-t border-border" />
@@ -75,7 +75,7 @@ function downsampleTo16k(buffer: Float32Array, inputSampleRate: number): Float32
   return result;
 }
 
-function LiveVoiceSection() {
+function LiveVoiceSection({ autoStart = false }: { autoStart?: boolean } = {}) {
   const { refreshBalance } = useAuth();
   const [status, setStatus] = useState<LiveStatus>("idle");
   const [mocked, setMocked] = useState<boolean | null>(null);
@@ -206,6 +206,20 @@ function LiveVoiceSection() {
   useEffect(() => () => {
     wsRef.current?.close();
     cleanup();
+  }, []);
+
+  // ?autostart=1 — так сюда попадает глобальный хоткей живого голоса
+  // (Ctrl/Cmd+Shift+L, components/global-hotkeys.tsx) из любого места
+  // приложения: переход на /studio?mode=voice&autostart=1 монтирует эту
+  // секцию уже с включённым autoStart, и звонок стартует сам, без
+  // дополнительного клика.
+  useEffect(() => {
+    // startCall сама выставляет статус "connecting" в начале — то же
+    // самое, что происходит при явном клике, а не что-то новое для
+    // автозапуска.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (autoStart) void startCall();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

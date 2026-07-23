@@ -303,6 +303,7 @@ ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 GOOGLE_API_KEY = env("GOOGLE_API_KEY", default="")
 REPLICATE_API_TOKEN = env("REPLICATE_API_TOKEN", default="")
 NVIDIA_API_KEY = env("NVIDIA_API_KEY", default="")
+TAVILY_API_KEY = env("TAVILY_API_KEY", default="")
 
 # 1 кредит = $0.001 себестоимости у провайдера (до наценки).
 CREDIT_USD_VALUE = env.float("CREDIT_USD_VALUE", default=0.001)
