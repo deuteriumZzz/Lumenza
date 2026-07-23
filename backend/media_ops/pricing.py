@@ -49,3 +49,16 @@ def estimate_document_cost_usd(model: str) -> float:
 
 def estimate_photo_analysis_cost_usd(model: str) -> float:
     return lookup_price(PHOTO_ANALYSIS_PRICING, model, "photo analysis")
+
+
+# Живой голосовой режим (Gemini Live API) тарифицируется провайдером
+# по токенам аудио, не по минутам — здесь это сведено к оценке за минуту
+# сессии (вход ~$0.005/мин + выход ~$0.018/мин по данным на момент
+# интеграции), той же логике placeholder-цены, что и у остального в
+# этом файле. TODO: сверить с реальным счётом Google, когда появится
+# первый настоящий трафик.
+LIVE_VOICE_USD_PER_MINUTE = 0.023
+
+
+def estimate_live_voice_cost_usd(minutes: float) -> float:
+    return max(0.0, minutes) * LIVE_VOICE_USD_PER_MINUTE

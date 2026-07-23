@@ -15,3 +15,4 @@ node_modules/
 .ruff_cache/
 celerybeat-schedule
 .agents/
+.claude/

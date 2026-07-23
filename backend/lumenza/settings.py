@@ -35,6 +35,10 @@ if not DEBUG and SECRET_KEY in KNOWN_INSECURE_SECRET_KEYS:
     )
 
 INSTALLED_APPS = [
+    # Должен идти первым — так Channels подменяет команду `runserver` на
+    # свою ASGI-совместимую версию (сама команда используется только в
+    # dev; прод идёт через daphne напрямую, см. docker-compose.yml).
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -52,7 +56,10 @@ INSTALLED_APPS = [
     "progression",
     "media_ops",
     "referrals",
+    "channels",
 ]
+
+ASGI_APPLICATION = "lumenza.asgi.application"
 
 AUTH_USER_MODEL = "accounts.User"
 

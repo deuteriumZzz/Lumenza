@@ -42,3 +42,11 @@ nvidia-riva-client==2.26.0
 # Serves static files (admin CSS/JS) under gunicorn — unlike runserver,
 # gunicorn doesn't serve STATIC_URL itself.
 whitenoise==6.7.0
+
+# Live voice mode — WebSocket support (Django Channels) + the ASGI server
+# that replaces gunicorn for the `web` service. No channel layer/Redis
+# needed: each voice consumer only relays its own connection 1:1 to
+# Gemini Live, it never broadcasts to other consumers.
+channels==4.1.0
+daphne==4.1.2
+pytest-asyncio==0.24.0

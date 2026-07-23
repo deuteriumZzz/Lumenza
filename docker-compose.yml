@@ -27,14 +27,15 @@ services:
 
   web:
     build: ./backend
-    # gunicorn, not runserver — a dev-only single-threaded server was never
-    # meant to hold up under real concurrent traffic. Override this
-    # service's `command:` locally (e.g. via docker-compose.override.yml)
-    # to get runserver's autoreload back for active backend development.
+    # daphne (ASGI), not gunicorn/runserver — live voice mode needs a real
+    # WebSocket connection (see media_ops/consumers.py), which WSGI
+    # (gunicorn) cannot serve at all. Override this service's `command:`
+    # locally (e.g. via docker-compose.override.yml) to get runserver's
+    # autoreload back for active backend development.
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             gunicorn lumenza.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
+             daphne -b 0.0.0.0 -p 8000 lumenza.asgi:application"
     volumes:
       - ./backend:/app
     ports:
