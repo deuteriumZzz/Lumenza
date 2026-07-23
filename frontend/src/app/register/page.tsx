@@ -6,6 +6,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 import { TelegramAuthSection } from "@/components/telegram-auth-section";
+import { AuthPageChrome } from "@/components/auth-page-chrome";
 
 export default function RegisterPage() {
   // useSearchParams() выводит поддерево из статического рендеринга, если
@@ -45,63 +46,65 @@ function RegisterForm() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Создать аккаунт</h1>
-      <p className="mt-2 text-sm text-muted">
-        Стартовый баланс уже включён — хватит на первые посты и визуалы до пополнения.
-      </p>
+    <AuthPageChrome>
+      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Создать аккаунт</h1>
+        <p className="mt-2 text-sm text-muted">
+          Стартовый баланс уже включён — хватит на первые посты и визуалы до пополнения.
+        </p>
 
-      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <Field label="Имя пользователя">
-          <input
-            required
-            autoFocus
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            className="input"
-          />
-        </Field>
-        <Field label="Email">
-          <input
-            required
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="input"
-          />
-        </Field>
-        <Field label="Пароль">
-          <input
-            required
-            type="password"
-            minLength={8}
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="input"
-          />
-        </Field>
+        <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+          <Field label="Имя пользователя">
+            <input
+              required
+              autoFocus
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="Пароль">
+            <input
+              required
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="input"
+            />
+          </Field>
 
-        {error && <p className="text-sm text-danger" role="alert">{error}</p>}
+          {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
-        <button type="submit" disabled={submitting} className="btn-primary mt-2">
-          {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
-        </button>
-      </form>
+          <button type="submit" disabled={submitting} className="btn-primary mt-2">
+            {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
+          </button>
+        </form>
 
-      <div className="mt-6">
-        <TelegramAuthSection label="Или зарегистрируйтесь через Telegram" onSuccess={() => router.push("/chat")} />
+        <div className="mt-6">
+          <TelegramAuthSection label="Или зарегистрируйтесь через Telegram" onSuccess={() => router.push("/chat")} />
+        </div>
+
+        <p className="mt-6 text-sm text-muted">
+          Уже есть аккаунт?{" "}
+          <Link href="/login" className="font-medium text-accent hover:underline">
+            Войти
+          </Link>
+        </p>
       </div>
-
-      <p className="mt-6 text-sm text-muted">
-        Уже есть аккаунт?{" "}
-        <Link href="/login" className="font-medium text-accent hover:underline">
-          Войти
-        </Link>
-      </p>
-    </div>
+    </AuthPageChrome>
   );
 }
 

@@ -115,7 +115,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6 md:gap-6">
-        <Link href="/chat" className="text-sm font-semibold tracking-tight text-ink">
+        <Link href="/chat" className="brand-wordmark text-sm font-semibold tracking-tight text-ink">
           Lumenza
         </Link>
 

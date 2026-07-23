@@ -170,6 +170,30 @@ body {
   }
 }
 
+/* Контент внутри дублирован дважды подряд (components/model-marquee.tsx)
+   — уезжает ровно на -50%, поэтому конец первой копии стыкуется с
+   началом второй без видимого шва. */
+@keyframes model-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Едва заметный дрейф фонового SVG на /login и /register
+   (components/ambient-network-background.tsx) — ease, не linear, чтобы
+   не читался как механический тик. */
+@keyframes network-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-2%, 1.5%) scale(1.03);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -200,5 +224,17 @@ body {
   }
   .balance-change-decrease {
     animation: balance-decrease 360ms ease-out;
+  }
+  /* Логотип виден на каждой странице (вне зоны, см. ZoneScope) — ease,
+     не spring, лёгкое латунное свечение + чуть шире трекинг на hover,
+     тактично, не полноценная particle-анимация. */
+  .brand-wordmark {
+    transition:
+      filter 200ms ease-out,
+      letter-spacing 200ms ease-out;
+  }
+  .brand-wordmark:hover {
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--color-primary) 60%, transparent));
+    letter-spacing: 0.02em;
   }
 }

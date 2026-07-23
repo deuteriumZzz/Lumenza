@@ -32,11 +32,11 @@ interface Message {
 }
 
 const TASKS: { value: Task; label: string; hint: string }[] = [
-  { value: "hook", label: "Хук", hint: "Короткая цепляющая первая строка" },
-  { value: "longform", label: "Лонгформ", hint: "Полная статья или подробный пост" },
+  { value: "hook", label: "Цепляющее начало", hint: "Короткая цепляющая первая строка" },
+  { value: "longform", label: "Длинный текст", hint: "Полная статья или подробный пост" },
   { value: "hashtags", label: "Хэштеги", hint: "Теги для охвата и обнаружения" },
-  { value: "content_plan", label: "Контент-план", hint: "Идеи и расписание на неделю вперёд" },
-  { value: "repurpose", label: "Репёрпоз", hint: "Адаптировать пост под другую платформу" },
+  { value: "content_plan", label: "План публикаций", hint: "Идеи и расписание на неделю вперёд" },
+  { value: "repurpose", label: "Переписать под площадку", hint: "Адаптировать пост под другую платформу" },
   { value: "translation", label: "Перевод", hint: "Перевести или локализовать подпись" },
   { value: "search", label: "Поиск", hint: "Ответ с опорой на свежие результаты веб-поиска" },
 ];
@@ -44,6 +44,31 @@ const TASKS: { value: Task; label: string; hint: string }[] = [
 const TASK_LABELS: Record<string, string> = Object.fromEntries(
   TASKS.map((option) => [option.value, option.label])
 );
+
+// Человекочитаемые имена — по факту уже используемых в
+// providers.services.TASK_ROUTES id моделей (backend/providers/services.py).
+// Нераспознанный id (новая модель добавлена в маршрут, лейбл сюда ещё не
+// добавлен) просто показывается как есть — не ошибка, а понятный fallback.
+const MODEL_LABELS: Record<string, string> = {
+  "claude-3-5-sonnet-latest": "Claude 3.5 Sonnet",
+  "gpt-4o-mini": "GPT-4o mini",
+  "gemini-1.5-flash": "Gemini 1.5 Flash",
+};
+
+function modelLabel(model: string): string {
+  return MODEL_LABELS[model] ?? model;
+}
+
+// Разные интонации, чтобы пустой экран не выглядел одной и той же
+// заготовкой при каждом визите — выбор случайный один раз при монтировании
+// (не на каждый ре-рендер, см. useState с функцией-инициализатором ниже).
+const GREETINGS: { title: string; subtitle: string }[] = [
+  { title: "Чем займёмся сегодня?", subtitle: "Просто опишите, что нужно — тему подберём сами." },
+  { title: "О чём подумаем?", subtitle: "Пишите как есть, разберёмся вместе." },
+  { title: "Готов помочь.", subtitle: "Текст, перевод, план или что-то ещё — просто спросите." },
+  { title: "С чего начнём?", subtitle: "Опишите задачу своими словами." },
+  { title: "Слушаю.", subtitle: "Чем сложнее вопрос, тем интереснее." },
+];
 
 function toLocalMessage(entry: ChatThreadMessage): Message {
   return {
@@ -93,6 +118,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const transcribing = dictationEntry !== null && TRANSCRIPTION_IN_PROGRESS.has(dictationEntry.status);
   const { refreshProgress, isUnlocked, progressFor, justUnlocked, dismissUnlock } = useUnlockProgress();
   const listRef = useRef<HTMLDivElement>(null);
+  // Один случайный вариант на монтирование компонента, не на каждый
+  // ре-рендер — иначе текст "мигал" бы при любом обновлении состояния.
+  const [greeting] = useState(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
+  const [lastModel, setLastModel] = useState<string | null>(null);
 
   // Смена треда (переход по сайдбару на другой /chat/[threadId]) должна
   // сбросить список сообщений сразу — иначе на миг видно сообщения
@@ -114,6 +143,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       .then((data) => {
         if (cancelled) return;
         setMessages(data.messages.map(toLocalMessage));
+        const lastAssistant = [...data.messages].reverse().find((m) => m.role === "assistant");
+        if (lastAssistant) setLastModel(lastAssistant.model);
       })
       .catch(() => {
         if (!cancelled) setError({ kind: "generic", message: "Не удалось загрузить чат." });
@@ -182,6 +213,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         },
       ]);
       setBalance({ balance: res.balance, updated_at: new Date().toISOString() });
+      setLastModel(res.model);
       void refreshProgress();
 
       // Первое сообщение нового чата — переезжаем на постоянный URL треда,
@@ -287,8 +319,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           <ResponseSkeleton />
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <h2 className="text-2xl font-semibold tracking-tight text-ink">Чем займёмся сегодня?</h2>
-            <p className="mt-2 text-sm text-muted">Просто опишите, что нужно — тему подберём сами.</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">{greeting.title}</h2>
+            <p className="mt-2 text-sm text-muted">{greeting.subtitle}</p>
           </div>
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">
@@ -381,6 +413,16 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       )}
 
       <form onSubmit={onSubmit} className="mb-8 flex flex-col gap-3 border-t border-border pt-4">
+        <p className="text-xs text-muted">
+          {lastModel ? (
+            <>
+              Последний ответ: <span className="text-ink">{modelLabel(lastModel)}</span>
+            </>
+          ) : (
+            "Модель подбирается автоматически"
+          )}
+        </p>
+
         <div className="flex items-end gap-3">
           <textarea
             ref={textareaRef}
@@ -452,7 +494,7 @@ function MessageBlock({ message }: { message: Message }) {
         <CopyResponseButton text={message.text} />
         {message.meta && (
           <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted">
-            <span>{message.meta.provider}/{message.meta.model}</span>
+            <span className="text-ink">{modelLabel(message.meta.model)}</span>
             {message.meta.task && (
               <>
                 <span>·</span>

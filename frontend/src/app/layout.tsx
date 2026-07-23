@@ -8,6 +8,7 @@ import { AccessibilityShell } from "@/components/accessibility-shell";
 import { TelegramWebAppProvider } from "@/components/telegram-webapp-provider";
 import { TelegramLinkExistingAccount } from "@/components/telegram-link-existing-account";
 import { GlobalHotkeys } from "@/components/global-hotkeys";
+import { RouteTransition } from "@/components/route-transition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +41,9 @@ export default function RootLayout({
         <AuthProvider>
           <AccessibilityShell navigation={<Nav />}>
             <TelegramLinkExistingAccount />
-            <ZoneScope>{children}</ZoneScope>
+            <ZoneScope>
+              <RouteTransition>{children}</RouteTransition>
+            </ZoneScope>
           </AccessibilityShell>
         </AuthProvider>
       </body>

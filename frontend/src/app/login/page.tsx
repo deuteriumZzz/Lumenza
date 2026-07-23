@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 import { TelegramAuthSection } from "@/components/telegram-auth-section";
+import { AuthPageChrome } from "@/components/auth-page-chrome";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -30,50 +31,52 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Вход</h1>
-      <p className="mt-2 text-sm text-muted">С возвращением — продолжите с того же места.</p>
+    <AuthPageChrome>
+      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Вход</h1>
+        <p className="mt-2 text-sm text-muted">С возвращением — продолжите с того же места.</p>
 
-      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <Field label="Имя пользователя">
-          <input
-            required
-            autoFocus
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            className="input"
-          />
-        </Field>
-        <Field label="Пароль">
-          <input
-            required
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="input"
-          />
-        </Field>
+        <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+          <Field label="Имя пользователя">
+            <input
+              required
+              autoFocus
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="Пароль">
+            <input
+              required
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="input"
+            />
+          </Field>
 
-        {error && <p className="text-sm text-danger" role="alert">{error}</p>}
+          {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
-        <button type="submit" disabled={submitting} className="btn-primary mt-2">
-          {submitting ? "Входим…" : "Войти"}
-        </button>
-      </form>
+          <button type="submit" disabled={submitting} className="btn-primary mt-2">
+            {submitting ? "Входим…" : "Войти"}
+          </button>
+        </form>
 
-      <div className="mt-6">
-        <TelegramAuthSection label="Или войдите через Telegram" onSuccess={() => router.push("/chat")} />
+        <div className="mt-6">
+          <TelegramAuthSection label="Или войдите через Telegram" onSuccess={() => router.push("/chat")} />
+        </div>
+
+        <p className="mt-6 text-sm text-muted">
+          Ещё нет аккаунта?{" "}
+          <Link href="/register" className="font-medium text-accent hover:underline">
+            Создать
+          </Link>
+        </p>
       </div>
-
-      <p className="mt-6 text-sm text-muted">
-        Ещё нет аккаунта?{" "}
-        <Link href="/register" className="font-medium text-accent hover:underline">
-          Создать
-        </Link>
-      </p>
-    </div>
+    </AuthPageChrome>
   );
 }
 
