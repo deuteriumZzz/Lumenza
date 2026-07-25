@@ -83,6 +83,7 @@ export interface User {
 
 export interface PublicConfig {
   telegram_bot_username: string;
+  telegram_bot_id: string;
 }
 
 // Форма данных, которую официальный виджет "Login with Telegram"

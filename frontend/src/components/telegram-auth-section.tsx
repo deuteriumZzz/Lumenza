@@ -16,13 +16,13 @@ interface TelegramAuthSectionProps {
 // это случай, по наличию сессии (accounts.views.telegram_auth).
 export function TelegramAuthSection({ label, onSuccess }: TelegramAuthSectionProps) {
   const { authenticateWithTelegram } = useAuth();
-  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [botId, setBotId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.publicConfig().then(
-      (config) => setBotUsername(config.telegram_bot_username || null),
-      () => setBotUsername(null)
+      (config) => setBotId(config.telegram_bot_id || null),
+      () => setBotId(null)
     );
   }, []);
 
@@ -36,15 +36,15 @@ export function TelegramAuthSection({ label, onSuccess }: TelegramAuthSectionPro
     }
   }
 
-  // Пока бот не сконфигурирован (TELEGRAM_BOT_USERNAME пуст в .env) виджет
-  // всё равно не смог бы отрендериться валидно — молча ничего не
-  // показываем, а не пустая кнопка, которая ведёт в никуда.
-  if (!botUsername) return null;
+  // Пока бот не сконфигурирован (TELEGRAM_BOT_TOKEN пуст в .env) кнопка
+  // всё равно не смогла бы открыть валидный OAuth-попап — молча ничего не
+  // показываем, а не кнопку, которая ведёт в никуда.
+  if (!botId) return null;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <span className="text-xs uppercase tracking-wide text-muted">{label}</span>
-      <TelegramLoginButton botUsername={botUsername} onAuth={handleAuth} />
+      <TelegramLoginButton botId={botId} onAuth={handleAuth} />
       {error && (
         <p className="text-sm text-danger" role="alert">
           {error}

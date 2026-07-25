@@ -13,9 +13,17 @@ def health(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_config(request):
-    # Значение публично по своей природе (это просто @username бота,
-    # видимый в любом t.me/<username>-URL) — секретом является только
-    # TELEGRAM_BOT_TOKEN, который сюда не попадает. Фронтенд использует
-    # это, чтобы не хардкодить и не дублировать имя бота отдельной
-    # переменной окружения на своей стороне.
-    return Response({"telegram_bot_username": settings.TELEGRAM_BOT_USERNAME})
+    # Значения публичны по своей природе: @username виден в любом
+    # t.me/<username>-URL, а bot_id — это просто числовой префикс токена
+    # до двоеточия, который Telegram сам показывает как часть подписи
+    # бота в API-ответах. Фронтенду он нужен для кастомной кнопки входа
+    # через Telegram.Login.auth() (см. telegram-login-button.tsx) вместо
+    # авто-рендерящегося iframe-виджета. Секретом является только сам
+    # TELEGRAM_BOT_TOKEN целиком — он сюда не попадает.
+    bot_id = settings.TELEGRAM_BOT_TOKEN.split(":", 1)[0]
+    return Response(
+        {
+            "telegram_bot_username": settings.TELEGRAM_BOT_USERNAME,
+            "telegram_bot_id": bot_id if bot_id.isdigit() else "",
+        }
+    )
