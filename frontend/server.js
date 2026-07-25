@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createServer } = require("http");
 const net = require("net");
 const { URL } = require("url");
@@ -12,6 +13,12 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   const server = createServer((req, res) => handle(req, res));
+  // next dev (Turbopack) обслуживает свой webpack-hmr WebSocket через тот
+  // же upgradeHandler, что next-server использует внутри; если не отдать
+  // ему не-/ws/ апгрейды, HMR-сокет рвётся сразу после хендшейка и Fast
+  // Refresh перестаёт работать. В production этот хендлер — заглушка (см.
+  // next.config.ts), поэтому не запрашиваем его там.
+  const nextUpgradeHandler = dev ? app.getUpgradeHandler() : null;
 
   // next start/next dev не проксируют WebSocket-апгрейд вообще (см.
   // комментарий в next.config.ts) — единственный способ оставить
@@ -22,7 +29,11 @@ app.prepare().then(() => {
   // (media_ops/routing.py: ^ws/voice/$).
   server.on("upgrade", (req, socket, head) => {
     if (!req.url || !req.url.startsWith("/ws/")) {
-      socket.destroy();
+      if (nextUpgradeHandler) {
+        nextUpgradeHandler(req, socket, head);
+      } else {
+        socket.destroy();
+      }
       return;
     }
 
