@@ -16,7 +16,10 @@ interface TelegramLoginButtonProps {
 export function TelegramLoginButton({ botUsername, onAuth, size = "large" }: TelegramLoginButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onAuthRef = useRef(onAuth);
-  onAuthRef.current = onAuth;
+
+  useEffect(() => {
+    onAuthRef.current = onAuth;
+  }, [onAuth]);
 
   useEffect(() => {
     const container = containerRef.current;

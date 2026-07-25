@@ -24,6 +24,7 @@ export const motionTokens = {
     xl: 48,
   },
   scale: {
+    route: 0.992,
     subtle: 0.98,
     press: 0.95,
     pop: 1.04,

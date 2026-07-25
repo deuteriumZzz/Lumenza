@@ -3,19 +3,28 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { motionTokens, springs } from "@/lib/motion";
 import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
 import { LockedOptionPicker } from "@/components/locked-option-picker";
+import { ModelPicker } from "@/components/model-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
+import { LumenzaConvergence } from "@/components/lumenza-brand";
 import { UnlockToasts } from "@/components/unlock-toast";
+import { useChatRouting } from "@/components/chat-routing";
 import { useAuth } from "@/lib/auth-context";
+import {
+  TASK_DEFINITIONS,
+  TASK_GROUPS,
+  TASK_LABELS,
+} from "@/lib/chat-taxonomy";
 import {
   api,
   apiErrorMessage,
   ApiError,
   type ChatThreadMessage,
+  type ModelProgress,
   type Task,
   type TranscriptionEntry,
 } from "@/lib/api";
@@ -30,20 +39,6 @@ interface Message {
   text: string;
   meta?: Pick<ChatThreadMessage, "provider" | "model" | "task" | "mocked" | "used_fallback" | "credits_charged">;
 }
-
-const TASKS: { value: Task; label: string; hint: string }[] = [
-  { value: "hook", label: "Цепляющее начало", hint: "Короткая цепляющая первая строка" },
-  { value: "longform", label: "Длинный текст", hint: "Полная статья или подробный пост" },
-  { value: "hashtags", label: "Хэштеги", hint: "Теги для охвата и обнаружения" },
-  { value: "content_plan", label: "План публикаций", hint: "Идеи и расписание на неделю вперёд" },
-  { value: "repurpose", label: "Переписать под площадку", hint: "Адаптировать пост под другую платформу" },
-  { value: "translation", label: "Перевод", hint: "Перевести или локализовать подпись" },
-  { value: "search", label: "Поиск", hint: "Ответ с опорой на свежие результаты веб-поиска" },
-];
-
-const TASK_LABELS: Record<string, string> = Object.fromEntries(
-  TASKS.map((option) => [option.value, option.label])
-);
 
 // Человекочитаемые имена — по факту уже используемых в
 // providers.services.TASK_ROUTES id моделей (backend/providers/services.py).
@@ -63,11 +58,11 @@ function modelLabel(model: string): string {
 // заготовкой при каждом визите — выбор случайный один раз при монтировании
 // (не на каждый ре-рендер, см. useState с функцией-инициализатором ниже).
 const GREETINGS: { title: string; subtitle: string }[] = [
-  { title: "Чем займёмся сегодня?", subtitle: "Просто опишите, что нужно — тему подберём сами." },
-  { title: "О чём подумаем?", subtitle: "Пишите как есть, разберёмся вместе." },
-  { title: "Готов помочь.", subtitle: "Текст, перевод, план или что-то ещё — просто спросите." },
-  { title: "С чего начнём?", subtitle: "Опишите задачу своими словами." },
-  { title: "Слушаю.", subtitle: "Чем сложнее вопрос, тем интереснее." },
+  { title: "Чем займёмся сегодня?", subtitle: "Спросите, исследуйте или создайте — маршрут подберём сами." },
+  { title: "О чём подумаем?", subtitle: "Выберите модель или оставьте автоматический режим." },
+  { title: "Готов помочь.", subtitle: "Текст, поиск, анализ или творческая задача — просто опишите цель." },
+  { title: "С чего начнём?", subtitle: "Можно писать своими словами, без специальных команд." },
+  { title: "Слушаю.", subtitle: "Для сложных задач доступны модели разных провайдеров." },
 ];
 
 function toLocalMessage(entry: ChatThreadMessage): Message {
@@ -95,15 +90,13 @@ function toLocalMessage(entry: ChatThreadMessage): Message {
 export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const router = useRouter();
   const { setBalance } = useAuth();
+  const { routing, setRouting } = useChatRouting();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(threadId !== null);
   const [prompt, setPrompt] = useState("");
-  // Тема больше не выбирается вручную по умолчанию — bэкенд сам определяет
-  // её по смыслу промпта (providers.services.classify_task). forcedTask —
-  // одноразовый override на следующее отправляемое сообщение (кнопки
-  // "Выберите тему"/"Искать в интернете" ниже), не липкий на весь разговор.
-  const [forcedTask, setForcedTask] = useState<Task | null>(null);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [models, setModels] = useState<ModelProgress[]>([]);
+  const [modelsError, setModelsError] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<{
     kind: "insufficient" | "provider" | "locked" | "generic";
@@ -122,6 +115,36 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   // ре-рендер — иначе текст "мигал" бы при любом обновлении состояния.
   const [greeting] = useState(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
   const [lastModel, setLastModel] = useState<string | null>(null);
+  const modelsRequestRef = useRef(0);
+
+  const refreshModelsCatalog = useCallback(async () => {
+    const requestId = ++modelsRequestRef.current;
+    try {
+      const catalog = await api.modelsCatalog();
+      if (requestId !== modelsRequestRef.current) return;
+      setModels(catalog);
+      setModelsError(false);
+    } catch {
+      if (requestId === modelsRequestRef.current) setModelsError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const requestId = ++modelsRequestRef.current;
+    api.modelsCatalog().then(
+      (catalog) => {
+        if (requestId !== modelsRequestRef.current) return;
+        setModels(catalog);
+        setModelsError(false);
+      },
+      () => {
+        if (requestId === modelsRequestRef.current) setModelsError(true);
+      },
+    );
+    return () => {
+      modelsRequestRef.current += 1;
+    };
+  }, []);
 
   // Смена треда (переход по сайдбару на другой /chat/[threadId]) должна
   // сбросить список сообщений сразу — иначе на миг видно сообщения
@@ -160,6 +183,14 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   // Ctrl/Cmd+Shift+M — быстрая надиктовка, не отвлекаясь на мышь.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPrompt("");
+        setThemePickerOpen(false);
+        router.push("/chat");
+        requestAnimationFrame(() => textareaRef.current?.focus());
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "m") {
         event.preventDefault();
         if (dictating) stopDictation();
@@ -169,7 +200,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dictating]);
+  }, [dictating, router]);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -184,8 +215,12 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     const userMessage: Message = { id: crypto.randomUUID(), role: "user", text: trimmed };
     setMessages((prev) => [...prev, userMessage]);
     setPrompt("");
-    const taskOverride = forcedTask ?? undefined;
-    setForcedTask(null);
+    const routingAtSubmit = routing;
+    const taskOverride = routingAtSubmit.kind === "auto" ? undefined : routingAtSubmit.task;
+    const modelOverride = routingAtSubmit.kind === "model" ? routingAtSubmit.model : undefined;
+    if (routingAtSubmit.kind === "task") {
+      setRouting({ kind: "auto" });
+    }
     setSending(true);
 
     try {
@@ -195,7 +230,12 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         activeThreadId = created.id;
       }
 
-      const res = await api.sendThreadMessage(activeThreadId, trimmed, taskOverride);
+      const res = await api.sendThreadMessage(
+        activeThreadId,
+        trimmed,
+        taskOverride,
+        modelOverride,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -215,6 +255,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       setBalance({ balance: res.balance, updated_at: new Date().toISOString() });
       setLastModel(res.model);
       void refreshProgress();
+      void refreshModelsCatalog();
 
       // Первое сообщение нового чата — переезжаем на постоянный URL треда,
       // чтобы он появился в сайдбаре и пережил обновление страницы.
@@ -241,7 +282,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     } finally {
       setSending(false);
       requestAnimationFrame(() => {
-        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+        const list = listRef.current;
+        if (list && typeof list.scrollTo === "function") {
+          list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+        }
       });
     }
   }
@@ -304,10 +348,22 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     () => setMicError("Потеряна связь при распознавании голоса — попробуйте ещё раз.")
   );
 
-  const showQuickActions = !loadingThread && messages.length === 0;
+  const slashQuery = prompt.startsWith("/") ? prompt.slice(1).trim().toLocaleLowerCase() : null;
+  const slashOptions = slashQuery === null
+    ? []
+    : TASK_DEFINITIONS.filter((option) =>
+        `${option.label} ${option.hint}`.toLocaleLowerCase().includes(slashQuery),
+      );
+
+  function chooseTask(task: Task) {
+    setRouting({ kind: "task", task });
+    setPrompt("");
+    setThemePickerOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 sm:px-6">
       <h1 className="sr-only">Чат</h1>
       <UnlockToasts
         unlockedKeys={justUnlocked}
@@ -318,9 +374,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         {loadingThread ? (
           <ResponseSkeleton />
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <h2 className="text-2xl font-semibold tracking-tight text-ink">{greeting.title}</h2>
-            <p className="mt-2 text-sm text-muted">{greeting.subtitle}</p>
+          <div className="flex h-full flex-col items-center justify-center pb-8 text-center">
+            <LumenzaConvergence />
+            <h2 className="text-balance text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">{greeting.title}</h2>
+            <p className="mt-3 max-w-lg text-pretty text-sm leading-6 text-muted">{greeting.subtitle}</p>
           </div>
         ) : (
           <ol className="flex flex-col gap-6" aria-live="polite">
@@ -369,77 +426,111 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         </p>
       )}
 
-      {showQuickActions && (
-        <div className="relative mb-4 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setThemePickerOpen((open) => !open)}
-            aria-expanded={themePickerOpen}
-            className="btn-secondary text-sm"
-          >
-            🎯 Выберите тему{forcedTask ? `: ${TASK_LABELS[forcedTask]}` : ""}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setForcedTask("search");
-              textareaRef.current?.focus();
-            }}
-            className="btn-secondary text-sm"
-          >
-            🔎 Искать в интернете
-          </button>
-          <button type="button" onClick={() => router.push("/studio")} className="btn-secondary text-sm">
-            🎨 Создать изображение
-          </button>
-
-          {themePickerOpen && (
-            <div className="absolute top-full z-10 mt-2 rounded-md border border-border bg-surface p-2 shadow-lg">
-              <LockedOptionPicker
-                ariaLabel="Тема"
-                options={TASKS}
-                selected={forcedTask ?? ""}
-                onSelect={(value) => {
-                  setForcedTask(value as Task);
-                  setThemePickerOpen(false);
-                  textareaRef.current?.focus();
-                }}
-                isUnlocked={isUnlocked}
-                progressFor={progressFor}
-              />
+      <form
+        aria-label="Написать сообщение"
+        data-focus-surface="composer"
+        onSubmit={onSubmit}
+        className="chat-composer relative mb-3"
+      >
+        {slashQuery !== null && (
+          <div role="dialog" aria-label="Команды" className="slash-command-menu">
+            <div className="border-b border-border/70 px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">Инструменты Lumenza</p>
             </div>
-          )}
-        </div>
-      )}
+            <div className="max-h-64 overflow-y-auto p-2">
+              {slashOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={routing.kind !== "auto" && routing.task === option.value}
+                  onClick={() => chooseTask(option.value)}
+                  className="slash-command-option"
+                >
+                  <span className="slash-command-icon" aria-hidden="true">/</span>
+                  <span className="min-w-0 text-left">
+                    <span className="block text-sm font-medium text-ink">{option.label}</span>
+                    <span className="block truncate text-xs text-muted">{option.hint}</span>
+                  </span>
+                </button>
+              ))}
+              {slashOptions.length === 0 && (
+                <p className="px-3 py-6 text-center text-sm text-muted">Команда не найдена</p>
+              )}
+            </div>
+          </div>
+        )}
 
-      <form onSubmit={onSubmit} className="mb-8 flex flex-col gap-3 border-t border-border pt-4">
-        <p className="text-xs text-muted">
-          {lastModel ? (
-            <>
-              Последний ответ: <span className="text-ink">{modelLabel(lastModel)}</span>
-            </>
-          ) : (
-            "Модель подбирается автоматически"
-          )}
-        </p>
-
-        <div className="flex items-end gap-3">
+        <div className="flex items-start">
           <textarea
             ref={textareaRef}
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(event) => {
+              setPrompt(event.target.value);
+              event.currentTarget.style.height = "auto";
+              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 200)}px`;
+            }}
             onKeyDown={(event) => {
+              if (event.key === "Escape" && slashQuery !== null) {
+                event.preventDefault();
+                setPrompt("");
+                return;
+              }
+              if (event.key === "Enter" && !event.shiftKey && slashQuery !== null && slashOptions.length > 0) {
+                event.preventDefault();
+                chooseTask(slashOptions[0].value);
+                return;
+              }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void sendPrompt();
               }
             }}
-            placeholder="Напишите, что нужно…"
+            placeholder="Спросите что угодно. «/» — инструменты"
             aria-label="Сообщение"
-            rows={2}
+            rows={1}
             maxLength={8000}
-            className="input flex-1 resize-none"
+            className="chat-composer-editor"
           />
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2">
+          <ModelPicker
+            models={models}
+            selectedModel={routing.kind === "model" ? routing.model : null}
+            selectedTask={routing.kind === "model" ? routing.task : null}
+            onSelect={(model, task) => {
+              if (!model || !task) {
+                setRouting({ kind: "auto" });
+                return;
+              }
+              setRouting({ kind: "model", model, task: task as Task });
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setThemePickerOpen((open) => !open)}
+            aria-expanded={themePickerOpen}
+            className={`composer-tool-button ${routing.kind === "task" ? "is-active" : ""}`}
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M4 5h12M6.5 10h7M8.5 15h3" strokeLinecap="round" />
+            </svg>
+            <span
+              className="hidden sm:inline"
+              data-active-tool={routing.kind === "task" ? "" : undefined}
+            >
+              {routing.kind === "task" ? TASK_LABELS[routing.task] : "Режим"}
+            </span>
+          </button>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="hidden max-w-44 truncate text-xs text-muted lg:block">
+              {modelsError
+                ? "Каталог недоступен"
+                : lastModel
+                  ? `Ответил: ${modelLabel(lastModel)}`
+                  : "Умная маршрутизация"}
+            </span>
           <button
             type="button"
             onClick={() => (dictating ? stopDictation() : void startDictation())}
@@ -447,10 +538,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             aria-pressed={dictating}
             aria-label={dictating ? "Остановить надиктовку (Ctrl/Cmd+Shift+M)" : "Надиктовать сообщение (Ctrl/Cmd+Shift+M)"}
             title={dictating ? "Остановить надиктовку (Ctrl/Cmd+Shift+M)" : "Надиктовать сообщение (Ctrl/Cmd+Shift+M)"}
-            className={`inline-flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ${
+            className={`composer-icon-button ${
               dictating
-                ? "border-danger bg-danger/10 text-danger"
-                : "border-border bg-surface text-muted hover:text-ink"
+                ? "bg-danger/10 text-danger"
+                : "text-muted hover:bg-surface-raised hover:text-ink"
             }`}
           >
             {transcribing ? (
@@ -468,12 +559,59 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             disabled={sending || !prompt.trim()}
             whileTap={{ scale: motionTokens.scale.press }}
             transition={springs.snappy}
-            className="btn-primary h-fit"
+            aria-label="Отправить"
+            title="Отправить"
+            className="composer-send-button"
           >
-            Отправить
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M10 15V5m0 0L6 9m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </motion.button>
+          </div>
         </div>
+
+        {themePickerOpen && (
+          <div className="task-picker-popover">
+            {TASK_GROUPS.map((group) => (
+              <section key={group.key} aria-label={group.label}>
+                <p className="px-2 pb-2 text-xs font-medium text-ink">{group.label}</p>
+                <LockedOptionPicker
+                  ariaLabel={group.label}
+                  options={TASK_DEFINITIONS.filter((option) => option.group === group.key)}
+                  selected={routing.kind === "auto" ? "" : routing.task}
+                  onSelect={(value) => chooseTask(value as Task)}
+                  isUnlocked={isUnlocked}
+                  progressFor={progressFor}
+                  className="flex flex-col items-stretch gap-1"
+                />
+              </section>
+            ))}
+          </div>
+        )}
       </form>
+
+      <div className="mb-5 flex flex-wrap items-center justify-center gap-1.5" aria-label="Быстрые действия">
+        <button
+          type="button"
+          onClick={() => chooseTask("search")}
+          className={`quick-action-chip ${routing.kind !== "auto" && routing.task === "search" ? "is-active" : ""}`}
+        >
+          <span aria-hidden="true">⌕</span>
+          <span data-active-tool={routing.kind !== "auto" && routing.task === "search" ? "" : undefined}>
+            Исследовать
+          </span>
+        </button>
+        <button type="button" onClick={() => router.push("/studio")} className="quick-action-chip">
+          <span aria-hidden="true">◇</span> Изображение
+        </button>
+        <button type="button" onClick={() => router.push("/documents")} className="quick-action-chip">
+          <span aria-hidden="true">▤</span> Документ
+        </button>
+        <button type="button" onClick={() => router.push("/analyze")} className="quick-action-chip">
+          <span aria-hidden="true">◎</span> Анализ
+        </button>
+        <span className="hidden text-[11px] text-muted sm:inline">Введите / для всех режимов</span>
+      </div>
     </div>
   );
 }

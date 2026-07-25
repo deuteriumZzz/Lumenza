@@ -1,14 +1,5 @@
-// Статичная композиция узлов/рёбер (координаты захардкожены как разумный
-// декоративный паттерн, не генерируются рантаймом), медленный дрейф через
-// CSS @keyframes (globals.css: network-drift). Чисто декоративно —
-// aria-hidden, pointer-events отключены, не мешает ни кликам, ни
-// скринридерам.
-//
-// Широкий viewBox (не узкий квадрат) — при preserveAspectRatio="slice" на
-// типичном широком/высоком экране логина маленький viewBox масштабируется
-// так сильно, что видны 1-2 гигантских узла вместо сетки;ширина 900x600 с
-// узлами, распределёнными по всей площади, остаётся читаемой как "сеть"
-// независимо от соотношения сторон окна.
+import type { CSSProperties } from "react";
+
 const NODES: [number, number][] = [
   [60, 80],
   [220, 40],
@@ -70,27 +61,76 @@ export function AmbientNetworkBackground() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-[0.16]"
+      data-testid="ambient-network-background"
+      className="network-background pointer-events-none fixed inset-0 z-0 overflow-hidden"
     >
       <svg
         viewBox="0 0 900 600"
         preserveAspectRatio="xMidYMid slice"
-        className="h-full w-full animate-[network-drift_26s_ease-in-out_infinite_alternate]"
+        className="network-canvas h-full w-full"
       >
+        <defs>
+          <radialGradient id="network-node-glow">
+            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="network-edge-glow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="var(--color-muted)" stopOpacity="0.35" />
+            <stop offset="52%" stopColor="var(--color-primary)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--color-muted)" stopOpacity="0.22" />
+          </linearGradient>
+        </defs>
         {EDGES.map(([from, to], index) => (
           <line
             key={index}
+            className="network-edge"
+            style={{ animationDelay: `${-(index % 9) * 0.7}s` }}
             x1={NODES[from][0]}
             y1={NODES[from][1]}
             x2={NODES[to][0]}
             y2={NODES[to][1]}
-            stroke="var(--color-ink)"
-            strokeWidth={1.5}
+            pathLength="1"
+            stroke="url(#network-edge-glow)"
+            strokeWidth={1.25}
           />
         ))}
-        {NODES.map(([x, y], index) => (
-          <circle key={index} cx={x} cy={y} r={4} fill="var(--color-primary)" />
-        ))}
+        {NODES.map(([x, y], index) => {
+          const animationStyle = {
+            animationDelay: `${-(index % 7) * 0.85}s`,
+          } as CSSProperties;
+          return (
+            <g key={index}>
+              <circle
+                className="network-node-glow"
+                cx={x}
+                cy={y}
+                r={18}
+                fill="url(#network-node-glow)"
+                style={animationStyle}
+              />
+              <circle
+                className="network-node"
+                cx={x}
+                cy={y}
+                r={3.5}
+                fill="var(--color-primary)"
+                style={animationStyle}
+              />
+              {index % 5 === 0 && (
+                <circle
+                  className="network-signal"
+                  cx={x}
+                  cy={y}
+                  r={5}
+                  fill="none"
+                  stroke="var(--color-primary)"
+                  strokeWidth={1}
+                  style={animationStyle}
+                />
+              )}
+            </g>
+          );
+        })}
       </svg>
     </div>
   );

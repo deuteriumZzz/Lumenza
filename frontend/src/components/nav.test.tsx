@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  pathname: "/chat",
+  pathname: "/history",
   replace: vi.fn(),
   logout: vi.fn(async () => undefined),
   auth: {
@@ -65,7 +65,7 @@ import { Nav } from "@/components/nav";
 
 describe("Nav", () => {
   beforeEach(() => {
-    mocks.pathname = "/chat";
+    mocks.pathname = "/history";
     mocks.auth.user = {
       id: 1,
       username: "tester",
@@ -99,12 +99,22 @@ describe("Nav", () => {
     expect(screen.queryByRole("navigation", { name: "Мобильная навигация" })).toBeNull();
   });
 
+  it("removes the global header immediately when a dedicated workspace shell mounts", () => {
+    const { rerender } = render(<Nav />);
+    expect(screen.getByRole("banner")).toBeDefined();
+
+    mocks.pathname = "/studio";
+    rerender(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
+
   it("marks the current page in desktop and mobile navigation", () => {
     render(<Nav />);
 
     fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
-    const currentLinks = screen.getAllByRole("link", { name: "Чат", current: "page" });
+    const currentLinks = screen.getAllByRole("link", { name: "История", current: "page" });
     expect(currentLinks).toHaveLength(2);
   });
 
@@ -172,6 +182,30 @@ describe("Nav", () => {
 
   it("does not render navigation without an authenticated user", () => {
     mocks.auth.user = null;
+
+    render(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
+
+  it("does not duplicate navigation on public landing and auth routes", () => {
+    mocks.pathname = "/";
+
+    render(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
+
+  it("defers to the dedicated chat shell on chat routes", () => {
+    mocks.pathname = "/chat";
+
+    render(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
+
+  it("defers to the dedicated workspace shell on Studio routes", () => {
+    mocks.pathname = "/studio";
 
     render(<Nav />);
 

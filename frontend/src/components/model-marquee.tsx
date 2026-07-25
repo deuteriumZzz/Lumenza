@@ -4,7 +4,7 @@
 // NVIDIA-кандидатов в запасных вариантах) — это витрина "мы агрегатор",
 // не техническая документация.
 const ITEMS = [
-  "OpenAI GPT-4o",
+  "OpenAI GPT-4o mini",
   "Anthropic Claude 3.5",
   "Google Gemini",
   "NVIDIA Nemotron",

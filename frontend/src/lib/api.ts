@@ -349,6 +349,7 @@ export const api = {
       body: JSON.stringify({ prompt, task, model }),
     }),
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
+  modelsCatalog: () => request<ModelProgress[]>("/progress/models/"),
   history: (page = 1, filters: HistoryQuery = {}) => {
     const params = new URLSearchParams({ page: String(page) });
     const filterEntries: [keyof HistoryQuery, string | undefined][] = [

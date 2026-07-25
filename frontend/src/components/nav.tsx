@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { useAuth } from "@/lib/auth-context";
 import type { Balance } from "@/lib/api";
 import { TelegramCta } from "@/components/telegram-cta";
+import { LumenzaBrand } from "@/components/lumenza-brand";
+import { StudioMark } from "@/components/studio-mark";
+import { motionTokens } from "@/lib/motion";
 
 const LINKS = [
   { href: "/chat", label: "Чат" },
-  { href: "/studio", label: "Студия" },
+  { href: "/studio", label: "Студия", studio: true },
   { href: "/history", label: "История" },
   { href: "/pricing", label: "Оплата" },
 ];
@@ -86,6 +90,7 @@ export function Nav() {
   const { user, balance, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileNavigationRef = useRef<HTMLElement>(null);
@@ -105,7 +110,11 @@ export function Nav() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mobileMenuOpen]);
 
-  if (!user) return null;
+  const publicRoute =
+    pathname === "/" || pathname === "/login" || pathname === "/register";
+  const hasDedicatedShell =
+    pathname.startsWith("/chat") || pathname.startsWith("/studio");
+  if (!user || publicRoute || hasDedicatedShell) return null;
 
   function signOut() {
     setMobileMenuOpen(false);
@@ -113,11 +122,21 @@ export function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur">
+    <motion.header
+      initial={
+        shouldReduceMotion
+          ? false
+          : { opacity: 0, y: -motionTokens.distance.md }
+      }
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: shouldReduceMotion ? 0 : motionTokens.duration.normal,
+        ease: motionTokens.easing.smooth,
+      }}
+      className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur"
+    >
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6 md:gap-6">
-        <Link href="/chat" className="brand-wordmark text-sm font-semibold tracking-tight text-ink">
-          Lumenza
-        </Link>
+        <LumenzaBrand href="/chat" />
 
         <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
           {LINKS.map((link) => {
@@ -127,13 +146,16 @@ export function Nav() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-md px-3 py-1.5 text-sm transition-colors duration-150 ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors duration-150 ${
                   active
                     ? "bg-surface-raised text-ink"
                     : "text-muted hover:text-ink"
                 }`}
               >
-                {link.label}
+                {link.studio && (
+                  <StudioMark active={active} className="size-4 shrink-0" />
+                )}
+                <span>{link.label}</span>
               </Link>
             );
           })}
@@ -204,13 +226,16 @@ export function Nav() {
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`rounded-md px-3 py-2 text-sm transition-colors duration-150 ${
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-150 ${
                     active
                       ? "bg-surface-raised text-ink"
                       : "text-muted hover:bg-surface hover:text-ink"
                   }`}
                 >
-                  {link.label}
+                  {link.studio && (
+                    <StudioMark active={active} className="size-4.5 shrink-0" />
+                  )}
+                  <span>{link.label}</span>
                 </Link>
               );
             })}
@@ -225,6 +250,6 @@ export function Nav() {
           </button>
         </nav>
       )}
-    </header>
+    </motion.header>
   );
 }

@@ -15,6 +15,16 @@ const models: ModelProgress[] = [
     target_days: 0,
   },
   {
+    task: "longform",
+    provider: "openai",
+    model: "gpt-5-mini",
+    unlocked: true,
+    current_requests: 0,
+    target_requests: 0,
+    current_days: 0,
+    target_days: 0,
+  },
+  {
     task: "repurpose",
     provider: "anthropic",
     model: "claude-sonnet-4",
@@ -29,23 +39,70 @@ const models: ModelProgress[] = [
 describe("ModelPicker", () => {
   afterEach(cleanup);
 
-  it("offers Auto and selects an unlocked model", () => {
+  it("opens a compact list and selects an unlocked model", () => {
     const onSelect = vi.fn();
     render(<ModelPicker models={models} selectedModel={null} onSelect={onSelect} />);
 
-    const select = screen.getByRole("combobox", { name: "Модель" });
-    expect((select as HTMLSelectElement).value).toBe("");
-    expect(screen.getByRole("option", { name: "gpt-5-mini · openai" })).toBeDefined();
-    fireEvent.change(select, { target: { value: "gpt-5-mini" } });
-    expect(onSelect).toHaveBeenCalledWith("gpt-5-mini");
+    fireEvent.click(screen.getByRole("button", { name: "Модель: Автовыбор" }));
+    fireEvent.click(screen.getByRole("button", { name: /gpt-5-mini · openai/i }));
+
+    expect(onSelect).toHaveBeenCalledWith("gpt-5-mini", "repurpose");
   });
 
-  it("keeps locked models visible with progress but unavailable", () => {
+  it("deduplicates the same provider/model across compatible tasks", () => {
     render(<ModelPicker models={models} selectedModel={null} onSelect={vi.fn()} />);
 
-    const locked = screen.getByRole("option", {
-      name: "claude-sonnet-4 · anthropic — заблокировано: 2/5 запросов, 1/3 дней",
-    }) as HTMLOptionElement;
-    expect(locked.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Модель: Автовыбор" }));
+
+    expect(screen.getAllByRole("button", { name: /gpt-5-mini · openai/i })).toHaveLength(1);
+  });
+
+  it("keeps locked models visible with concise progress but unavailable", () => {
+    render(<ModelPicker models={models} selectedModel={null} onSelect={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Модель: Автовыбор" }));
+    fireEvent.click(screen.getByRole("button", { name: /Ещё модели/i }));
+    const locked = screen.getByRole("button", { name: /claude-sonnet-4 · anthropic/i });
+
+    expect(locked.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("labels automatic routing explicitly", () => {
+    render(<ModelPicker models={models} selectedModel={null} onSelect={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Модель: Автовыбор" })).toBeDefined();
+  });
+
+  it("filters models and closes with Escape without changing selection", () => {
+    const onSelect = vi.fn();
+    render(<ModelPicker models={models} selectedModel={null} onSelect={onSelect} />);
+
+    const trigger = screen.getByRole("button", { name: "Модель: Автовыбор" });
+    fireEvent.click(trigger);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Найти модель" }), {
+      target: { value: "does-not-exist" },
+    });
+    expect(screen.getByText("Модели не найдены")).toBeDefined();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Выбор модели" })).toBeNull();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("can return from an explicit model to automatic routing", () => {
+    const onSelect = vi.fn();
+    render(
+      <ModelPicker
+        models={models}
+        selectedModel="gpt-5-mini"
+        selectedTask="repurpose"
+        onSelect={onSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Модель: gpt-5-mini · openai/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Автовыбор/i }));
+
+    expect(onSelect).toHaveBeenCalledWith(null, null);
   });
 });

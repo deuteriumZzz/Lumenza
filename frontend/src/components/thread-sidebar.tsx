@@ -2,17 +2,56 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { motionTokens, springs } from "@/lib/motion";
 import { api, apiErrorMessage, type ChatThread, type Paginated } from "@/lib/api";
+import { AppearanceControl } from "@/components/appearance-control";
+import { LumenzaBrand } from "@/components/lumenza-brand";
+import { StudioMark } from "@/components/studio-mark";
+
+const SIDEBAR_STORAGE_KEY = "lumenza:sidebar-collapsed";
+
+function storedSidebarPreference(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return value === null ? null : value === "true";
+  } catch {
+    return null;
+  }
+}
+
+function persistSidebarPreference(value: boolean) {
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(value));
+  } catch {
+    // Private/locked-down browser contexts may disable storage.
+  }
+}
 
 export function ThreadSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
+  const studioActive = pathname.startsWith("/studio");
   const [result, setResult] = useState<Paginated<ChatThread> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(() => storedSidebarPreference() ?? false);
+  const [studioFolderState, setStudioFolderState] = useState({
+    pathname,
+    open: studioActive,
+  });
+  const [initializing, setInitializing] = useState(true);
 
+  if (studioFolderState.pathname !== pathname) {
+    setStudioFolderState({
+      pathname,
+      open: studioActive,
+    });
+  }
+
+  const studioOpen = studioFolderState.open;
   const activeThreadId = pathname.startsWith("/chat/") ? pathname.slice("/chat/".length) : null;
 
   // Рефетч при каждой смене pathname внутри /chat — самый простой способ
@@ -35,6 +74,44 @@ export function ThreadSidebar() {
     };
   }, [pathname]);
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (
+        storedSidebarPreference() === null &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(max-width: 767px)").matches
+      ) {
+        setCollapsed(true);
+      }
+      setInitializing(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== "b") {
+        return;
+      }
+      event.preventDefault();
+      setCollapsed((current) => {
+        const next = !current;
+        persistSidebarPreference(next);
+        return next;
+      });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      persistSidebarPreference(next);
+      return next;
+    });
+  }
+
   async function handleDelete(id: number, event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
@@ -48,61 +125,286 @@ export function ThreadSidebar() {
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface/50 px-3 py-4">
+    <aside
+      id="thread-sidebar"
+      data-collapsed={collapsed}
+      className={`chat-sidebar ${collapsed ? "is-collapsed" : ""} ${initializing ? "is-initializing" : ""}`}
+    >
+      <div className={`mb-3 flex items-center ${collapsed ? "justify-center" : "justify-between px-1"}`}>
+        {!collapsed && (
+          <LumenzaBrand href="/chat" />
+        )}
+        <button
+          type="button"
+          aria-label={collapsed ? "Показать боковую панель" : "Свернуть боковую панель"}
+          aria-controls="thread-sidebar-navigation"
+          aria-expanded={!collapsed}
+          title={`${collapsed ? "Показать" : "Свернуть"} боковую панель (⌘B)`}
+          onClick={toggleCollapsed}
+          className="sidebar-icon-button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.65">
+            <rect x="3.5" y="4" width="17" height="16" rx="3" />
+            <path d="M9 4v16" />
+            <path d={collapsed ? "m13 9 3 3-3 3" : "m16 9-3 3 3 3"} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
       <Link
         href="/chat"
-        className="btn-secondary mb-3 flex items-center justify-center gap-1.5 text-sm"
+        aria-label={collapsed ? "Новый чат" : undefined}
+        title={collapsed ? "Новый чат (⌘K)" : undefined}
+        className={`sidebar-new-chat ${collapsed ? "justify-center px-0" : ""}`}
       >
-        <span aria-hidden="true">+</span> Новый чат
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <path d="M12 20H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7" />
+          <path d="m15 5 4 4M14 10l5.5-5.5a1.4 1.4 0 0 1 2 2L16 12l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {!collapsed && (
+          <>
+            <span>Новый чат</span>
+            <kbd className="ml-auto text-[10px] text-muted">⌘K</kbd>
+          </>
+        )}
       </Link>
 
-      {error && (
+      {!collapsed && error && (
         <p role="alert" className="mb-2 px-2 text-xs text-danger">
           {error}
         </p>
       )}
 
-      <nav aria-label="Чаты" className="flex-1 overflow-y-auto">
-        {result === null ? null : result.results.length === 0 ? (
-          <p className="px-2 text-xs text-muted">Пока нет ни одного чата.</p>
-        ) : (
-          <ol className="flex flex-col gap-0.5">
-            {result.results.map((thread) => {
-              const active = activeThreadId === String(thread.id);
-              return (
-                <motion.li
-                  key={thread.id}
-                  initial={{ opacity: 0, y: motionTokens.distance.sm }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={springs.gentle}
+      {collapsed ? (
+        <nav aria-label="Разделы" className="flex flex-col items-center gap-1">
+          <SidebarRailLink href="/studio" label="Студия" icon="studio" />
+          <SidebarRailLink href="/history" label="История" icon="history" />
+        </nav>
+      ) : (
+        <>
+          <nav aria-label="Разделы" className="mb-4 flex flex-col gap-0.5">
+            <div>
+              <div
+                className={`studio-folder-row ${studioActive ? "is-active" : ""}`}
+              >
+                <Link
+                  href="/studio"
+                  aria-current={studioActive ? "page" : undefined}
+                  className="studio-folder-link"
                 >
-                  <Link
-                    href={`/chat/${thread.id}`}
-                    aria-current={active ? "page" : undefined}
-                    className={`group flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-150 ${
-                      active ? "bg-surface-raised text-ink" : "text-muted hover:bg-surface hover:text-ink"
-                    }`}
+                  <StudioMark
+                    active={studioActive}
+                    className="size-4.5 shrink-0"
+                  />
+                  <span>Студия</span>
+                </Link>
+                <button
+                  type="button"
+                  aria-label={
+                    studioOpen
+                      ? "Свернуть категории Студии"
+                      : "Развернуть категории Студии"
+                  }
+                  aria-controls="studio-sidebar-categories"
+                  aria-expanded={studioOpen}
+                  onClick={() =>
+                    setStudioFolderState((current) => ({
+                      ...current,
+                      open: !current.open,
+                    }))
+                  }
+                  className="studio-folder-toggle"
+                >
+                  <motion.svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    className="size-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    animate={{ rotate: studioOpen ? 90 : 0 }}
+                    transition={{
+                      duration: shouldReduceMotion
+                        ? 0
+                        : motionTokens.duration.fast,
+                      ease: motionTokens.easing.smooth,
+                    }}
                   >
-                    <span className="truncate">{thread.title || "Новый чат"}</span>
-                    <button
-                      type="button"
-                      onClick={(event) => void handleDelete(thread.id, event)}
-                      aria-label="Удалить чат"
-                      title="Удалить чат"
-                      className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity duration-150 hover:text-danger group-hover:opacity-100"
+                    <path
+                      d="m7.5 5.5 4.5 4.5-4.5 4.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                </button>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {studioOpen && (
+                  <motion.div
+                    id="studio-sidebar-categories"
+                    initial={
+                      shouldReduceMotion
+                        ? false
+                        : { height: 0, opacity: 0, y: -motionTokens.distance.xs }
+                    }
+                    animate={{ height: "auto", opacity: 1, y: 0 }}
+                    exit={
+                      shouldReduceMotion
+                        ? { height: 0 }
+                        : { height: 0, opacity: 0, y: -motionTokens.distance.xs }
+                    }
+                    transition={{
+                      duration: shouldReduceMotion
+                        ? 0
+                        : motionTokens.duration.fast,
+                      ease: motionTokens.easing.smooth,
+                    }}
+                    className="overflow-hidden"
+                  >
+                    <div className="studio-folder-tree">
+                      <StudioCategoryLink
+                        href="/studio?mode=images"
+                        label="Создание"
+                        description="Картинки и голос"
+                      />
+                      <StudioCategoryLink
+                        href="/studio?mode=documents"
+                        label="Работа"
+                        description="Документы"
+                      />
+                      <StudioCategoryLink
+                        href="/studio?mode=analyze"
+                        label="Исследование"
+                        description="Анализ фото"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <SidebarLink href="/history" label="История" icon="history" />
+            <SidebarLink href="/pricing" label="Тариф и кредиты" icon="credits" />
+          </nav>
+
+          <div className="mb-2 flex items-center justify-between px-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">Недавние</p>
+            <kbd className="text-[10px] text-muted">⌘B</kbd>
+          </div>
+          <nav id="thread-sidebar-navigation" aria-label="Чаты" className="min-h-0 flex-1 overflow-y-auto">
+            {result === null ? (
+              <div className="space-y-2 px-2 py-1" aria-label="Загрузка чатов">
+                <span className="block h-7 animate-pulse rounded-lg bg-surface-raised/70" />
+                <span className="block h-7 animate-pulse rounded-lg bg-surface-raised/50" />
+              </div>
+            ) : result.results.length === 0 ? (
+              <p className="px-2 text-xs leading-5 text-muted">
+                Диалоги появятся здесь после первого сообщения.
+              </p>
+            ) : (
+              <ol className="flex flex-col gap-0.5">
+                {result.results.map((thread) => {
+                  const active = activeThreadId === String(thread.id);
+                  return (
+                    <motion.li
+                      key={thread.id}
+                      initial={{ opacity: 0, y: motionTokens.distance.sm }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={springs.gentle}
+                      className={`group flex items-center rounded-lg pr-1 ${
+                        active ? "bg-surface-raised text-ink" : "text-muted hover:bg-surface hover:text-ink"
+                      }`}
                     >
-                      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.75">
-                        <path d="M6 6l12 12" strokeLinecap="round" />
-                        <path d="M18 6L6 18" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </Link>
-                </motion.li>
-              );
-            })}
-          </ol>
-        )}
-      </nav>
+                      <Link
+                        href={`/chat/${thread.id}`}
+                        aria-current={active ? "page" : undefined}
+                        className="min-w-0 flex-1 truncate px-2.5 py-2 text-sm"
+                      >
+                        {thread.title || "Новый чат"}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={(event) => void handleDelete(thread.id, event)}
+                        aria-label={`Удалить чат «${thread.title || "Новый чат"}»`}
+                        title="Удалить чат"
+                        className="shrink-0 rounded-md p-1 text-muted opacity-50 transition hover:bg-bg/50 hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.75">
+                          <path d="M6 6l12 12" strokeLinecap="round" />
+                          <path d="M18 6L6 18" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </motion.li>
+                  );
+                })}
+              </ol>
+            )}
+          </nav>
+        </>
+      )}
+
+      <div className={`mt-auto border-t border-border/70 pt-3 ${collapsed ? "flex justify-center" : ""}`}>
+        <AppearanceControl compact={collapsed} />
+      </div>
     </aside>
+  );
+}
+
+function SidebarLink({ href, label, icon }: { href: string; label: string; icon: "studio" | "history" | "credits" }) {
+  return (
+    <Link href={href} className="sidebar-action">
+      <SidebarIcon icon={icon} />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function StudioCategoryLink({
+  href,
+  label,
+  description,
+}: {
+  href: string;
+  label: string;
+  description: string;
+}) {
+  return (
+    <Link href={href} className="studio-category-link">
+      <span aria-hidden="true" className="studio-category-node" />
+      <span className="min-w-0">
+        <span className="block text-[13px] leading-4 text-ink/90">{label}</span>
+        <span className="block truncate text-[10px] leading-4 text-muted">
+          {description}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function SidebarRailLink({ href, label, icon }: { href: string; label: string; icon: "studio" | "history" }) {
+  return (
+    <Link href={href} aria-label={label} title={label} className="sidebar-icon-button">
+      <SidebarIcon icon={icon} />
+    </Link>
+  );
+}
+
+function SidebarIcon({ icon }: { icon: "studio" | "history" | "credits" }) {
+  if (icon === "studio") {
+    return <StudioMark className="size-4.5 shrink-0" />;
+  }
+  if (icon === "history") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M4.5 9a8 8 0 1 1-.3 5" strokeLinecap="round" />
+        <path d="M4.5 4.5V9H9M12 7.5V12l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="3" />
+      <path d="M3.5 10h17M7 14.5h3" strokeLinecap="round" />
+    </svg>
   );
 }
