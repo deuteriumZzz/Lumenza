@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework.authentication import CSRFCheck, TokenAuthentication
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 
 
 class CookieTokenAuthentication(TokenAuthentication):
@@ -23,7 +23,16 @@ class CookieTokenAuthentication(TokenAuthentication):
         token_key = request.COOKIES.get(settings.AUTH_TOKEN_COOKIE_NAME)
         if not token_key:
             return None
-        user, token = self.authenticate_credentials(token_key)
+        try:
+            user, token = self.authenticate_credentials(token_key)
+        except AuthenticationFailed:
+            # Протухшая/отозванная кука (например, после сброса базы или
+            # ротации токена) не должна намертво блокировать запрос кодом
+            # 401 «Invalid token» — в т.ч. сам login/register, у которых
+            # эта cookie-аутентификация всё равно не нужна. Ведём себя как
+            # анонимный запрос; эндпоинты, которым нужна авторизация,
+            # сами вернут 401 через permission_classes.
+            return None
         self._enforce_csrf(request)
         return (user, token)
 
