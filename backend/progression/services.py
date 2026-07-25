@@ -247,3 +247,56 @@ def get_model_progress(user, task: str) -> List[ModelProgress]:
             )
         )
     return progress
+
+
+def get_models_catalog(user) -> List[ModelProgress]:
+    """Полный упорядоченный каталог моделей для единого селектора чата.
+
+    Каждая строка сохраняет task: явный выбор модели всегда отправляется
+    вместе с совместимой категорией и не может разойтись с авто-классификацией.
+    """
+    resources = list(ModelUnlockable.objects.order_by("task", "sort_order"))
+    if user.tier == User.Tier.PAID:
+        return [
+            ModelProgress(
+                task=resource.task,
+                provider=resource.provider,
+                model=resource.model,
+                unlocked=True,
+                current_requests=0,
+                target_requests=0,
+                current_days=0,
+                target_days=0,
+            )
+            for resource in resources
+        ]
+
+    count, days = _usage_stats(user)
+    unlocked_tasks = get_unlocked_keys(user)
+    explicitly_unlocked_ids = set(
+        UserModelUnlock.objects.filter(user=user).values_list(
+            "resource_id", flat=True
+        )
+    )
+    return [
+        ModelProgress(
+            task=resource.task,
+            provider=resource.provider,
+            model=resource.model,
+            unlocked=(
+                resource.task in unlocked_tasks
+                and (
+                    (
+                        resource.min_requests == 0
+                        and resource.min_distinct_days == 0
+                    )
+                    or resource.id in explicitly_unlocked_ids
+                )
+            ),
+            current_requests=min(count, resource.min_requests),
+            target_requests=resource.min_requests,
+            current_days=min(days, resource.min_distinct_days),
+            target_days=resource.min_distinct_days,
+        )
+        for resource in resources
+    ]

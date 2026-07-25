@@ -14,6 +14,7 @@ from progression.services import (
     ALL_KEYS,
     BASE_FREE_KEYS,
     check_and_unlock,
+    get_models_catalog,
     get_model_progress,
     get_progress,
     get_unlocked_keys,
@@ -265,6 +266,21 @@ def test_get_model_progress_all_unlocked_for_paid_user():
     assert all(row.unlocked for row in progress_rows)
 
 
+def test_get_models_catalog_lists_every_task_scoped_model_for_paid_user():
+    user = _make_user(tier=UserModel.Tier.PAID)
+
+    catalog = get_models_catalog(user)
+
+    expected = list(
+        ModelUnlockable.objects.order_by("task", "sort_order").values_list(
+            "task", "provider", "model"
+        )
+    )
+    actual = [(row.task, row.provider, row.model) for row in catalog]
+    assert actual == expected
+    assert all(row.unlocked for row in catalog)
+
+
 def test_model_unlockable_catalog_matches_task_routes():
     """ModelUnlockable — вручную поддерживаемый снимок providers.TASK_ROUTES
     (почему это не может быть живым чтением, см. докстринг ModelUnlockable в
@@ -285,3 +301,16 @@ def test_model_unlockable_catalog_matches_task_routes():
         ModelUnlockable.objects.values_list("task", "provider", "model")
     )
     assert routes_pairs == catalog_pairs
+
+
+def test_model_ids_are_unique_within_each_task_route():
+    """Frontend sends task + model id; provider remains route metadata.
+
+    Keep model ids unique inside each task so a visible provider label can
+    never disagree with the route selected by providers.services.run_chat.
+    """
+    from providers.services import TASK_ROUTES
+
+    for task, candidates in TASK_ROUTES.items():
+        model_ids = [model for _, model in candidates]
+        assert len(model_ids) == len(set(model_ids)), task

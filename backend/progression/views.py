@@ -8,6 +8,7 @@ from progression.serializers import (
 )
 from progression.services import (
     get_model_progress,
+    get_models_catalog,
     get_progress,
     get_unlocked_keys,
 )
@@ -34,5 +35,15 @@ def models_progress(request, task):
     return Response(
         ModelProgressSerializer(
             get_model_progress(request.user, task), many=True
+        ).data
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def models_catalog(request):
+    return Response(
+        ModelProgressSerializer(
+            get_models_catalog(request.user), many=True
         ).data
     )
