@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mocks.query),
   useRouter: () => ({ replace: mocks.replace }),
+  usePathname: () => "/studio",
 }));
 
 vi.mock("motion/react", async (importOriginal) => {
@@ -44,6 +45,15 @@ vi.mock("@/app/analyze/page", () => ({
 }));
 
 import StudioPage from "@/app/studio/page";
+import { ZoneProvider } from "@/components/zone";
+
+function renderStudioPage() {
+  return render(
+    <ZoneProvider>
+      <StudioPage />
+    </ZoneProvider>,
+  );
+}
 
 describe("StudioPage motion", () => {
   afterEach(() => {
@@ -54,7 +64,7 @@ describe("StudioPage motion", () => {
   });
 
   it("uses an animated mode stage and shared active indicator", () => {
-    render(<StudioPage />);
+    renderStudioPage();
 
     expect(screen.getByTestId("studio-mode-navigation")).toBeDefined();
     expect(screen.getByTestId("studio-navigation-mark")).toBeDefined();
@@ -65,7 +75,7 @@ describe("StudioPage motion", () => {
   });
 
   it("transitions the content panel when a different studio mode is selected", () => {
-    render(<StudioPage />);
+    renderStudioPage();
 
     fireEvent.click(screen.getByRole("button", { name: /Голос/i }));
 
@@ -87,7 +97,7 @@ describe("StudioPage motion", () => {
   });
 
   it("animates every studio tool through the same content stage", () => {
-    render(<StudioPage />);
+    renderStudioPage();
 
     fireEvent.click(screen.getByRole("button", { name: /Документы/i }));
     expect(screen.getByText("Инструменты документов")).toBeDefined();
@@ -100,7 +110,7 @@ describe("StudioPage motion", () => {
     mocks.query = "mode=voice&autostart=1";
     mocks.reduceMotion = true;
 
-    render(<StudioPage />);
+    renderStudioPage();
 
     expect(screen.getByText("Голосовые инструменты · автозапуск")).toBeDefined();
     expect(
@@ -111,7 +121,7 @@ describe("StudioPage motion", () => {
   it("opens every Studio tool from a sidebar deep link", () => {
     mocks.query = "mode=documents";
 
-    render(<StudioPage />);
+    renderStudioPage();
 
     expect(screen.getByText("Инструменты документов")).toBeDefined();
     expect(
@@ -120,11 +130,15 @@ describe("StudioPage motion", () => {
   });
 
   it("reacts when the voice hotkey updates search params on the same route", () => {
-    const { rerender } = render(<StudioPage />);
+    const { rerender } = renderStudioPage();
     expect(screen.getByText("Генератор изображений")).toBeDefined();
 
     mocks.query = "mode=voice&autostart=1";
-    rerender(<StudioPage />);
+    rerender(
+      <ZoneProvider>
+        <StudioPage />
+      </ZoneProvider>,
+    );
 
     expect(screen.getByText("Голосовые инструменты · автозапуск")).toBeDefined();
 

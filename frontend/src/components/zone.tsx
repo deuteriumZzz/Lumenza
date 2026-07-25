@@ -1,41 +1,69 @@
 "use client";
 
+import { createContext, useContext, useState } from "react";
 import { usePathname } from "next/navigation";
 
-// Какой префикс роута принадлежит какой "зоне" — см. раздел Zones в
-// DESIGN.md. Роуты, не попавшие в список (chat, history, pricing, login,
-// register), проваливаются в "desk", что намеренно ничего не делает —
-// корневая палитра в globals.css УЖЕ и есть зона desk, так что для неё
-// ничего нового рендерить не нужно.
-//
-// /images, /voice, /documents, /analyze раньше имели разные зоны, но с тех
-// пор, как эти страницы стали чистыми redirect("/chat")/redirect("/studio")
-// (единая творческая студия с переключением режима пилюлями, а не
-// отдельными URL), pathname никогда не остаётся на этих префиксах достаточно
-// долго, чтобы зона успела примениться — они были фактически мертвы. Вся
-// студия теперь под одним "/studio", так что здесь одна зона на всю неё;
-// тонкая тонировка по конкретному режиму пилюли — отдельная фича (нужен
-// клиентский zone-context, реагирующий на выбранную пилюлю, а не на
-// pathname).
-const ZONE_BY_PREFIX: [string, string][] = [["/studio", "studio"]];
+export type StudioMode = "images" | "voice" | "documents" | "analyze";
+export type Zone = "desk" | "studio" | "voice" | "archive";
 
-function zoneForPath(pathname: string): string {
-  for (const [prefix, zone] of ZONE_BY_PREFIX) {
-    if (pathname.startsWith(prefix)) return zone;
-  }
-  return "desk";
+// Какой режим Студии принадлежит какой "зоне" — см. раздел Zones в
+// DESIGN.md. images/analyze делят тёплую "studio"-зону (см. globals.css),
+// voice — своя холодная зона, documents — нейтральная "archive".
+const STUDIO_MODE_ZONE: Record<StudioMode, Zone> = {
+  images: "studio",
+  analyze: "studio",
+  voice: "voice",
+  documents: "archive",
+};
+
+interface ZoneContextValue {
+  zone: Zone;
+  setStudioMode: (mode: StudioMode) => void;
+}
+
+const ZoneContext = createContext<ZoneContextValue | null>(null);
+
+// Владелец зоны для всего приложения: и AmbientNetworkBackground (глобальный
+// fixed-слой, живёт ВЫШЕ этого провайдера в дереве, см. AppBackdrop), и
+// ZoneScope (тонировка контента) читают один и тот же .zone — иначе фон и
+// контент могли бы разъехаться между "мы на /studio" и "какой именно режим
+// Студии выбран сейчас", а второе меняется через локальный state страницы
+// Studio, а не через pathname.
+export function ZoneProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [studioMode, setStudioMode] = useState<StudioMode>("images");
+  const zone: Zone = pathname.startsWith("/studio")
+    ? STUDIO_MODE_ZONE[studioMode]
+    : "desk";
+
+  return (
+    <ZoneContext.Provider value={{ zone, setStudioMode }}>
+      {children}
+    </ZoneContext.Provider>
+  );
+}
+
+function useZoneContext(): ZoneContextValue {
+  const context = useContext(ZoneContext);
+  if (!context) throw new Error("useZone must be used within ZoneProvider");
+  return context;
+}
+
+export function useZone(): Zone {
+  return useZoneContext().zone;
+}
+
+export function useSetStudioMode(): (mode: StudioMode) => void {
+  return useZoneContext().setStudioMode;
 }
 
 // Намеренно ограничено областью контента, а не <body> — Nav находится вне
 // этой обёртки (см. layout.tsx), так что постоянный chrome никогда не
 // мерцает между зонами, мерцает только содержимое страницы под ним.
 export function ZoneScope({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const zone = useZone();
   return (
-    <div
-      data-zone={zoneForPath(pathname)}
-      className="zone-scope zone-surface flex flex-1 flex-col"
-    >
+    <div data-zone={zone} className="zone-scope zone-surface flex flex-1 flex-col">
       {children}
     </div>
   );

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
-import { ZoneScope } from "@/components/zone";
+import { ZoneProvider, ZoneScope } from "@/components/zone";
 import { AccessibilityShell } from "@/components/accessibility-shell";
 import { TelegramWebAppProvider } from "@/components/telegram-webapp-provider";
 import { TelegramLinkExistingAccount } from "@/components/telegram-link-existing-account";
@@ -60,20 +60,22 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: appearanceBootstrap }} />
       </head>
       <body className="flex min-h-full flex-col bg-bg text-ink">
-        <AppBackdrop>
-          <TelegramWebAppProvider />
-          <GlobalHotkeys />
-          <AuthProvider>
-            <AccessibilityShell navigation={<Nav />}>
-              <TelegramLinkExistingAccount />
-              <ZoneScope>
-                <WorkspaceShell>
-                  <RouteTransition>{children}</RouteTransition>
-                </WorkspaceShell>
-              </ZoneScope>
-            </AccessibilityShell>
-          </AuthProvider>
-        </AppBackdrop>
+        <ZoneProvider>
+          <AppBackdrop>
+            <TelegramWebAppProvider />
+            <GlobalHotkeys />
+            <AuthProvider>
+              <AccessibilityShell navigation={<Nav />}>
+                <TelegramLinkExistingAccount />
+                <ZoneScope>
+                  <WorkspaceShell>
+                    <RouteTransition>{children}</RouteTransition>
+                  </WorkspaceShell>
+                </ZoneScope>
+              </AccessibilityShell>
+            </AuthProvider>
+          </AppBackdrop>
+        </ZoneProvider>
       </body>
     </html>
   );

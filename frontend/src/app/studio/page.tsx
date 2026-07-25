@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   AnimatePresence,
   motion,
@@ -14,6 +14,7 @@ import { Documents } from "@/app/documents/page";
 import { Analyze } from "@/app/analyze/page";
 import { StudioMark } from "@/components/studio-mark";
 import { motionTokens, springs } from "@/lib/motion";
+import { useSetStudioMode } from "@/components/zone";
 
 type Mode = "images" | "voice" | "documents" | "analyze";
 
@@ -64,6 +65,11 @@ function Studio() {
   }
 
   const mode = modeState.mode;
+
+  const setZoneMode = useSetStudioMode();
+  useEffect(() => {
+    setZoneMode(mode);
+  }, [mode, setZoneMode]);
 
   function selectMode(nextMode: Mode) {
     if (nextMode === mode) return;

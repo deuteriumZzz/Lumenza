@@ -1,4 +1,7 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useZone } from "@/components/zone";
 
 const NODES: [number, number][] = [
   [60, 80],
@@ -58,6 +61,23 @@ const EDGES: [number, number][] = [
 ];
 
 export function AmbientNetworkBackground() {
+  const zone = useZone();
+  // Смена зоны (перешли в Студию, переключили её категорию) один раз
+  // проигрывает "сигнал" — тонкую волну, расходящуюся от центра, как будто
+  // impulse побежал по проводам сети. Не проигрываем её на самом первом
+  // рендере (первая зона — это не переход, а стартовое состояние).
+  const [pulse, setPulse] = useState<{ zone: string; seq: number } | null>(
+    null,
+  );
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    setPulse((current) => ({ zone, seq: (current?.seq ?? 0) + 1 }));
+  }, [zone]);
+
   return (
     <div
       aria-hidden="true"
@@ -132,6 +152,16 @@ export function AmbientNetworkBackground() {
           );
         })}
       </svg>
+      {pulse && (
+        <div
+          key={pulse.seq}
+          data-testid="ambient-network-pulse"
+          data-zone={pulse.zone}
+          className="network-pulse-scope"
+        >
+          <span className="network-pulse" />
+        </div>
+      )}
     </div>
   );
 }

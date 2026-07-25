@@ -607,7 +607,7 @@ body {
 }
 
 .network-background {
-  opacity: 0.58;
+  opacity: 0.85;
   background:
     radial-gradient(circle at 18% 18%, color-mix(in oklch, var(--color-primary) 8%, transparent), transparent 30%),
     radial-gradient(circle at 82% 76%, color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 34%);
@@ -618,9 +618,57 @@ body {
   animation: network-drift 26s ease-in-out infinite alternate;
 }
 
+/* Один "импульс" на смену зоны (см. components/zone.tsx,
+   ambient-network-background.tsx) — растёт из центра экрана наружу,
+   имитируя сигнал, разбегающийся по сети, когда сменили категорию
+   Студии. data-zone здесь — та же зона, что и у .zone-scope, поэтому
+   цвет подхватывается из тех же токенов [data-zone="..."] ниже. */
+.network-pulse-scope {
+  position: absolute;
+  inset: 0;
+  color: var(--color-primary);
+}
+
+.network-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin: -0.2rem 0 0 -0.2rem;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, currentColor 55%, transparent) 0%,
+    color-mix(in oklch, currentColor 20%, transparent) 42%,
+    transparent 72%
+  );
+  opacity: 0;
+  animation: network-pulse-wave 2.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes network-pulse-wave {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  65% {
+    opacity: 0.16;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(260);
+  }
+}
+
+/* Раньше здесь была короткая дэша (0.08 видимой длины из 1) — на любом
+   кадре была видна только крошечная "искра", а сама линия связи между
+   узлами оставалась практически невидимой, и фон читался как "просто
+   точки", а не сеть. Держим большую часть линии видимой всегда — flow-
+   анимация ниже теперь лишь смещает, где именно вдоль линии чуть ярче. */
 .network-edge {
-  opacity: 0.68;
-  stroke-dasharray: 0.08 0.92;
+  opacity: 0.85;
+  stroke-dasharray: 0.6 0.4;
   stroke-linecap: round;
   animation: network-edge-flow 8s linear infinite;
 }
@@ -637,7 +685,7 @@ body {
 }
 
 .network-node-glow {
-  opacity: 0.3;
+  opacity: 0.4;
   animation: network-glow-pulse 6s ease-in-out infinite;
 }
 
@@ -826,11 +874,11 @@ body {
 
 @keyframes network-glow-pulse {
   0%, 100% {
-    opacity: 0.08;
+    opacity: 0.2;
     transform: scale(0.65);
   }
   45% {
-    opacity: 0.42;
+    opacity: 0.58;
     transform: scale(1.15);
   }
 }
