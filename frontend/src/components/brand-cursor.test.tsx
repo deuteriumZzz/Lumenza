@@ -44,17 +44,16 @@ describe("BrandCursor", () => {
     );
 
     expect(cursor.getAttribute("aria-hidden")).toBe("true");
+    expect(cursor.getAttribute("data-mode")).toBe("default");
     expect(arrow?.style.color).toBe("var(--color-primary)");
     expect(glow?.getAttribute("fill")).toBe("none");
     expect(glow?.getAttribute("stroke")).toBe("currentColor");
     expect(shape?.getAttribute("fill")).toBe("var(--cursor-arrow-fill)");
     expect(shape?.getAttribute("stroke")).toBe("var(--cursor-arrow-outline)");
-    expect(cursor.querySelector(".brand-cursor-halo")).toBeNull();
-    expect(cursor.querySelector(".brand-cursor-dot")).toBeNull();
     expect(cursor.querySelectorAll(".brand-cursor-track")).toHaveLength(1);
   });
 
-  it("matches Kimi by yielding to the native pointer over actions", () => {
+  it("stays the same custom cursor over buttons instead of yielding to the native pointer", () => {
     render(
       <>
         <BrandCursor />
@@ -65,30 +64,12 @@ describe("BrandCursor", () => {
     fireEvent.pointerMove(window, { clientX: 120, clientY: 80 });
     fireEvent.pointerOver(screen.getByRole("button", { name: "Открыть" }));
 
-    expect(
-      screen.getByTestId("brand-cursor").getAttribute("data-interactive"),
-    ).toBe("true");
-    expect(
-      screen.getByTestId("brand-cursor").getAttribute("data-native"),
-    ).toBe("true");
+    const cursor = screen.getByTestId("brand-cursor");
+    expect(cursor.getAttribute("data-mode")).toBe("pointer");
+    expect(cursor.getAttribute("data-visible")).toBe("true");
   });
 
-  it("tracks pointer press and releases without getting stuck", () => {
-    render(<BrandCursor />);
-
-    fireEvent.pointerMove(window, { clientX: 120, clientY: 80 });
-    fireEvent.pointerDown(window);
-    expect(
-      screen.getByTestId("brand-cursor").getAttribute("data-pressed"),
-    ).toBe("true");
-
-    fireEvent.pointerUp(window);
-    expect(
-      screen.getByTestId("brand-cursor").getAttribute("data-pressed"),
-    ).toBe("false");
-  });
-
-  it("yields to the native text cursor over editable fields", () => {
+  it("switches to the text-caret mode over editable fields instead of the native I-beam", () => {
     render(
       <>
         <BrandCursor />
@@ -96,11 +77,48 @@ describe("BrandCursor", () => {
       </>,
     );
 
+    fireEvent.pointerMove(window, { clientX: 120, clientY: 80 });
     fireEvent.pointerOver(screen.getByRole("textbox", { name: "Сообщение" }));
 
+    const cursor = screen.getByTestId("brand-cursor");
+    expect(cursor.getAttribute("data-mode")).toBe("text");
+    expect(cursor.getAttribute("data-visible")).toBe("true");
+  });
+
+  it("marks disabled controls with the disabled cursor mode", () => {
+    render(
+      <>
+        <BrandCursor />
+        <button type="button" disabled>
+          Недоступно
+        </button>
+      </>,
+    );
+
+    fireEvent.pointerMove(window, { clientX: 120, clientY: 80 });
+    fireEvent.pointerOver(screen.getByRole("button", { name: "Недоступно" }));
+
     expect(
-      screen.getByTestId("brand-cursor").getAttribute("data-native"),
+      screen.getByTestId("brand-cursor").getAttribute("data-mode"),
+    ).toBe("disabled");
+  });
+
+  it("tracks pointer press, releases without getting stuck, and fires a click burst", () => {
+    render(<BrandCursor />);
+
+    fireEvent.pointerMove(window, { clientX: 120, clientY: 80 });
+    fireEvent.pointerDown(window);
+    expect(
+      screen.getByTestId("brand-cursor").getAttribute("data-pressed"),
     ).toBe("true");
+    expect(
+      screen.getByTestId("brand-cursor-burst").classList.contains("is-active"),
+    ).toBe(true);
+
+    fireEvent.pointerUp(window);
+    expect(
+      screen.getByTestId("brand-cursor").getAttribute("data-pressed"),
+    ).toBe("false");
   });
 
   it("keeps the native cursor when reduced motion is requested", () => {

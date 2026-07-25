@@ -407,10 +407,6 @@ body {
   opacity: 1;
 }
 
-.brand-cursor[data-native="true"] {
-  opacity: 0;
-}
-
 .brand-cursor-track {
   position: fixed;
   top: 0;
@@ -418,6 +414,62 @@ body {
   pointer-events: none;
   transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
   will-change: transform;
+}
+
+/* Один общий язык для каждого режима: масштаб + ореол собраны здесь как
+   переменные, а не как отдельные transform-правила на каждую комбинацию
+   mode/pressed — иначе они конфликтовали бы друг с другом (CSS transform
+   не суммируется из нескольких правил). */
+.brand-cursor-glyph {
+  --cursor-mode-scale: 1;
+  --cursor-press-scale: 1;
+  position: relative;
+  transform: scale(calc(var(--cursor-mode-scale) * var(--cursor-press-scale)));
+  transform-origin: 0.065rem 0.1rem;
+  transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.brand-cursor[data-pressed="true"] .brand-cursor-glyph {
+  --cursor-press-scale: 0.86;
+}
+
+.brand-cursor[data-mode="pointer"] .brand-cursor-glyph {
+  --cursor-mode-scale: 1.16;
+}
+
+.brand-cursor[data-mode="text"] .brand-cursor-glyph {
+  --cursor-mode-scale: 0.82;
+}
+
+.brand-cursor[data-mode="disabled"] .brand-cursor-glyph {
+  --cursor-mode-scale: 0.92;
+}
+
+/* Ореол, обозначающий "здесь можно кликнуть" — тот же курсор, просто с
+   мягким свечением позади, а не смена на нативную "руку". */
+.brand-cursor-glyph::before {
+  content: "";
+  position: absolute;
+  top: -0.55rem;
+  left: -0.7rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--color-primary) 30%, transparent),
+    transparent 72%
+  );
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+
+.brand-cursor[data-mode="pointer"] .brand-cursor-glyph::before {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .brand-cursor-arrow {
@@ -429,15 +481,14 @@ body {
   overflow: visible;
   pointer-events: none;
   transform: translate(-1px, -1.7px);
-  transform-origin: 0.065rem 0.1rem;
   filter: drop-shadow(
     0 1px 1px color-mix(in oklch, var(--color-bg) 64%, transparent)
   );
-  transition: transform 90ms ease-out;
+  transition: opacity 120ms ease-out;
 }
 
-.brand-cursor[data-pressed="true"] .brand-cursor-arrow {
-  transform: translate(-1px, -1.7px) scale(0.92);
+.brand-cursor[data-mode="text"] .brand-cursor-arrow {
+  opacity: 0;
 }
 
 .brand-cursor-arrow-glow {
@@ -457,9 +508,13 @@ body {
   animation-play-state: paused;
 }
 
-.brand-cursor[data-visible="true"][data-native="false"]
-  .brand-cursor-arrow-glow {
+.brand-cursor[data-visible="true"] .brand-cursor-arrow-glow {
   animation-play-state: running;
+}
+
+.brand-cursor[data-mode="disabled"] .brand-cursor-arrow-glow {
+  animation-play-state: paused;
+  opacity: 0;
 }
 
 .brand-cursor-arrow-shape {
@@ -468,6 +523,10 @@ body {
   filter: drop-shadow(
     0 0 1.5px color-mix(in oklch, white 72%, transparent)
   );
+}
+
+.brand-cursor[data-mode="disabled"] .brand-cursor-arrow-shape {
+  opacity: 0.5;
 }
 
 @keyframes brand-cursor-glow-pulse {
@@ -482,6 +541,78 @@ body {
   }
 }
 
+/* Текстовый режим — тот же курсор, но в виде мигающего маячка-каретки, а
+   не переключение на системный I-beam. */
+.brand-cursor-caret {
+  position: absolute;
+  top: -0.5rem;
+  left: 0.05rem;
+  width: 2px;
+  height: 1.05rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  opacity: 0;
+  box-shadow: 0 0 6px color-mix(in oklch, var(--color-primary) 70%, transparent);
+  transition: opacity 120ms ease-out;
+}
+
+.brand-cursor[data-mode="text"] .brand-cursor-caret {
+  opacity: 1;
+  animation: brand-cursor-caret-blink 1.1s steps(1, end) infinite;
+}
+
+@keyframes brand-cursor-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Свечение на наконечнике по клику — распадающаяся вспышка, независимая
+   от React-рендера (класс переключается императивно в BrandCursor, чтобы
+   повторные клики подряд гарантированно перезапускали анимацию). */
+.brand-cursor-burst {
+  position: absolute;
+  top: -0.35rem;
+  left: -0.5rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, white 25%, var(--color-primary)) 0%,
+    color-mix(in oklch, var(--color-primary) 55%, transparent) 45%,
+    transparent 72%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brand-cursor-burst.is-active {
+  animation: brand-cursor-burst 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes brand-cursor-burst {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.35);
+  }
+  60% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
 :root[data-custom-cursor="true"] body {
   cursor: none;
 }
@@ -489,58 +620,17 @@ body {
 :root[data-custom-cursor="true"]
   :where(
     a,
-    button:not(:disabled),
-    select:not(:disabled),
+    button,
+    select,
     summary,
     [role="button"],
-    [role="option"]:not([aria-disabled="true"]),
+    [role="option"],
     [data-cursor="interactive"],
-    input:not(:disabled):is(
-      [type="button"],
-      [type="checkbox"],
-      [type="color"],
-      [type="file"],
-      [type="image"],
-      [type="radio"],
-      [type="range"],
-      [type="reset"],
-      [type="submit"]
-    )
-  ) {
-  cursor: pointer;
-}
-
-:root[data-custom-cursor="true"]
-  :where(
-    input:not([type]),
-    input:is(
-      [type="date"],
-      [type="datetime-local"],
-      [type="email"],
-      [type="month"],
-      [type="number"],
-      [type="password"],
-      [type="search"],
-      [type="tel"],
-      [type="text"],
-      [type="time"],
-      [type="url"],
-      [type="week"]
-    ),
+    input,
     textarea,
     [contenteditable="true"]
   ) {
-  cursor: text;
-}
-
-:root[data-custom-cursor="true"]
-  :where(
-    input:disabled,
-    button:disabled,
-    select:disabled,
-    [aria-disabled="true"]
-  ) {
-  cursor: not-allowed;
+  cursor: none;
 }
 
 .zone-surface {
