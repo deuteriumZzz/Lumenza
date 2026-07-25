@@ -79,6 +79,7 @@ export interface User {
   username: string;
   email: string;
   telegram_linked: boolean;
+  tier: "free" | "paid";
 }
 
 export interface PublicConfig {

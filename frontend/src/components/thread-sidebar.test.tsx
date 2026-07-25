@@ -20,6 +20,14 @@ vi.mock("@/lib/api", () => ({
   apiErrorMessage: () => "Ошибка",
 }));
 
+vi.mock("@/lib/auth-context", () => ({
+  useAuth: () => ({
+    user: { id: 1, username: "alice", email: "alice@example.com", telegram_linked: false, tier: "free" },
+    balance: { balance: "500", updated_at: "" },
+    logout: vi.fn(),
+  }),
+}));
+
 import { ThreadSidebar } from "@/components/thread-sidebar";
 
 describe("ThreadSidebar", () => {

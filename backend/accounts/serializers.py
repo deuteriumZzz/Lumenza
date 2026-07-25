@@ -44,7 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "telegram_linked")
+        fields = ("id", "username", "email", "telegram_linked", "tier")
 
     def get_telegram_linked(self, obj) -> bool:
         return obj.telegram_id is not None

@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { motionTokens, springs } from "@/lib/motion";
 import { api, apiErrorMessage, type ChatThread, type Paginated } from "@/lib/api";
+import { AccountMenu } from "@/components/account-menu";
 import { AppearanceControl } from "@/components/appearance-control";
 import { LumenzaBrand } from "@/components/lumenza-brand";
 import { StudioMark } from "@/components/studio-mark";
@@ -343,8 +344,11 @@ export function ThreadSidebar() {
         </>
       )}
 
-      <div className={`mt-auto border-t border-border/70 pt-3 ${collapsed ? "flex justify-center" : ""}`}>
+      <div
+        className={`mt-auto flex flex-col gap-0.5 border-t border-border/70 pt-2 ${collapsed ? "items-center" : ""}`}
+      >
         <AppearanceControl compact={collapsed} />
+        <AccountMenu collapsed={collapsed} />
       </div>
     </aside>
   );
