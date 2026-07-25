@@ -57,7 +57,8 @@ export function Documents() {
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">Документы</h1>
       <p className="mt-1 text-sm text-muted">
-        Извлеките текст из скриншота, картинки или скана документа — удобно для репёрпоза поста конкурента.
+        Извлеките текст из скриншота, изображения или скана, чтобы анализировать и
+        переиспользовать информацию в чате.
       </p>
 
       <div className="mt-6 rounded-md border border-border bg-surface p-4">

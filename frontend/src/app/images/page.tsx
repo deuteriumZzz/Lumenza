@@ -197,7 +197,7 @@ export function Images() {
       />
       <h1 className="text-xl font-semibold tracking-tight text-ink">Картинки</h1>
       <p className="mt-1 text-sm text-muted">
-        Генерируйте визуалы для постов — результаты попадают в галерею ниже.
+        Создавайте и редактируйте изображения — результаты сохраняются в галерее ниже.
       </p>
 
       <div className="mt-6 flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
@@ -288,7 +288,7 @@ export function Images() {
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Опишите визуал для вашего поста…"
+            placeholder="Опишите изображение, которое хотите создать…"
             aria-label="Промпт для картинки"
             rows={2}
             maxLength={4000}

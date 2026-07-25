@@ -50,7 +50,7 @@ function RegisterForm() {
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-24">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Создать аккаунт</h1>
         <p className="mt-2 text-sm text-muted">
-          Стартовый баланс уже включён — хватит на первые посты и визуалы до пополнения.
+          Стартовый баланс уже включён — попробуйте чат, поиск и творческие инструменты.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
