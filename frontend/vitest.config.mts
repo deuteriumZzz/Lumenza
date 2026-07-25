@@ -9,7 +9,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: [
+        "src/app/page.tsx",
+        "src/app/studio/page.tsx",
         "src/components/accessibility-shell.tsx",
+        "src/components/ambient-network-background.tsx",
+        "src/components/app-backdrop.tsx",
+        "src/components/appearance-control.tsx",
+        "src/components/chat-routing.tsx",
+        "src/components/chat-thread-view.tsx",
         "src/components/copy-response-button.tsx",
         "src/components/file-upload-button.tsx",
         "src/components/history-filters.tsx",
@@ -20,7 +27,11 @@ export default defineConfig({
         "src/components/nav.tsx",
         "src/components/require-auth.tsx",
         "src/components/response-skeleton.tsx",
+        "src/components/route-transition.tsx",
+        "src/components/studio-mark.tsx",
+        "src/components/thread-sidebar.tsx",
         "src/components/zone.tsx",
+        "src/lib/chat-taxonomy.ts",
         "src/proxy.ts",
       ],
       thresholds: {
