@@ -196,6 +196,24 @@ export interface ReferralStats {
   reward_credits: string;
 }
 
+export interface UsageTotals {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  credits_charged: string;
+  requests: number;
+}
+
+export interface UsageByModel extends UsageTotals {
+  provider: string;
+  model: string;
+}
+
+export interface UsageSummary {
+  total: UsageTotals;
+  by_model: UsageByModel[];
+}
+
 export interface ModelProgress {
   task: string;
   provider: string;
@@ -336,6 +354,8 @@ export const api = {
   subscribe: () => request<Payment>("/billing/subscription/subscribe/", { method: "POST" }),
   unsubscribe: () => request<void>("/billing/subscription/cancel/", { method: "POST" }),
   referralStats: () => request<ReferralStats>("/referrals/"),
+  usageSummary: () =>
+    request<UsageSummary>("/providers/usage-summary/"),
   chat: (prompt: string, task: Task, model?: string) =>
     request<ChatResponse>("/chat/", { method: "POST", body: JSON.stringify({ prompt, task, model }) }),
   threads: (page = 1) => request<Paginated<ChatThread>>(`/threads/?page=${page}`),

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api, ApiError, type Balance, type TelegramWidgetPayload, type User } from "@/lib/api";
+import { useTelegramWebApp } from "@/components/telegram-webapp-provider";
 
 // Авторизация — это httpOnly cookie, поэтому вкладки не могут отследить
 // вход/выход через событие `storage`, как это было можно с токеном в
@@ -60,6 +61,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const telegram = useTelegramWebApp();
   const [user, setUser] = useState<User | null>(null);
   const [balance, setBalanceState] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,10 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadSessionSeq = useRef(0);
 
   useEffect(() => {
+    if (!telegram.ready) return;
+
     function loadSession() {
       const seq = ++loadSessionSeq.current;
       setLoading(true);
-      const initData = getTelegramWebAppInitData();
+      const initData = telegram.initData;
       const bootstrap = initData
         ? api.telegramAuth("webapp", initData).then(
             (res) => {
@@ -117,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
     channel.onmessage = () => loadSession();
     return () => channel.close();
-  }, []);
+  }, [telegram.ready, telegram.initData]);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await api.login(username, password);
@@ -155,13 +159,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // telegram_id к ЭТОМУ (сайтовому) аккаунту, а не создаёт ещё один
       // (см. accounts.views.telegram_auth — ветка is_authenticated).
       await login(username, password);
-      const initData = getTelegramWebAppInitData();
+      const initData = telegram.initData;
       if (initData) {
         await api.telegramAuth("webapp", initData);
       }
       setTelegramJustCreated(false);
     },
-    [login]
+    [login, telegram.initData]
   );
 
   const logout = useCallback(async () => {

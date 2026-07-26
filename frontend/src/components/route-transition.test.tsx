@@ -80,4 +80,16 @@ describe("RouteTransition", () => {
         ?.getAttribute("data-reduced-motion"),
     ).toBe("true");
   });
+
+  it("clips the decorative veil so route animation cannot widen a Mini App viewport", () => {
+    render(
+      <RouteTransition>
+        <p>Узкий экран</p>
+      </RouteTransition>,
+    );
+
+    expect(
+      screen.getByText("Узкий экран").parentElement?.parentElement?.className,
+    ).toContain("overflow-x-clip");
+  });
 });

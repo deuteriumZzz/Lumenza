@@ -93,7 +93,7 @@ function Studio() {
           delay: shouldReduceMotion ? 0 : motionTokens.duration.fast,
           ease: motionTokens.easing.smooth,
         }}
-        className="mx-auto mt-4 flex w-full max-w-3xl flex-wrap items-center justify-center gap-2 px-6"
+        className="studio-mode-navigation mx-auto mt-4 flex w-full max-w-3xl flex-wrap items-center justify-center gap-1 px-3 min-[380px]:gap-2 min-[380px]:px-4 sm:px-6"
       >
         <span
           data-testid="studio-navigation-mark"
@@ -108,7 +108,7 @@ function Studio() {
             type="button"
             aria-pressed={mode === option.key}
             onClick={() => selectMode(option.key)}
-            className={`relative isolate inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-3.5 py-1.5 text-sm transition-colors duration-150 ${
+            className={`relative isolate inline-flex min-h-10 min-w-0 items-center gap-1 overflow-hidden rounded-full border px-2.5 py-1.5 text-xs transition-colors duration-150 min-[380px]:gap-1.5 min-[380px]:px-3.5 min-[380px]:text-sm ${
               mode === option.key
                 ? "border-primary/50 text-ink"
                 : "border-border bg-surface/75 text-muted hover:border-primary/25 hover:text-ink"

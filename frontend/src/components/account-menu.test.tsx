@@ -27,6 +27,15 @@ vi.mock("@/lib/auth-context", () => ({
 }));
 
 import { AccountMenu } from "@/components/account-menu";
+import { LocaleProvider } from "@/lib/locale-context";
+
+function renderAccountMenu(ui?: React.ReactNode) {
+  return render(
+    <LocaleProvider>
+      {ui ?? <AccountMenu />}
+    </LocaleProvider>,
+  );
+}
 
 describe("AccountMenu", () => {
   beforeEach(() => {
@@ -42,12 +51,14 @@ describe("AccountMenu", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
+    document.documentElement.lang = "ru";
     mocks.push.mockReset();
     mocks.logout.mockReset();
   });
 
   it("shows who is signed in and their plan/balance at a glance", () => {
-    render(<AccountMenu />);
+    renderAccountMenu();
 
     expect(screen.getByText("alice")).toBeDefined();
     expect(screen.getByText(/Free/)).toBeDefined();
@@ -55,7 +66,7 @@ describe("AccountMenu", () => {
   });
 
   it("opens a menu with plan/credits and sign-out, then closes on outside click", () => {
-    render(
+    renderAccountMenu(
       <div>
         <AccountMenu />
         <button type="button">Outside</button>
@@ -67,6 +78,9 @@ describe("AccountMenu", () => {
     const dialog = screen.getByRole("dialog", { name: "Аккаунт" });
     expect(dialog).toBeDefined();
     expect(screen.getByRole("link", { name: /Тариф и кредиты/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /Использование/ })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Язык/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /О нас/ })).toBeDefined();
     expect(screen.getByRole("button", { name: /Выйти/ })).toBeDefined();
 
     fireEvent.mouseDown(screen.getByRole("button", { name: "Outside" }));
@@ -74,7 +88,7 @@ describe("AccountMenu", () => {
   });
 
   it("logs out and redirects to /login", async () => {
-    render(<AccountMenu />);
+    renderAccountMenu();
 
     fireEvent.click(screen.getByRole("button", { name: /alice/ }));
     fireEvent.click(screen.getByRole("button", { name: /Выйти/ }));
@@ -86,7 +100,18 @@ describe("AccountMenu", () => {
 
   it("renders nothing when there is no signed-in user", () => {
     mocks.user = null;
-    const { container } = render(<AccountMenu />);
+    const { container } = renderAccountMenu();
     expect(container.firstChild).toBeNull();
+  });
+
+  it("changes the persisted interface language inline", () => {
+    renderAccountMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: /alice/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Язык/ }));
+    fireEvent.click(screen.getByRole("button", { name: "EN" }));
+
+    expect(document.documentElement.lang).toBe("en");
+    expect(window.localStorage.getItem("lumenza:locale")).toBe("en");
   });
 });

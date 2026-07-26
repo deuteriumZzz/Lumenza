@@ -13,10 +13,20 @@ import { StudioMark } from "@/components/studio-mark";
 
 const SIDEBAR_STORAGE_KEY = "lumenza:sidebar-collapsed";
 
+function sidebarPreferenceKey(): string {
+  const viewport =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 767px)").matches
+      ? "mobile"
+      : "desktop";
+  return `${SIDEBAR_STORAGE_KEY}:${viewport}`;
+}
+
 function storedSidebarPreference(): boolean | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    const value = window.localStorage.getItem(sidebarPreferenceKey());
     return value === null ? null : value === "true";
   } catch {
     return null;
@@ -25,7 +35,7 @@ function storedSidebarPreference(): boolean | null {
 
 function persistSidebarPreference(value: boolean) {
   try {
-    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(value));
+    window.localStorage.setItem(sidebarPreferenceKey(), String(value));
   } catch {
     // Private/locked-down browser contexts may disable storage.
   }

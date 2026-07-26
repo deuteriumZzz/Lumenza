@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
 
 const POINTER_SELECTOR = [
@@ -29,6 +30,14 @@ const DISABLED_SELECTOR = [
 
 const ARROW_PATH =
   "M4.2 2.6C2.5 1.9 1 3.4 1.6 5.1l8.2 27.4c.55 1.84 3.05 2.13 4.02.47l5.65-9.65 9.71-2.72c1.91-.54 2.1-3.18.31-4.01L4.2 2.6Z";
+
+const SMALL_CURSOR_STYLE = {
+  "--cursor-arrow-width": "1rem",
+  "--cursor-arrow-height": "1.13rem",
+  "--cursor-halo-size": "1.38rem",
+  "--cursor-caret-height": "0.8rem",
+  "--cursor-burst-size": "0.8rem",
+} as CSSProperties & Record<`--${string}`, string>;
 
 type CursorMode = "default" | "pointer" | "text" | "disabled";
 
@@ -182,8 +191,10 @@ export function BrandCursor() {
       data-testid="brand-cursor"
       data-visible="false"
       data-mode="default"
+      data-size="small"
       data-pressed="false"
       className="brand-cursor"
+      style={SMALL_CURSOR_STYLE}
       aria-hidden="true"
     >
       <span className="brand-cursor-track">

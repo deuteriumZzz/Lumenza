@@ -7,6 +7,11 @@ import type { NextConfig } from "next";
 // curl-запрос с Upgrade-заголовком на /ws/voice/ зависает без ответа.
 // Поэтому голосовой WS-клиент (frontend/src/app/voice/page.tsx) ходит на
 // backend-origin напрямую, а не через этот сервер — см. NEXT_PUBLIC_WS_ORIGIN.
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  // The workspace profile lives in the bottom-left corner. Keep Next.js'
+  // development-only indicator from covering it. Runtime and build errors
+  // still surface through the regular Next.js error overlay.
+  devIndicators: false,
+};
 
 export default nextConfig;

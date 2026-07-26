@@ -45,6 +45,14 @@ describe("BrandCursor", () => {
 
     expect(cursor.getAttribute("aria-hidden")).toBe("true");
     expect(cursor.getAttribute("data-mode")).toBe("default");
+    expect(cursor.getAttribute("data-size")).toBe("small");
+    expect(cursor.style.getPropertyValue("--cursor-arrow-width")).toBe("1rem");
+    expect(cursor.style.getPropertyValue("--cursor-arrow-height")).toBe(
+      "1.13rem",
+    );
+    expect(cursor.style.getPropertyValue("--cursor-halo-size")).toBe("1.38rem");
+    expect(cursor.style.getPropertyValue("--cursor-caret-height")).toBe("0.8rem");
+    expect(cursor.style.getPropertyValue("--cursor-burst-size")).toBe("0.8rem");
     expect(arrow?.style.color).toBe("var(--color-primary)");
     expect(glow?.getAttribute("fill")).toBe("none");
     expect(glow?.getAttribute("stroke")).toBe("currentColor");

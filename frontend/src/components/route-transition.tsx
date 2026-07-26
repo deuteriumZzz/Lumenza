@@ -17,7 +17,7 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
   const veilDirection = family === "chat" ? 1 : -1;
 
   return (
-    <div className="route-transition-stage">
+    <div className="route-transition-stage overflow-x-clip">
       <motion.div
         key={pathname}
         data-route-transition={pathname}

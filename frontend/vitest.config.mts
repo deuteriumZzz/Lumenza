@@ -6,12 +6,20 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: "jsdom",
+    // jsdom + V8 instrumentation is memory-heavy. Bounding concurrency
+    // keeps coverage runs deterministic instead of letting 30+ DOM suites
+    // starve one another until Vitest's per-test timeout fires.
+    maxWorkers: 4,
+    testTimeout: 15_000,
     coverage: {
       provider: "v8",
       include: [
         "src/app/page.tsx",
+        "src/app/about/page.tsx",
         "src/app/studio/page.tsx",
+        "src/app/usage/page.tsx",
         "src/components/accessibility-shell.tsx",
+        "src/components/account-menu.tsx",
         "src/components/ambient-network-background.tsx",
         "src/components/app-backdrop.tsx",
         "src/components/appearance-control.tsx",
@@ -30,8 +38,10 @@ export default defineConfig({
         "src/components/route-transition.tsx",
         "src/components/studio-mark.tsx",
         "src/components/thread-sidebar.tsx",
+        "src/components/telegram-webapp-provider.tsx",
         "src/components/zone.tsx",
         "src/lib/chat-taxonomy.ts",
+        "src/lib/locale-context.tsx",
         "src/proxy.ts",
       ],
       thresholds: {

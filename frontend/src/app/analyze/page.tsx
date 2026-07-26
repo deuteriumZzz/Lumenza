@@ -60,14 +60,14 @@ export function Analyze() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <div className="studio-content mx-auto w-full max-w-3xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10">
       <h1 className="text-xl font-semibold tracking-tight text-ink">Анализ</h1>
       <p className="mt-1 text-sm text-muted">
         Загрузите фото и получите идею для подписи — описывает содержание, а не буквальный текст на картинке
         (для этого используйте Документы).
       </p>
 
-      <div className="mt-6 rounded-md border border-border bg-surface p-4">
+      <div className="mt-6 rounded-md border border-border bg-surface p-3 sm:p-4">
         <FileUploadButton
           accept="image/*"
           label={submitting ? "Загружаем…" : "Загрузить фото"}
@@ -83,10 +83,14 @@ export function Analyze() {
       </div>
 
       {entry && (
-        <div className="mt-4 flex gap-4 rounded-md border border-border bg-surface p-4">
+        <div className="mt-4 flex flex-col gap-4 rounded-md border border-border bg-surface p-3 sm:flex-row sm:p-4">
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Загруженное фото" className="h-24 w-24 flex-shrink-0 rounded object-cover" />
+            <img
+              src={preview}
+              alt="Загруженное фото"
+              className="aspect-video w-full flex-shrink-0 rounded object-cover sm:h-24 sm:w-24 sm:aspect-square"
+            />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs text-muted">

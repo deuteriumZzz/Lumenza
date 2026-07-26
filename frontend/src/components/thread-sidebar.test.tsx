@@ -28,6 +28,18 @@ vi.mock("@/lib/auth-context", () => ({
   }),
 }));
 
+vi.mock("@/lib/locale-context", () => ({
+  useLocale: () => ({ locale: "ru", setLocale: vi.fn() }),
+}));
+
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return {
+    ...actual,
+    useReducedMotion: () => true,
+  };
+});
+
 import { ThreadSidebar } from "@/components/thread-sidebar";
 
 describe("ThreadSidebar", () => {
@@ -56,7 +68,7 @@ describe("ThreadSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Свернуть боковую панель" }));
 
     expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true");
-    expect(localStorage.getItem("lumenza:sidebar-collapsed")).toBe("true");
+    expect(localStorage.getItem("lumenza:sidebar-collapsed:desktop")).toBe("true");
   });
 
   it("uses the dedicated Studio mark in the primary navigation", async () => {
@@ -147,5 +159,23 @@ describe("ThreadSidebar", () => {
       expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true"),
     );
     expect(screen.getByRole("button", { name: "Показать боковую панель" })).toBeDefined();
+  });
+
+  it("does not inherit a legacy desktop expansion on a mobile viewport", async () => {
+    localStorage.setItem("lumenza:sidebar-collapsed", "false");
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+
+    render(<ThreadSidebar />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true"),
+    );
   });
 });

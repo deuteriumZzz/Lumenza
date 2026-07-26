@@ -189,7 +189,10 @@ export function Images() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+    <div
+      data-testid="images-content"
+      className="studio-content mx-auto w-full max-w-5xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10"
+    >
       <UnlockToasts
         unlockedKeys={justUnlocked}
         labelFor={(key) => TASK_LABELS[key] ?? key}
@@ -200,11 +203,11 @@ export function Images() {
         Создавайте и редактируйте изображения — результаты сохраняются в галерее ниже.
       </p>
 
-      <div className="mt-6 flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
+      <div className="mt-6 flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:p-4">
         <div
           role="group"
           aria-label="Режим работы с картинкой"
-          className="flex items-center gap-1 self-start rounded-md border border-border bg-bg p-1"
+          className="studio-segmented-control"
         >
           <button
             type="button"
@@ -247,7 +250,7 @@ export function Images() {
               onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
               className="text-sm text-muted"
             />
-            <div className="flex items-end gap-3">
+            <div data-testid="images-edit-row" className="studio-action-row">
               <textarea
                 value={editPrompt}
                 onChange={(event) => setEditPrompt(event.target.value)}
@@ -255,7 +258,7 @@ export function Images() {
                 aria-label="Промпт для редактирования"
                 rows={2}
                 maxLength={4000}
-                className="input flex-1 resize-none"
+                className="input min-w-0 flex-1 resize-none"
               />
               <button
                 type="button"
@@ -281,10 +284,10 @@ export function Images() {
           onSelect={(value) => setTask(value as ImageTask)}
           isUnlocked={isUnlocked}
           progressFor={progressFor}
-          className="flex items-center gap-1 self-start rounded-md border border-border bg-bg p-1"
+          className="studio-option-grid"
         />
 
-        <div className="flex items-end gap-3">
+        <div data-testid="images-prompt-row" className="studio-action-row">
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -292,7 +295,7 @@ export function Images() {
             aria-label="Промпт для картинки"
             rows={2}
             maxLength={4000}
-            className="input flex-1 resize-none"
+            className="input min-w-0 flex-1 resize-none"
           />
           <button
             type="button"
@@ -328,7 +331,7 @@ export function Images() {
       {!error && data && data.results.length > 0 && (
         <div
           className="mt-8 grid gap-4"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}
         >
           {data.results.map((entry) => (
             <ImageCard key={entry.id} entry={entry} />

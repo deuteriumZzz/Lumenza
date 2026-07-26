@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.decorators import (
@@ -10,6 +13,15 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from billing.models import LedgerEntry
+from imagegen.models import GeneratedImage
+from media_ops.constants import GEMINI_LIVE_MODEL, LIVE_VOICE_PROVIDER
+from media_ops.models import (
+    DocumentExtraction,
+    PhotoAnalysis,
+    SpeechClip,
+    Transcription,
+)
 from providers.models import Message, RequestLog, Thread
 from providers.serializers import (
     ChatRequestSerializer,
@@ -25,6 +37,46 @@ from providers.throttling import ChatRateThrottle
 # без отдельного LLM-вызова на генерацию заголовка (сознательное
 # упрощение MVP: дешевле и без доп. списаний кредитов).
 THREAD_TITLE_LENGTH = 60
+
+
+STUDIO_USAGE_MODELS = (
+    GeneratedImage,
+    Transcription,
+    SpeechClip,
+    DocumentExtraction,
+    PhotoAnalysis,
+)
+
+
+def _merge_usage_row(grouped, row):
+    key = (row["provider"], row["model"])
+    current = grouped.setdefault(
+        key,
+        {
+            "provider": row["provider"],
+            "model": row["model"],
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "credits_charged": Decimal("0"),
+            "requests": 0,
+        },
+    )
+    current["prompt_tokens"] += row.get("prompt_tokens") or 0
+    current["completion_tokens"] += row.get("completion_tokens") or 0
+    current["credits_charged"] += row["credits_charged"] or Decimal("0")
+    current["requests"] += row["requests"]
+
+
+def _serialize_usage_row(row):
+    return {
+        "provider": row["provider"],
+        "model": row["model"],
+        "prompt_tokens": row["prompt_tokens"],
+        "completion_tokens": row["completion_tokens"],
+        "total_tokens": row["prompt_tokens"] + row["completion_tokens"],
+        "credits_charged": f"{row['credits_charged']:.4f}",
+        "requests": row["requests"],
+    }
 
 
 def _chat_outcome_response(outcome):
@@ -187,3 +239,90 @@ class ChatHistoryView(generics.ListAPIView):
                 created_at__lt=filters["created_before"]
             )
         return queryset
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def usage_summary(request):
+    grouped = {}
+    chat_rows = (
+        RequestLog.objects.filter(
+            user=request.user,
+            status=RequestLog.Status.OK,
+        )
+        .values("provider", "model")
+        .annotate(
+            prompt_tokens=Sum("prompt_tokens"),
+            completion_tokens=Sum("completion_tokens"),
+            credits_charged=Sum("credits_charged"),
+            requests=Count("id"),
+        )
+    )
+    for row in chat_rows:
+        _merge_usage_row(grouped, row)
+
+    for usage_model in STUDIO_USAGE_MODELS:
+        studio_rows = (
+            usage_model.objects.filter(
+                user=request.user,
+                status=usage_model.Status.OK,
+            )
+            .values("provider", "model")
+            .annotate(
+                credits_charged=Sum("credits_charged"),
+                requests=Count("id"),
+            )
+        )
+        for row in studio_rows:
+            _merge_usage_row(grouped, row)
+
+    live_voice = LedgerEntry.objects.filter(
+        account__user=request.user,
+        reason=LedgerEntry.Reason.LIVE_VOICE_SESSION,
+        amount__lt=0,
+    ).aggregate(
+        credits_spent=Sum("amount"),
+        requests=Count("id"),
+    )
+    if live_voice["requests"]:
+        _merge_usage_row(
+            grouped,
+            {
+                "provider": LIVE_VOICE_PROVIDER,
+                "model": GEMINI_LIVE_MODEL,
+                "credits_charged": -live_voice["credits_spent"],
+                "requests": live_voice["requests"],
+            },
+        )
+
+    by_model = sorted(
+        (_serialize_usage_row(row) for row in grouped.values()),
+        key=lambda row: (
+            -row["total_tokens"],
+            -Decimal(row["credits_charged"]),
+            row["provider"],
+            row["model"],
+        ),
+    )
+    prompt_tokens = sum(row["prompt_tokens"] for row in grouped.values())
+    completion_tokens = sum(
+        row["completion_tokens"] for row in grouped.values()
+    )
+    credits_charged = sum(
+        (row["credits_charged"] for row in grouped.values()),
+        start=Decimal("0"),
+    )
+    requests = sum(row["requests"] for row in grouped.values())
+
+    return Response(
+        {
+            "total": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+                "credits_charged": f"{credits_charged:.4f}",
+                "requests": requests,
+            },
+            "by_model": by_model,
+        }
+    )

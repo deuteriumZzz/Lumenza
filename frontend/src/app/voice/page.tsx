@@ -19,14 +19,17 @@ export default function VoicePage() {
 
 export function Voice({ autoStart = false }: { autoStart?: boolean } = {}) {
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <div
+      data-testid="voice-content"
+      className="studio-content mx-auto w-full max-w-3xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10"
+    >
       <h1 className="text-xl font-semibold tracking-tight text-ink">Голос</h1>
       <p className="mt-1 text-sm text-muted">Превратите голосовую заметку в текст, или текст — в озвучку.</p>
 
       <LiveVoiceSection autoStart={autoStart} />
-      <div className="my-10 border-t border-border" />
+      <div className="my-7 border-t border-border sm:my-10" />
       <TranscribeSection />
-      <div className="my-10 border-t border-border" />
+      <div className="my-7 border-t border-border sm:my-10" />
       <SpeechSection />
     </div>
   );
@@ -330,7 +333,7 @@ function TranscribeSection() {
   return (
     <section>
       <h2 className="text-sm font-semibold text-ink">Голос в текст</h2>
-      <div className="mt-3 flex items-center gap-3">
+      <div data-testid="voice-transcribe-actions" className="studio-action-row mt-3">
         <button
           type="button"
           onClick={() => (recording ? stopRecording() : void startRecording())}
@@ -418,7 +421,7 @@ function SpeechSection() {
   return (
     <section>
       <h2 className="text-sm font-semibold text-ink">Текст в озвучку</h2>
-      <div className="mt-3 flex items-end gap-3">
+      <div data-testid="voice-speech-actions" className="studio-action-row mt-3">
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -426,7 +429,7 @@ function SpeechSection() {
           aria-label="Текст для озвучки"
           rows={3}
           maxLength={4000}
-          className="input flex-1 resize-none"
+          className="input min-w-0 flex-1 resize-none"
         />
         <button type="button" onClick={() => void generate()} disabled={submitting || !text.trim()} className="btn-primary h-fit">
           {submitting ? "Генерируем…" : "Сгенерировать"}

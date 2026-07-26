@@ -13,6 +13,7 @@ from billing.services import (
     get_or_create_account,
     usd_to_credits,
 )
+from media_ops.constants import GEMINI_LIVE_MODEL
 from media_ops.pricing import estimate_live_voice_cost_usd
 
 # Минимум кредитов на старте — стоимость одной минуты живого разговора.
@@ -21,13 +22,6 @@ from media_ops.pricing import estimate_live_voice_cost_usd
 # отсекает совсем пустой баланс до того, как открыт дорогой сокет к
 # Gemini.
 MIN_MINUTES_BALANCE_CHECK = 1
-# gemini-2.0-flash-live-001 (изначальный выбор) снят с v1beta bidiGenerateContent
-# — подтверждено вживую через client.models.list() с реальным ключом
-# пользователя: только gemini-2.5-flash-native-audio-latest,
-# gemini-3.1-flash-live-preview и датированные preview-варианты поддерживают
-# bidiGenerateContent сейчас. Взят "latest"-алиас, а не датированный preview,
-# чтобы не привязываться к снимку, который тоже могут снять с поддержки.
-GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 
 
 class VoiceLiveConsumer(AsyncWebsocketConsumer):
@@ -77,12 +71,16 @@ class VoiceLiveConsumer(AsyncWebsocketConsumer):
         self.start_time = time.monotonic()
 
         if not settings.GOOGLE_API_KEY:
-            await self.send(text_data=json.dumps({"type": "ready", "mocked": True}))
+            await self.send(
+                text_data=json.dumps({"type": "ready", "mocked": True})
+            )
             return
 
         try:
             await self._connect_gemini()
-            await self.send(text_data=json.dumps({"type": "ready", "mocked": False}))
+            await self.send(
+                text_data=json.dumps({"type": "ready", "mocked": False})
+            )
         except Exception:
             await self.send(
                 text_data=json.dumps(
@@ -132,12 +130,16 @@ class VoiceLiveConsumer(AsyncWebsocketConsumer):
             from google.genai import types
 
             await self._session.send_realtime_input(
-                audio=types.Blob(data=bytes_data, mime_type="audio/pcm;rate=16000")
+                audio=types.Blob(
+                    data=bytes_data, mime_type="audio/pcm;rate=16000"
+                )
             )
         else:
             # Мок-режим.
             await self.send(
-                text_data=json.dumps({"type": "mock_ack", "bytes": len(bytes_data)})
+                text_data=json.dumps(
+                    {"type": "mock_ack", "bytes": len(bytes_data)}
+                )
             )
 
     async def disconnect(self, code):

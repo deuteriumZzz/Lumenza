@@ -44,6 +44,15 @@ describe("WorkspaceShell", () => {
         .toBeDefined();
       expect(screen.getByTestId("workspace-auth")).toBeDefined();
       expect(screen.getByText("Контент")).toBeDefined();
+      expect(screen.getByTestId("workspace-content").className).toContain(
+        "miniapp-workspace-content",
+      );
+      expect(screen.getByTestId("workspace-content").className).toContain(
+        "overflow-y-auto",
+      );
+      expect(
+        screen.getByTestId("workspace-content").parentElement?.className,
+      ).toContain("max-h-dvh");
     },
   );
 

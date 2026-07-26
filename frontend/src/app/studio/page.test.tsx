@@ -67,6 +67,9 @@ describe("StudioPage motion", () => {
     renderStudioPage();
 
     expect(screen.getByTestId("studio-mode-navigation")).toBeDefined();
+    expect(
+      screen.getByTestId("studio-mode-navigation").className,
+    ).toContain("studio-mode-navigation");
     expect(screen.getByTestId("studio-navigation-mark")).toBeDefined();
     expect(screen.getAllByTestId("studio-active-indicator")).toHaveLength(1);
     expect(
