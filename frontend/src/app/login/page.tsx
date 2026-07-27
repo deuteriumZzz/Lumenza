@@ -22,7 +22,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(username, password);
-      router.push("/chat");
+      router.push("/home");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Что-то пошло не так.");
     } finally {
@@ -66,7 +66,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6">
-          <TelegramAuthSection label="Или войдите через Telegram" onSuccess={() => router.push("/chat")} />
+          <TelegramAuthSection label="Или войдите через Telegram" onSuccess={() => router.push("/home")} />
         </div>
 
         <p className="mt-6 text-sm text-muted">

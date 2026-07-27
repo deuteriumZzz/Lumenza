@@ -37,7 +37,7 @@ function RegisterForm() {
     setSubmitting(true);
     try {
       await register(username, email, password, referralCode);
-      router.push("/chat");
+      router.push("/home");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Что-то пошло не так.");
     } finally {
@@ -94,7 +94,7 @@ function RegisterForm() {
         </form>
 
         <div className="mt-6">
-          <TelegramAuthSection label="Или зарегистрируйтесь через Telegram" onSuccess={() => router.push("/chat")} />
+          <TelegramAuthSection label="Или зарегистрируйтесь через Telegram" onSuccess={() => router.push("/home")} />
         </div>
 
         <p className="mt-6 text-sm text-muted">

@@ -143,7 +143,7 @@ export function ThreadSidebar() {
     >
       <div className={`mb-3 flex items-center ${collapsed ? "justify-center" : "justify-between px-1"}`}>
         {!collapsed && (
-          <LumenzaBrand href="/chat" />
+          <LumenzaBrand href="/home" />
         )}
         <button
           type="button"
@@ -188,12 +188,14 @@ export function ThreadSidebar() {
 
       {collapsed ? (
         <nav aria-label="Разделы" className="flex flex-col items-center gap-1">
+          <SidebarRailLink href="/agents" label="Агенты" icon="agents" />
           <SidebarRailLink href="/studio" label="Студия" icon="studio" />
           <SidebarRailLink href="/history" label="История" icon="history" />
         </nav>
       ) : (
         <>
           <nav aria-label="Разделы" className="mb-4 flex flex-col gap-0.5">
+            <SidebarLink href="/agents" label="Агенты" icon="agents" />
             <div>
               <div
                 className={`studio-folder-row ${studioActive ? "is-active" : ""}`}
@@ -364,7 +366,15 @@ export function ThreadSidebar() {
   );
 }
 
-function SidebarLink({ href, label, icon }: { href: string; label: string; icon: "studio" | "history" | "credits" }) {
+function SidebarLink({
+  href,
+  label,
+  icon,
+}: {
+  href: string;
+  label: string;
+  icon: "agents" | "studio" | "history" | "credits";
+}) {
   return (
     <Link href={href} className="sidebar-action">
       <SidebarIcon icon={icon} />
@@ -395,7 +405,15 @@ function StudioCategoryLink({
   );
 }
 
-function SidebarRailLink({ href, label, icon }: { href: string; label: string; icon: "studio" | "history" }) {
+function SidebarRailLink({
+  href,
+  label,
+  icon,
+}: {
+  href: string;
+  label: string;
+  icon: "agents" | "studio" | "history";
+}) {
   return (
     <Link href={href} aria-label={label} title={label} className="sidebar-icon-button">
       <SidebarIcon icon={icon} />
@@ -403,7 +421,17 @@ function SidebarRailLink({ href, label, icon }: { href: string; label: string; i
   );
 }
 
-function SidebarIcon({ icon }: { icon: "studio" | "history" | "credits" }) {
+function SidebarIcon({ icon }: { icon: "agents" | "studio" | "history" | "credits" }) {
+  if (icon === "agents") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="6" cy="7" r="2.25" />
+        <circle cx="18" cy="7" r="2.25" />
+        <circle cx="12" cy="17.5" r="2.25" />
+        <path d="M7.8 8.6 10.4 15.7M16.2 8.6 13.6 15.7M8.25 7h7.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
   if (icon === "studio") {
     return <StudioMark className="size-4.5 shrink-0" />;
   }

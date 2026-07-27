@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState } from "react";
 import { usePathname } from "next/navigation";
+import { getWorkspaceSection } from "@/lib/workspace-sections";
 
 export type StudioMode = "images" | "voice" | "documents" | "analyze";
 export type Zone = "desk" | "studio" | "voice" | "archive";
@@ -32,9 +33,9 @@ const ZoneContext = createContext<ZoneContextValue | null>(null);
 export function ZoneProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [studioMode, setStudioMode] = useState<StudioMode>("images");
-  const zone: Zone = pathname.startsWith("/studio")
-    ? STUDIO_MODE_ZONE[studioMode]
-    : "desk";
+  const section = getWorkspaceSection(pathname);
+  const zone: Zone =
+    section?.key === "studio" ? STUDIO_MODE_ZONE[studioMode] : "desk";
 
   return (
     <ZoneContext.Provider value={{ zone, setStudioMode }}>

@@ -303,6 +303,55 @@ export interface PhotoAnalysisEntry {
   completed_at: string | null;
 }
 
+export interface AgentField {
+  key: string;
+  label: string;
+  type: "text" | "select";
+  required: boolean;
+  max_length?: number;
+  options?: string[];
+}
+
+export interface AgentSummary {
+  slug: string;
+  name: string;
+  description: string;
+}
+
+export interface AgentDetail extends AgentSummary {
+  version: number;
+  input_schema: { fields: AgentField[] };
+}
+
+export interface AgentRunStep {
+  key: string;
+  label: string;
+  status: "pending" | "running" | "ok" | "error";
+  provider?: string;
+  model?: string;
+  error_message?: string;
+}
+
+export interface ThreadsContentPlan {
+  branches: { title: string; angle: string }[];
+  hooks: { branch: string; variants: string[] }[];
+  schedule: { time: string; branch: string; post_text: string }[];
+  variants: string[];
+}
+
+export interface AgentRun {
+  id: number;
+  agent: string;
+  agent_version: number;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
+  steps: AgentRunStep[];
+  result: ThreadsContentPlan | null;
+  credits_charged: string;
+  error_message: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
 async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
   const headers = new Headers();
   const csrfToken = getCsrfToken();
@@ -394,6 +443,14 @@ export const api = {
     }),
   images: (page = 1) => request<Paginated<GeneratedImageEntry>>(`/images/?page=${page}`),
   image: (id: number) => request<GeneratedImageEntry>(`/images/${id}/`),
+  agents: () => request<AgentSummary[]>("/agents/"),
+  agent: (slug: string) => request<AgentDetail>(`/agents/${slug}/`),
+  createAgentRun: (slug: string, input: Record<string, string>, idempotencyKey: string) =>
+    request<AgentRun>(`/agents/${slug}/runs/`, {
+      method: "POST",
+      body: JSON.stringify({ input, idempotency_key: idempotencyKey }),
+    }),
+  agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
   createImageEdit: (prompt: string, imageFile: File) => {
     const formData = new FormData();
     formData.append("prompt", prompt);

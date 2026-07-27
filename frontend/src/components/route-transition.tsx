@@ -3,11 +3,10 @@
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { motionTokens } from "@/lib/motion";
+import { getWorkspaceSection } from "@/lib/workspace-sections";
 
 function routeFamily(pathname: string) {
-  if (pathname.startsWith("/chat")) return "chat";
-  if (pathname.startsWith("/studio")) return "studio";
-  return "page";
+  return getWorkspaceSection(pathname)?.key ?? "page";
 }
 
 export function RouteTransition({ children }: { children: React.ReactNode }) {

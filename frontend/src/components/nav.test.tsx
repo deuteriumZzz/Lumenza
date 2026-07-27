@@ -211,4 +211,20 @@ describe("Nav", () => {
 
     expect(screen.queryByRole("banner")).toBeNull();
   });
+
+  it("defers to the dedicated workspace shell on Agents routes", () => {
+    mocks.pathname = "/agents";
+
+    render(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
+
+  it("defers to the dedicated workspace shell on the authenticated home route", () => {
+    mocks.pathname = "/home";
+
+    render(<Nav />);
+
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
 });

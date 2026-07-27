@@ -14,6 +14,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/billing/", include("billing.urls")),
     path("api/", include("providers.urls")),
     path("api/", include("imagegen.urls")),
+    path("api/", include("agents.urls")),
     path("api/", include("progression.urls")),
     path("api/", include("media_ops.urls")),
     path("api/", include("referrals.urls")),

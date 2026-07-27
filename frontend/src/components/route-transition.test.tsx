@@ -53,6 +53,34 @@ describe("RouteTransition", () => {
         .closest("[data-route-transition]")
         ?.getAttribute("data-route-family"),
     ).toBe("studio");
+
+    mocks.pathname = "/agents";
+    rerender(
+      <RouteTransition>
+        <p>Агенты</p>
+      </RouteTransition>,
+    );
+
+    expect(
+      screen
+        .getByText("Агенты")
+        .closest("[data-route-transition]")
+        ?.getAttribute("data-route-family"),
+    ).toBe("agents");
+
+    mocks.pathname = "/home";
+    rerender(
+      <RouteTransition>
+        <p>Главная</p>
+      </RouteTransition>,
+    );
+
+    expect(
+      screen
+        .getByText("Главная")
+        .closest("[data-route-transition]")
+        ?.getAttribute("data-route-family"),
+    ).toBe("home");
   });
 
   it("adds a visual transition veil but removes it for reduced motion", () => {

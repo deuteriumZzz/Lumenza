@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "billing",
     "providers",
     "imagegen",
+    "agents",
     "bot",
     "progression",
     "media_ops",

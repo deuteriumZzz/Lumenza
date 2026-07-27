@@ -81,6 +81,26 @@ describe("ThreadSidebar", () => {
     ).not.toBeNull();
   });
 
+  it("renders an Agents entry pointing at the agents catalog", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    expect(screen.getByRole("link", { name: "Агенты" }).getAttribute("href")).toBe(
+      "/agents",
+    );
+  });
+
+  it("keeps the Agents entry reachable when the sidebar is collapsed", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Свернуть боковую панель" }));
+
+    expect(screen.getByRole("link", { name: "Агенты" }).getAttribute("href")).toBe(
+      "/agents",
+    );
+  });
+
   it("expands Studio as a folder with actionable categories", async () => {
     render(<ThreadSidebar />);
     await waitFor(() => expect(mocks.threads).toHaveBeenCalled());

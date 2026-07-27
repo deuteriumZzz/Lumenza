@@ -10,6 +10,7 @@ import { TelegramCta } from "@/components/telegram-cta";
 import { LumenzaBrand } from "@/components/lumenza-brand";
 import { StudioMark } from "@/components/studio-mark";
 import { motionTokens } from "@/lib/motion";
+import { isWorkspaceRoute } from "@/lib/workspace-sections";
 
 const LINKS = [
   { href: "/chat", label: "Чат" },
@@ -112,8 +113,7 @@ export function Nav() {
 
   const publicRoute =
     pathname === "/" || pathname === "/login" || pathname === "/register";
-  const hasDedicatedShell =
-    pathname.startsWith("/chat") || pathname.startsWith("/studio");
+  const hasDedicatedShell = isWorkspaceRoute(pathname);
   if (!user || publicRoute || hasDedicatedShell) return null;
 
   function signOut() {
@@ -136,7 +136,7 @@ export function Nav() {
       className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur"
     >
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6 md:gap-6">
-        <LumenzaBrand href="/chat" />
+        <LumenzaBrand href="/home" />
 
         <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
           {LINKS.map((link) => {

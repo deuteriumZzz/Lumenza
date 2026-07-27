@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 import { RequireAuth } from "@/components/require-auth";
 import { ThreadSidebar } from "@/components/thread-sidebar";
+import { isWorkspaceRoute } from "@/lib/workspace-sections";
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isWorkspace =
-    pathname.startsWith("/chat") || pathname.startsWith("/studio");
+  const isWorkspace = isWorkspaceRoute(pathname);
 
   if (!isWorkspace) return <>{children}</>;
 

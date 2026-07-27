@@ -29,7 +29,7 @@ describe("WorkspaceShell", () => {
 
   afterEach(cleanup);
 
-  it.each(["/chat", "/chat/42", "/studio"])(
+  it.each(["/chat", "/chat/42", "/studio", "/agents", "/agents/threads-content-day", "/home"])(
     "keeps the shared sidebar around %s",
     (pathname) => {
       mocks.pathname = pathname;
