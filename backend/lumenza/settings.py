@@ -2,6 +2,8 @@ from pathlib import Path
 
 import environ
 
+from lumenza.media_config import resolve_media_root
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(DEBUG=(bool, False))
@@ -158,7 +160,16 @@ STORAGES = {
 }
 
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Django's built-in development media route is normally tied to DEBUG.
+# A temporary public test tunnel must keep DEBUG off, but can opt into a
+# dedicated, isolated media root that contains no existing local files.
+SERVE_MEDIA_FILES = env.bool("SERVE_MEDIA_FILES", default=DEBUG)
+MEDIA_ROOT = resolve_media_root(
+    base_dir=BASE_DIR,
+    configured_root=env("MEDIA_ROOT", default=""),
+    serve_media_files=SERVE_MEDIA_FILES,
+    debug=DEBUG,
+)
 
 # Собственный дефолт Django (2.5 МБ) не ограничивает multipart-части
 # файла, только не-файловые POST-данные — реальное ограничение размера

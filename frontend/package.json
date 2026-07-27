@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "motion": "^12.42.2",
-    "next": "16.2.10",
+    "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
@@ -29,12 +29,18 @@
     "@vitejs/plugin-react": "4.7.0",
     "@vitest/coverage-v8": "3.2.7",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.12",
     "jsdom": "26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "6.4.3",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "3.2.7"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.19",
+      "sharp": "0.35.0"
+    }
   }
 }

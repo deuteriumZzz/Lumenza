@@ -33,7 +33,7 @@ export function Documents() {
       if (err instanceof ApiError && err.status === 402) {
         setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Извлечение текста из документов ещё не разблокировано на вашем тарифе.");
+        setError(apiErrorMessage(err));
       } else {
         setError(apiErrorMessage(err));
       }

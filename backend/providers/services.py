@@ -13,11 +13,8 @@ from billing.services import (
 )
 from core.constants import ERROR_MESSAGE_MAX_LEN
 from core.moderation import ModerationBlocked, check_prompt
-from progression.services import (
-    check_and_unlock,
-    get_unlocked_keys,
-    get_unlocked_models,
-)
+from progression.services import check_and_unlock
+from providers.access import can_use_model
 from providers.models import RequestLog
 from providers.pricing import estimate_max_cost_usd
 from providers.registry import get_adapter
@@ -140,7 +137,8 @@ TASK_ROUTES = {
         ("nvidia", "openai/gpt-oss-20b"),
     ],
     # Единственный реальный поисковый провайдер сейчас — без запасных
-    # вариантов, в отличие от остальных категорий (см. providers/search_adapter.py).
+    # вариантов, в отличие от остальных категорий
+    # (см. providers/search_adapter.py).
     "search": [("search", "gpt-4o-mini")],
 }
 
@@ -164,8 +162,8 @@ class ChatOutcome:
         "insufficient_credits",
         "provider_error",
         "blocked",
-        "task_locked",
-        "model_locked",
+        "invalid_model",
+        "model_requires_pro",
     ]
     text: Optional[str] = None
     provider: Optional[str] = None
@@ -203,9 +201,9 @@ def run_chat(
     task=None (веб-чат больше не заставляет выбирать тему вручную —
     Telegram-бот и явный override через UI по-прежнему передают строку
     напрямую) запускает лёгкую классификацию по смыслу промпта вместо
-    отсутствующего выбора пользователя. Гейт unlock-прогрессии ниже
-    применяется к результату классификации точно так же, как и к ручному
-    выбору — авто-роутинг не обходит монетизационный гейт."""
+    отсутствующего выбора пользователя. Base-план получает все категории,
+    но маршрутизация использует только доступные ему standard-модели.
+    Явный premium-выбор требует Pro."""
     if not task:
         from providers.intent import classify_task
 
@@ -213,38 +211,25 @@ def run_chat(
 
     routes = TASK_ROUTES[task]
 
-    # Проверяется до модерации и до списания кредитов —
-    # FREE-пользователь ещё не заработал эту категорию, так что нет
-    # смысла тратить вызов модерации на запрос, который в любом случае
-    # будет отклонён независимо от содержимого.
-    if task not in get_unlocked_keys(user):
-        RequestLog.objects.create(
-            user=user,
-            provider=routes[0][0],
-            model=routes[0][1],
-            task=task,
-            status=RequestLog.Status.TASK_LOCKED,
-        )
-        return ChatOutcome(status="task_locked", task=task)
-
-    # Явный выбор модели (геймифицированная разблокировка на уровне
-    # модели, на ступень ниже разблокировки категории выше)
-    # переупорядочивает список маршрутов, а не заменяет его — выбор
-    # пользователя пробуется первым, но обычная цепочка запасных
-    # вариантов категории всё равно подстраховывает, если именно этот
-    # вызов модели не удастся, точно так же, как и в случае без явного
-    # выбора.
+    available_routes = frozenset(
+        route for route in routes if can_use_model(user, *route)
+    )
     if model is not None:
         chosen = next((route for route in routes if route[1] == model), None)
-        if chosen is None or chosen not in get_unlocked_models(user, task):
+        if chosen is None:
+            return ChatOutcome(status="invalid_model", task=task)
+        if chosen not in available_routes:
             RequestLog.objects.create(
                 user=user,
-                provider=routes[0][0],
+                provider=chosen[0],
                 model=model,
                 task=task,
                 status=RequestLog.Status.MODEL_LOCKED,
             )
-            return ChatOutcome(status="model_locked", task=task)
+            return ChatOutcome(status="model_requires_pro", task=task)
+
+    routes = [route for route in routes if route in available_routes]
+    if model is not None:
         routes = [chosen] + [route for route in routes if route != chosen]
 
     # Проверяется до того, как вообще затронуты кредиты, и до вызова

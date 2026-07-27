@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ImageLightbox } from "@/components/image-lightbox";
-import { LockedOptionPicker } from "@/components/locked-option-picker";
-import { UnlockToasts } from "@/components/unlock-toast";
+import { OptionPicker } from "@/components/option-picker";
 import { useAuth } from "@/lib/auth-context";
 import {
   api,
@@ -14,7 +13,6 @@ import {
   type Paginated,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
-import { useUnlockProgress } from "@/lib/use-unlock-progress";
 import { redirect } from "next/navigation";
 
 const TASKS: { value: ImageTask; label: string; hint: string }[] = [
@@ -22,11 +20,6 @@ const TASKS: { value: ImageTask; label: string; hint: string }[] = [
   { value: "illustration", label: "Иллюстрация", hint: "Быстро и дёшево, стилизовано" },
   { value: "premium", label: "Премиум", hint: "Более высокое качество, универсальная генерация" },
 ];
-
-const TASK_LABELS: Record<string, string> = {
-  ...Object.fromEntries(TASKS.map((option) => [option.value, option.label])),
-  edit: "Редактировать фото",
-};
 
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
 const POLL_INTERVAL_MS = 2000;
@@ -57,7 +50,6 @@ export function Images() {
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
-  const { refreshProgress, isUnlocked, progressFor, justUnlocked, dismissUnlock } = useUnlockProgress();
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +124,6 @@ export function Images() {
       // Резерв кредитов для этого запроса уже был синхронно списан на
       // бэкенде до того, как он вернул 202 — отражаем это немедленно.
       void refreshBalance();
-      void refreshProgress();
       if (page === 1) {
         setResult((prev) =>
           prev
@@ -146,7 +137,7 @@ export function Images() {
       if (err instanceof ApiError && err.status === 402) {
         setSubmitError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setSubmitError("Этот визуальный стиль ещё не разблокирован на вашем тарифе.");
+        setSubmitError(apiErrorMessage(err));
       } else {
         setSubmitError(apiErrorMessage(err));
       }
@@ -165,7 +156,6 @@ export function Images() {
       setEditPrompt("");
       setEditFile(null);
       void refreshBalance();
-      void refreshProgress();
       if (page === 1) {
         setResult((prev) =>
           prev
@@ -179,7 +169,7 @@ export function Images() {
       if (err instanceof ApiError && err.status === 402) {
         setEditSubmitError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setEditSubmitError("Редактирование фото ещё не разблокировано на вашем тарифе.");
+        setEditSubmitError(apiErrorMessage(err));
       } else {
         setEditSubmitError(apiErrorMessage(err));
       }
@@ -193,11 +183,6 @@ export function Images() {
       data-testid="images-content"
       className="studio-content mx-auto w-full max-w-5xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10"
     >
-      <UnlockToasts
-        unlockedKeys={justUnlocked}
-        labelFor={(key) => TASK_LABELS[key] ?? key}
-        onDismiss={dismissUnlock}
-      />
       <h1 className="text-xl font-semibold tracking-tight text-ink">Картинки</h1>
       <p className="mt-1 text-sm text-muted">
         Создавайте и редактируйте изображения — результаты сохраняются в галерее ниже.
@@ -227,22 +212,12 @@ export function Images() {
               mode === "edit" ? "bg-primary text-bg" : "text-muted hover:text-ink"
             }`}
           >
-            {!isUnlocked("edit") && "🔒 "}Редактировать фото
+            Редактировать фото
           </button>
         </div>
 
         {mode === "edit" ? (
           <div className="flex flex-col gap-3">
-            {!isUnlocked("edit") && (
-              <p className="text-xs text-muted">
-                {(() => {
-                  const p = progressFor("edit");
-                  return p
-                    ? `Заблокировано — ${p.current_requests}/${p.target_requests} запросов, ${p.current_days}/${p.target_days} дней`
-                    : "Заблокировано на вашем тарифе";
-                })()}
-              </p>
-            )}
             <input
               type="file"
               accept="image/*"
@@ -263,7 +238,7 @@ export function Images() {
               <button
                 type="button"
                 onClick={() => void submitEdit()}
-                disabled={editSubmitting || !editPrompt.trim() || !editFile || !isUnlocked("edit")}
+                disabled={editSubmitting || !editPrompt.trim() || !editFile}
                 className="btn-primary h-fit"
               >
                 {editSubmitting ? "Редактируем…" : "Редактировать"}
@@ -277,13 +252,11 @@ export function Images() {
           </div>
         ) : (
           <>
-        <LockedOptionPicker
+        <OptionPicker
           ariaLabel="Тип картинки"
           options={TASKS}
           selected={task}
           onSelect={(value) => setTask(value as ImageTask)}
-          isUnlocked={isUnlocked}
-          progressFor={progressFor}
           className="studio-option-grid"
         />
 

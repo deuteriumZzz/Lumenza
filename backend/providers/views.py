@@ -85,19 +85,19 @@ def _chat_outcome_response(outcome):
     providers.services.run_chat и должны одинаково транслировать каждую
     ветку исхода, чтобы фронтенд получал идентичную форму ответа
     независимо от того, персистится сообщение в тред или нет."""
-    if outcome.status == "task_locked":
+    if outcome.status == "invalid_model":
         return Response(
             {
-                "detail": "Эта задача ещё не разблокирована на вашем тарифе",
-                "code": "task_locked",
+                "detail": "Выбранная модель не поддерживается для этой задачи",
+                "code": "invalid_model",
             },
-            status=status.HTTP_403_FORBIDDEN,
+            status=status.HTTP_400_BAD_REQUEST,
         )
-    if outcome.status == "model_locked":
+    if outcome.status == "model_requires_pro":
         return Response(
             {
-                "detail": "Эта модель ещё не разблокирована на вашем тарифе",
-                "code": "model_locked",
+                "detail": "Эта premium-модель доступна в тарифе Pro",
+                "code": "model_requires_pro",
             },
             status=status.HTTP_403_FORBIDDEN,
         )

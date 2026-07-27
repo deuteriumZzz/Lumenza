@@ -244,26 +244,20 @@ def test_enqueue_failure_refunds_hold_and_returns_503(monkeypatch):
     assert account.balance == starting_balance
 
 
-def test_create_image_locked_task_returns_403_without_charging():
-    # "realistic" отсутствует в progression.services.BASE_FREE_KEYS,
-    # поэтому свежий FREE-пользователь (тариф по умолчанию) ещё не
-    # заработал её.
+def test_base_user_can_create_realistic_image():
     client, user = _authed_client(
         "locked_image_task", tier=UserModel.Tier.FREE
     )
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
-
     response = client.post(
         "/api/images/", {"prompt": "a fox", "task": "realistic"}, format="json"
     )
 
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not GeneratedImage.objects.filter(user=user).exists()
-
+    assert response.status_code == 202
+    assert GeneratedImage.objects.filter(user=user).exists()
     account.refresh_from_db()
-    assert account.balance == starting_balance
+    assert account.balance < starting_balance
 
 
 def test_image_creation_is_rate_limited(monkeypatch):
@@ -330,25 +324,20 @@ def test_create_edit_success_charges_credits_and_saves_both_files():
     assert account.balance == starting_balance - record.credits_charged
 
 
-def test_create_edit_locked_task_returns_403_without_charging():
-    # "edit" отсутствует в progression.services.BASE_FREE_KEYS, поэтому
-    # свежий FREE-пользователь (тариф по умолчанию) ещё не заработал её.
+def test_base_user_can_edit_image():
     client, user = _authed_client("locked_edit_task", tier=UserModel.Tier.FREE)
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
-
     response = client.post(
         "/api/images/edit/",
         {"prompt": "make it blue", "image": _sample_upload()},
         format="multipart",
     )
 
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not GeneratedImage.objects.filter(user=user).exists()
-
+    assert response.status_code == 202
+    assert GeneratedImage.objects.filter(user=user).exists()
     account.refresh_from_db()
-    assert account.balance == starting_balance
+    assert account.balance < starting_balance
 
 
 def test_create_edit_insufficient_credits_returns_402_without_enqueuing_work():
@@ -411,12 +400,19 @@ def test_image_gallery_listing_is_not_rate_limited(monkeypatch):
         assert response.status_code == 200
 
 
-def test_translate_prompt_to_english_skips_already_english_prompts(monkeypatch):
+def test_translate_prompt_to_english_skips_already_english_prompts(
+    monkeypatch,
+):
     def boom(*args, **kwargs):
-        raise AssertionError("should not call an adapter for an English prompt")
+        raise AssertionError(
+            "should not call an adapter for an English prompt"
+        )
 
     monkeypatch.setattr("providers.registry.get_adapter", boom)
-    assert _translate_prompt_to_english("a cat on a rooftop") == "a cat on a rooftop"
+    assert (
+        _translate_prompt_to_english("a cat on a rooftop")
+        == "a cat on a rooftop"
+    )
 
 
 def test_translate_prompt_to_english_translates_cyrillic_prompts(monkeypatch):

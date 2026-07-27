@@ -1,8 +1,8 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.urls.resolvers import URLPattern, URLResolver
+from django.views.static import serve
 
 from core.views import public_config
 
@@ -20,10 +20,20 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("bot/", include("bot.urls")),
 ]
 
-if settings.DEBUG:
-    # В разработке сгенерированные изображения отдаются прямо с диска. В
-    # продакшене здесь должно быть настоящее объектное хранилище / CDN
-    # перед MEDIA_URL — Django никогда не отдаёт медиа сам вне DEBUG.
-    urlpatterns += static(
-        settings.MEDIA_URL, document_root=settings.MEDIA_ROOT
-    )
+
+def media_urlpatterns() -> list[URLPattern]:
+    if not settings.SERVE_MEDIA_FILES:
+        return []
+    return [
+        re_path(
+            rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
+            serve,
+            {"document_root": settings.MEDIA_ROOT},
+        )
+    ]
+
+
+# Продакшен по-прежнему должен использовать объектное хранилище/CDN.
+# Этот opt-in нужен только для локального или временного публичного теста;
+# отдельный MEDIA_ROOT не раскрывает файлы обычной dev-среды.
+urlpatterns += media_urlpatterns()

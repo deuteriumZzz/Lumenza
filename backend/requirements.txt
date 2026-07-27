@@ -1,9 +1,9 @@
-Django==5.0.9
+Django==5.2.16
 djangorestframework==3.15.2
 psycopg2-binary==2.9.9
 celery==5.4.0
 redis==5.0.8
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 django-environ==0.11.2
 gunicorn==22.0.0
 openai==1.109.1
@@ -27,8 +27,8 @@ replicate==1.0.7
 # present transitively (via google-api-core) before.
 requests==2.34.2
 aiogram==3.30.0
-pytest==8.3.3
-pytest-django==4.9.0
+pytest==9.1.1
+pytest-django==4.12.0
 # gRPC client for NVIDIA's cloud-hosted Riva ASR/TTS — confirmed
 # live-working (unlike the REST-based 404s documented in SPEC.md):
 # real transcription/synthesis calls succeed against grpc.nvcf.nvidia.com:443
@@ -48,5 +48,5 @@ whitenoise==6.7.0
 # needed: each voice consumer only relays its own connection 1:1 to
 # Gemini Live, it never broadcasts to other consumers.
 channels==4.1.0
-daphne==4.1.2
-pytest-asyncio==0.24.0
+daphne==4.2.2
+pytest-asyncio==1.4.0

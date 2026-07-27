@@ -6,24 +6,32 @@ product
 
 ## Users
 
-Professional SMM specialists and content creators who need fast, reliable AI-generated
-text and images for client work — posts, repurposed copy, content plans, campaign
-visuals. They use Lumenza primarily through Telegram day-to-day, but come to this web
-app to manage their account: top up credits, review usage history, and run chat/image
-generation in a fuller workspace than a Telegram thread allows. They are paying per
-request (credit ledger, provider markup) so cost and reliability are visible concerns,
-not abstractions — they want to see what a request cost, whether it succeeded, and
-what's left in their balance without digging.
+People who want strong AI without learning prompt engineering or opening several
+services. Some arrive for a direct conversation with a specific model; others want a
+ready-made outcome such as a content day for Threads, financial analysis, research, an
+image, or document processing. Power users still need transparent model choice, cost,
+history, and reusable knowledge. Web and Telegram Mini App are two clients of the same
+account, catalog, agents, files, and credit balance.
 
 ## Product Purpose
 
-Lumenza is a Telegram-first AI aggregator narrowed to a specific niche (SMM/content
-creation) rather than a general "90+ tools" AI combine. The web app is the account/
-control-plane surface: authentication, a multi-provider chat workspace (fast/smart/cheap
-routing across OpenAI, Anthropic, Gemini with automatic fallback), usage history, and
-billing. Success looks like a user trusting the tool enough to route real client work
-through it — which means the product must read as a serious paid instrument with
-transparent, correct billing, not a hobby playground.
+Lumenza is one AI workspace with four coherent modes:
+
+1. **Chat** — direct access to compatible models with optional explicit model choice.
+2. **Agents** — curated one-click solutions that ask only for essential inputs and run
+   a versioned workflow with the right instructions, models, tools, and output format.
+3. **Knowledge** — reusable company or personal context attached to chats and agents.
+4. **Studio** — images, voice, documents, and media analysis.
+
+The home experience starts from the user's goal, not from a wall of model names. A
+goal card may open a prepared agent, while the model picker remains available inside
+Chat for users who want direct control. Web and Mini App use the same backend contracts;
+neither is a reduced copy of the other.
+
+The base plan exposes every product capability immediately. There is no usage-based
+leveling or unlock progression. Monetization is attached to premium models, credits,
+limits, and priority routing. Standard models remain useful enough to complete real
+tasks; Pro expands quality and choice rather than making the base product a demo.
 
 ## Brand Personality
 
@@ -54,6 +62,12 @@ or cost. Confidence over cleverness.
   more premium than louder here.
 - **The tool disappears during work.** Chat is the primary task; mode selection, balance,
   and history support it but must not compete with the actual conversation for attention.
+- **Outcome first, model choice second.** Ready-made agents reduce configuration for
+  common goals; direct model access remains one click away for users who want it.
+- **One entitlement contract everywhere.** Web, Telegram Mini App, bot, and API show the
+  same standard/premium access. No client invents its own locks.
+- **Agent quality is a product asset.** Agent instructions and workflows are versioned,
+  evaluated, observable, and rollbackable. They are not loose prompts embedded in UI.
 - **Motion is functional, not decorative.** Micro-interactions confirm state changes
   (message sent, credits charged, fallback triggered) — restrained and physical, never
   playful bounce or elastic easing, per SPEC.md's emil-design-eng direction for this

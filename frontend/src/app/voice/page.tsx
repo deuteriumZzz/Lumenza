@@ -310,7 +310,7 @@ function TranscribeSection() {
       if (err instanceof ApiError && err.status === 402) {
         setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Расшифровка голоса ещё не разблокирована на вашем тарифе.");
+        setError(apiErrorMessage(err));
       } else {
         setError(apiErrorMessage(err));
       }
@@ -398,7 +398,7 @@ function SpeechSection() {
       if (err instanceof ApiError && err.status === 402) {
         setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Озвучка текста ещё не разблокирована на вашем тарифе.");
+        setError(apiErrorMessage(err));
       } else {
         setError(apiErrorMessage(err));
       }

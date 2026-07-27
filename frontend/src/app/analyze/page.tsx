@@ -39,7 +39,7 @@ export function Analyze() {
       if (err instanceof ApiError && err.status === 402) {
         setError("Недостаточно кредитов для этого запроса.");
       } else if (err instanceof ApiError && err.status === 403) {
-        setError("Анализ фото ещё не разблокирован на вашем тарифе.");
+        setError(apiErrorMessage(err));
       } else {
         setError(apiErrorMessage(err));
       }

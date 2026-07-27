@@ -7,11 +7,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { motionTokens, springs } from "@/lib/motion";
 import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
-import { LockedOptionPicker } from "@/components/locked-option-picker";
+import { OptionPicker } from "@/components/option-picker";
 import { ModelPicker } from "@/components/model-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { LumenzaConvergence } from "@/components/lumenza-brand";
-import { UnlockToasts } from "@/components/unlock-toast";
 import { useChatRouting } from "@/components/chat-routing";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -28,7 +27,6 @@ import {
   type Task,
   type TranscriptionEntry,
 } from "@/lib/api";
-import { useUnlockProgress } from "@/lib/use-unlock-progress";
 import { usePolledStatus } from "@/lib/use-polled-status";
 
 const TRANSCRIPTION_IN_PROGRESS = new Set(["pending", "processing"]);
@@ -109,7 +107,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const chunksRef = useRef<Blob[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcribing = dictationEntry !== null && TRANSCRIPTION_IN_PROGRESS.has(dictationEntry.status);
-  const { refreshProgress, isUnlocked, progressFor, justUnlocked, dismissUnlock } = useUnlockProgress();
   const listRef = useRef<HTMLDivElement>(null);
   // Один случайный вариант на монтирование компонента, не на каждый
   // ре-рендер — иначе текст "мигал" бы при любом обновлении состояния.
@@ -254,7 +251,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       ]);
       setBalance({ balance: res.balance, updated_at: new Date().toISOString() });
       setLastModel(res.model);
-      void refreshProgress();
       void refreshModelsCatalog();
 
       // Первое сообщение нового чата — переезжаем на постоянный URL треда,
@@ -270,9 +266,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         setError({
           kind: "locked",
           message:
-            code === "model_locked"
-              ? "Эта модель ещё не разблокирована на вашем тарифе — выберите другую или продолжайте прокачку."
-              : "Эта тема ещё не разблокирована на вашем тарифе.",
+            code === "model_requires_pro"
+              ? "Эта premium-модель доступна в Pro. Выберите standard-модель или перейдите на Pro."
+              : apiErrorMessage(err),
         });
       } else if (err instanceof ApiError && err.status === 502) {
         setError({ kind: "provider", message: "Все провайдеры для этой задачи не сработали. Списание не производилось." });
@@ -365,11 +361,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 sm:px-6">
       <h1 className="sr-only">Чат</h1>
-      <UnlockToasts
-        unlockedKeys={justUnlocked}
-        labelFor={(key) => TASK_LABELS[key] ?? key}
-        onDismiss={dismissUnlock}
-      />
       <div ref={listRef} className="flex-1 overflow-y-auto py-8">
         {loadingThread ? (
           <ResponseSkeleton />
@@ -575,13 +566,11 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             {TASK_GROUPS.map((group) => (
               <section key={group.key} aria-label={group.label}>
                 <p className="px-2 pb-2 text-xs font-medium text-ink">{group.label}</p>
-                <LockedOptionPicker
+                <OptionPicker
                   ariaLabel={group.label}
                   options={TASK_DEFINITIONS.filter((option) => option.group === group.key)}
                   selected={routing.kind === "auto" ? "" : routing.task}
                   onSelect={(value) => chooseTask(value as Task)}
-                  isUnlocked={isUnlocked}
-                  progressFor={progressFor}
                   className="flex flex-col items-stretch gap-1"
                 />
               </section>

@@ -146,7 +146,8 @@ function Pricing() {
       <div className="mt-8 rounded-md border border-border bg-surface p-6">
         <div className="text-sm font-medium text-ink">Подписка Pro</div>
         <p className="mt-1 text-xs text-muted">
-          Мгновенный доступ ко всем моделям — без постепенной разблокировки. 990₽/месяц, отмена в любой момент.
+          Все возможности доступны сразу. Pro открывает premium-модели и
+          приоритетные маршруты. 990₽/месяц, отмена в любой момент.
         </p>
 
         {subscription === undefined ? (

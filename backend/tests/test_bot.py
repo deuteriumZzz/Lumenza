@@ -587,9 +587,7 @@ def test_on_task_selected_updates_state_and_acknowledges():
     callback.message.edit_reply_markup.assert_awaited_once()
 
 
-def test_on_task_selected_rejects_locked_task():
-    # "hook" не бесплатна по умолчанию, так что свежий пользователь пока
-    # не может её выбрать.
+def test_on_task_selected_allows_every_task_for_base_user():
     callback = MagicMock()
     callback.data = "task:hook"
     callback.from_user = MagicMock(id=1002, username="locked_selector")
@@ -600,11 +598,9 @@ def test_on_task_selected_rejects_locked_task():
 
     asyncio.run(on_task_selected(callback, state))
 
-    state.update_data.assert_not_awaited()
-    callback.answer.assert_awaited_once_with(
-        "Ещё не разблокировано на вашем тарифе", show_alert=True
-    )
-    callback.message.edit_reply_markup.assert_not_awaited()
+    state.update_data.assert_awaited_once_with(task="hook")
+    callback.answer.assert_awaited_once()
+    callback.message.edit_reply_markup.assert_awaited_once()
 
 
 def test_on_task_selected_rejects_missing_callback_data():
@@ -615,7 +611,9 @@ def test_on_task_selected_rejects_missing_callback_data():
 
     asyncio.run(on_task_selected(callback, state))
 
-    callback.answer.assert_awaited_once_with("Неизвестная задача", show_alert=True)
+    callback.answer.assert_awaited_once_with(
+        "Неизвестная задача", show_alert=True
+    )
 
 
 def _telegram_update_payload(

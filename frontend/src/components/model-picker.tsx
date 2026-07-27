@@ -19,6 +19,7 @@ interface ModelChoice {
   entries: ModelProgress[];
   selectedEntry: ModelProgress;
   unlocked: boolean;
+  accessClass: ModelProgress["access_class"];
 }
 
 const TASK_PRIORITY = [
@@ -62,6 +63,7 @@ function buildChoices(models: ModelProgress[], selectedTask: string | null): Mod
         entries,
         selectedEntry,
         unlocked: entries.some((entry) => entry.unlocked),
+        accessClass: selectedEntry.access_class,
       };
     })
     .sort((left, right) => {
@@ -206,7 +208,7 @@ export function ModelPicker({
                 onClick={() => setShowLocked((current) => !current)}
                 className="mt-2 flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs text-muted transition-colors hover:bg-surface-raised hover:text-ink"
               >
-                <span>Ещё модели · {locked.length}</span>
+                <span>Premium-модели · {locked.length}</span>
                 <svg aria-hidden="true" viewBox="0 0 16 16" className={`size-3.5 transition-transform ${showLocked ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -240,19 +242,11 @@ function ModelOption({
   selected: boolean;
   onClick: () => void;
 }) {
-  const representative = choice.entries
-    .slice()
-    .sort((left, right) => {
-      const leftProgress = left.target_requests + left.target_days;
-      const rightProgress = right.target_requests + right.target_days;
-      return leftProgress - rightProgress;
-    })[0];
   const taskSummary = Array.from(
     new Set(choice.entries.map((entry) => TASK_LABELS[entry.task] ?? entry.task)),
   ).slice(0, 2).join(" · ");
-  const progress = representative.target_requests > 0 || representative.target_days > 0
-    ? `${representative.current_requests}/${representative.target_requests} запросов · ${representative.current_days}/${representative.target_days} дней`
-    : "Доступно на другом тарифе";
+  const accessLabel =
+    choice.accessClass === "premium" ? "Доступно в Pro" : "Недоступно";
 
   return (
     <button
@@ -271,7 +265,7 @@ function ModelOption({
           {modelLabel(choice.model)} <span className="font-normal text-muted">· {choice.provider}</span>
         </span>
         <span className="block truncate text-xs text-muted">
-          {choice.unlocked ? taskSummary : progress}
+          {choice.unlocked ? taskSummary : accessLabel}
         </span>
       </span>
       {selected ? (

@@ -61,7 +61,7 @@ describe("AccountMenu", () => {
     renderAccountMenu();
 
     expect(screen.getByText("alice")).toBeDefined();
-    expect(screen.getByText(/Free/)).toBeDefined();
+    expect(screen.getByText(/Базовый/)).toBeDefined();
     expect(screen.getByText(/1250 кредитов/)).toBeDefined();
   });
 

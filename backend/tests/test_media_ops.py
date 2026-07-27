@@ -76,20 +76,18 @@ def test_create_transcription_success_charges_credits():
     assert account.balance == starting_balance - record.credits_charged
 
 
-def test_create_transcription_locked_for_free_tier():
+def test_base_user_can_create_transcription():
     client, user = _authed_client("locked_voice", tier=UserModel.Tier.FREE)
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
-
     response = client.post(
         "/api/transcriptions/", {"audio": _audio_file()}, format="multipart"
     )
 
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not Transcription.objects.filter(user=user).exists()
+    assert response.status_code == 202
+    assert Transcription.objects.filter(user=user).exists()
     account.refresh_from_db()
-    assert account.balance == starting_balance
+    assert account.balance < starting_balance
 
 
 def test_create_speech_success_charges_credits():
@@ -111,14 +109,13 @@ def test_create_speech_success_charges_credits():
     assert account.balance == starting_balance - record.credits_charged
 
 
-def test_create_speech_locked_for_free_tier():
+def test_base_user_can_create_speech():
     client, user = _authed_client("locked_speech", tier=UserModel.Tier.FREE)
     response = client.post(
         "/api/speech/", {"text": "hello world"}, format="json"
     )
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not SpeechClip.objects.filter(user=user).exists()
+    assert response.status_code == 202
+    assert SpeechClip.objects.filter(user=user).exists()
 
 
 def test_create_document_extraction_success_charges_credits():
@@ -140,14 +137,13 @@ def test_create_document_extraction_success_charges_credits():
     assert account.balance == starting_balance - record.credits_charged
 
 
-def test_create_document_extraction_locked_for_free_tier():
+def test_base_user_can_extract_document():
     client, user = _authed_client("locked_doc", tier=UserModel.Tier.FREE)
     response = client.post(
         "/api/documents/", {"document": _document_file()}, format="multipart"
     )
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not DocumentExtraction.objects.filter(user=user).exists()
+    assert response.status_code == 202
+    assert DocumentExtraction.objects.filter(user=user).exists()
 
 
 def test_create_photo_analysis_success_charges_credits():
@@ -169,14 +165,13 @@ def test_create_photo_analysis_success_charges_credits():
     assert account.balance == starting_balance - record.credits_charged
 
 
-def test_create_photo_analysis_locked_for_free_tier():
+def test_base_user_can_analyze_photo():
     client, user = _authed_client("locked_photo", tier=UserModel.Tier.FREE)
     response = client.post(
         "/api/photos/analyze/", {"image": _photo_file()}, format="multipart"
     )
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
-    assert not PhotoAnalysis.objects.filter(user=user).exists()
+    assert response.status_code == 202
+    assert PhotoAnalysis.objects.filter(user=user).exists()
 
 
 def test_photo_analysis_detail_is_scoped_to_owner():

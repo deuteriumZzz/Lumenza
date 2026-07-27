@@ -25,16 +25,6 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/use-unlock-progress", () => ({
-  useUnlockProgress: () => ({
-    refreshProgress: vi.fn(),
-    isUnlocked: () => true,
-    progressFor: () => undefined,
-    justUnlocked: [],
-    dismissUnlock: vi.fn(),
-  }),
-}));
-
 import { Images } from "@/app/images/page";
 
 describe("Images Mini App layout", () => {

@@ -1,9 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const API_ORIGIN = process.env.LUMENZA_API_ORIGIN ?? "http://localhost:8000";
+const REDIRECT_HOSTS = new Set(
+  (
+    process.env.LUMENZA_PUBLIC_HOSTS
+    ?? "localhost,localhost:3000"
+  )
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 export const config = {
-  matcher: ["/api/:path*", "/media/:path*"],
+  matcher: ["/:path*"],
 };
 
 // Прокси на тот же origin к Django API в разработке, чтобы браузеру
@@ -22,9 +31,38 @@ export const config = {
 export function proxy(request: NextRequest) {
   const requestPath = request.nextUrl.pathname;
   const isApiPath = requestPath === "/api" || requestPath.startsWith("/api/");
+  const isMediaPath =
+    requestPath === "/media" || requestPath.startsWith("/media/");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+
+  if (forwardedProto === "http") {
+    const publicHost = (request.headers.get("host") ?? "").trim().toLowerCase();
+    if (
+      !/^[a-z0-9.-]+(?::[0-9]{1,5})?$/i.test(publicHost)
+      || !REDIRECT_HOSTS.has(publicHost)
+    ) {
+      return new NextResponse("Invalid Host", { status: 400 });
+    }
+    const httpsUrl = new URL(
+      request.nextUrl.pathname + request.nextUrl.search,
+      `https://${publicHost}`,
+    );
+    return NextResponse.redirect(httpsUrl, 308);
+  }
+
+  if (!isApiPath && !isMediaPath) {
+    return NextResponse.next();
+  }
+
   const pathname = isApiPath && !requestPath.endsWith("/")
     ? `${requestPath}/`
     : requestPath;
   const target = new URL(pathname + request.nextUrl.search, API_ORIGIN);
-  return NextResponse.rewrite(target);
+  const requestHeaders = new Headers(request.headers);
+  if (forwardedProto === "http" || forwardedProto === "https") {
+    requestHeaders.set("x-forwarded-proto", forwardedProto);
+  }
+  return NextResponse.rewrite(target, {
+    request: { headers: requestHeaders },
+  });
 }

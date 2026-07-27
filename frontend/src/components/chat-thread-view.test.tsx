@@ -18,16 +18,6 @@ vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ setBalance: mocks.setBalance }),
 }));
 
-vi.mock("@/lib/use-unlock-progress", () => ({
-  useUnlockProgress: () => ({
-    refreshProgress: vi.fn(),
-    isUnlocked: () => true,
-    progressFor: () => undefined,
-    justUnlocked: [],
-    dismissUnlock: vi.fn(),
-  }),
-}));
-
 vi.mock("@/lib/use-polled-status", () => ({
   usePolledStatus: () => undefined,
 }));
@@ -65,6 +55,7 @@ const models = [
     provider: "openai",
     model: "gpt-4o-mini",
     unlocked: true,
+    access_class: "standard",
     current_requests: 0,
     target_requests: 0,
     current_days: 0,
@@ -75,6 +66,7 @@ const models = [
     provider: "google",
     model: "gemini-1.5-flash",
     unlocked: true,
+    access_class: "standard",
     current_requests: 0,
     target_requests: 0,
     current_days: 0,

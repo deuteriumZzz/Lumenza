@@ -9,6 +9,7 @@ const models: ModelProgress[] = [
     provider: "openai",
     model: "gpt-5-mini",
     unlocked: true,
+    access_class: "standard",
     current_requests: 0,
     target_requests: 0,
     current_days: 0,
@@ -19,6 +20,7 @@ const models: ModelProgress[] = [
     provider: "openai",
     model: "gpt-5-mini",
     unlocked: true,
+    access_class: "standard",
     current_requests: 0,
     target_requests: 0,
     current_days: 0,
@@ -29,6 +31,7 @@ const models: ModelProgress[] = [
     provider: "anthropic",
     model: "claude-sonnet-4",
     unlocked: false,
+    access_class: "premium",
     current_requests: 2,
     target_requests: 5,
     current_days: 1,
@@ -57,14 +60,15 @@ describe("ModelPicker", () => {
     expect(screen.getAllByRole("button", { name: /gpt-5-mini · openai/i })).toHaveLength(1);
   });
 
-  it("keeps locked models visible with concise progress but unavailable", () => {
+  it("keeps premium models visible with an upgrade label but unavailable", () => {
     render(<ModelPicker models={models} selectedModel={null} onSelect={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Модель: Автовыбор" }));
-    fireEvent.click(screen.getByRole("button", { name: /Ещё модели/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Premium-модели/i }));
     const locked = screen.getByRole("button", { name: /claude-sonnet-4 · anthropic/i });
 
     expect(locked.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText("Доступно в Pro")).toBeDefined();
   });
 
   it("labels automatic routing explicitly", () => {

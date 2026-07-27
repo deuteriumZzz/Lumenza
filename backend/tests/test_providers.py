@@ -56,7 +56,9 @@ def test_chat_without_task_gets_auto_classified(monkeypatch):
     import providers.intent
 
     monkeypatch.setattr(
-        providers.intent, "classify_task", lambda prompt, valid_tasks: "longform"
+        providers.intent,
+        "classify_task",
+        lambda prompt, valid_tasks: "longform",
     )
     client, user = _authed_client()
 
@@ -116,7 +118,7 @@ def test_chat_with_explicit_model_prefers_it_over_the_default_primary():
     )  # пробовалась первой, не как запасной вариант
 
 
-def test_chat_with_unknown_model_returns_403_model_locked():
+def test_chat_with_unknown_model_returns_400_invalid_model():
     client, _ = _authed_client()  # PAID
     response = client.post(
         "/api/chat/",
@@ -127,36 +129,45 @@ def test_chat_with_unknown_model_returns_403_model_locked():
         },
         format="json",
     )
-    assert response.status_code == 403
-    assert response.data["code"] == "model_locked"
+    assert response.status_code == 400
+    assert response.data["code"] == "invalid_model"
 
 
-def test_chat_with_not_yet_unlocked_model_returns_403_for_free_user():
+def test_chat_with_premium_model_returns_403_for_base_user(monkeypatch):
     client, user = _authed_client(
-        "model_locked_free", tier=UserModel.Tier.FREE
+        "premium_model_free", tier=UserModel.Tier.FREE
     )
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
     routes = TASK_ROUTES["repurpose"]
-    # позиция 1 требует реального использования; у свежего
-    # FREE-пользователя его нет
-    _, locked_model = routes[1]
+    premium_model = next(
+        model for provider, model in routes if provider == "anthropic"
+    )
+    called = {"count": 0}
+    original_complete = REGISTRY["anthropic"].complete
+
+    def spy_complete(*args, **kwargs):
+        called["count"] += 1
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["anthropic"], "complete", spy_complete)
 
     response = client.post(
         "/api/chat/",
         {
             "prompt": "Hello, this is a test prompt",
             "task": "repurpose",
-            "model": locked_model,
+            "model": premium_model,
         },
         format="json",
     )
 
     assert response.status_code == 403
-    assert response.data["code"] == "model_locked"
+    assert response.data["code"] == "model_requires_pro"
     assert not RequestLog.objects.filter(
         user=user, status=RequestLog.Status.OK
     ).exists()
+    assert called["count"] == 0
     account.refresh_from_db()
     assert account.balance == starting_balance
 
@@ -682,9 +693,7 @@ def test_history_filters_by_task_provider_status_and_datetime_range():
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    assert [row["id"] for row in response.data["results"]] == [
-        matching.id
-    ]
+    assert [row["id"] for row in response.data["results"]] == [matching.id]
 
 
 def test_history_rejects_invalid_filters_and_reversed_datetime_range():
@@ -735,12 +744,10 @@ def test_chat_blocked_by_moderation_returns_422_uncharged(monkeypatch):
     ).exists()
 
 
-def test_chat_locked_task_returns_403_without_charging_or_calling_provider(
+def test_base_user_can_use_every_task_and_auto_route_skips_premium_models(
     monkeypatch,
 ):
-    # "hook" отсутствует в progression.services.BASE_FREE_KEYS, поэтому
-    # свежий FREE-пользователь (тариф по умолчанию) ещё не заработал её.
-    client, user = _authed_client("locked_task", tier=UserModel.Tier.FREE)
+    client, user = _authed_client("base_hook", tier=UserModel.Tier.FREE)
     account = CreditAccount.objects.get(user=user)
     starting_balance = account.balance
 
@@ -759,15 +766,13 @@ def test_chat_locked_task_returns_403_without_charging_or_calling_provider(
         format="json",
     )
 
-    assert response.status_code == 403
-    assert response.data["code"] == "task_locked"
+    assert response.status_code == 200
+    assert response.data["task"] == "hook"
+    assert response.data["provider"] != "anthropic"
     assert called["count"] == 0
 
     account.refresh_from_db()
-    assert account.balance == starting_balance
-    assert RequestLog.objects.filter(
-        user=user, status=RequestLog.Status.TASK_LOCKED
-    ).exists()
+    assert account.balance < starting_balance
 
 
 def test_chat_is_rate_limited(monkeypatch):

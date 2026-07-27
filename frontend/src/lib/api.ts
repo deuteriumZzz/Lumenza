@@ -219,6 +219,7 @@ export interface ModelProgress {
   provider: string;
   model: string;
   unlocked: boolean;
+  access_class: "standard" | "premium";
   current_requests: number;
   target_requests: number;
   current_days: number;

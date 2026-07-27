@@ -14,6 +14,7 @@ class ModelProgressSerializer(serializers.Serializer):
     provider = serializers.CharField()
     model = serializers.CharField()
     unlocked = serializers.BooleanField()
+    access_class = serializers.ChoiceField(choices=["standard", "premium"])
     current_requests = serializers.IntegerField()
     target_requests = serializers.IntegerField()
     current_days = serializers.IntegerField()

@@ -41,7 +41,8 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
   if (!user) return null;
 
   const initial = user.username.slice(0, 1).toUpperCase();
-  const planLabel = user.tier === "paid" ? "Pro" : "Free";
+  const planLabel =
+    user.tier === "paid" ? "Pro" : locale === "ru" ? "Базовый" : "Base";
   const credits = balance ? Math.trunc(Number(balance.balance)) : null;
   const copy =
     locale === "ru"
