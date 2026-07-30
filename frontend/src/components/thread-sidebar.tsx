@@ -6,12 +6,24 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { motionTokens, springs } from "@/lib/motion";
 import { api, apiErrorMessage, type ChatThread, type Paginated } from "@/lib/api";
+import { getWorkspaceSection } from "@/lib/workspace-sections";
 import { AccountMenu } from "@/components/account-menu";
 import { AppearanceControl } from "@/components/appearance-control";
 import { LumenzaBrand } from "@/components/lumenza-brand";
 import { StudioMark } from "@/components/studio-mark";
 
 const SIDEBAR_STORAGE_KEY = "lumenza:sidebar-collapsed";
+
+type SidebarIconName = "chat" | "agents" | "knowledge" | "studio" | "history" | "credits";
+
+// Порядок — то же 3-стороннее переключение, что у abacus.ai (Chat Mode |
+// AI Agent | Company Knowledge, SPEC.md Phase 17) — Студия остаётся
+// отдельной строкой ниже, это не часть переключателя.
+const MODE_SWITCHER_OPTIONS: { key: "chat" | "agents" | "knowledge"; href: string; label: string; icon: SidebarIconName }[] = [
+  { key: "chat", href: "/chat", label: "Чат", icon: "chat" },
+  { key: "agents", href: "/agents", label: "Агенты", icon: "agents" },
+  { key: "knowledge", href: "/knowledge", label: "Знания", icon: "knowledge" },
+];
 
 function sidebarPreferenceKey(): string {
   const viewport =
@@ -45,7 +57,8 @@ export function ThreadSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
-  const studioActive = pathname.startsWith("/studio");
+  const activeSection = getWorkspaceSection(pathname)?.key;
+  const studioActive = activeSection === "studio";
   const [result, setResult] = useState<Paginated<ChatThread> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(() => storedSidebarPreference() ?? false);
@@ -188,6 +201,7 @@ export function ThreadSidebar() {
 
       {collapsed ? (
         <nav aria-label="Разделы" className="flex flex-col items-center gap-1">
+          <SidebarRailLink href="/chat" label="Чат" icon="chat" />
           <SidebarRailLink href="/agents" label="Агенты" icon="agents" />
           <SidebarRailLink href="/knowledge" label="Знания" icon="knowledge" />
           <SidebarRailLink href="/studio" label="Студия" icon="studio" />
@@ -195,9 +209,37 @@ export function ThreadSidebar() {
         </nav>
       ) : (
         <>
+          <nav
+            aria-label="Режим"
+            className="mb-2 flex items-center gap-1 rounded-2xl border border-border/70 bg-surface/60 p-1"
+          >
+            {MODE_SWITCHER_OPTIONS.map((option) => {
+              const active = activeSection === option.key;
+              return (
+                <Link
+                  key={option.key}
+                  href={option.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative isolate flex min-h-9 flex-1 items-center justify-center gap-1.5 overflow-hidden rounded-xl px-2 text-xs font-medium transition-colors duration-150 ${
+                    active ? "text-ink" : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="sidebar-mode-switcher"
+                      aria-hidden="true"
+                      className="absolute inset-0 -z-10 rounded-xl bg-primary/12"
+                      transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
+                    />
+                  )}
+                  <SidebarIcon icon={option.icon} />
+                  <span>{option.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
           <nav aria-label="Разделы" className="mb-4 flex flex-col gap-0.5">
-            <SidebarLink href="/agents" label="Агенты" icon="agents" />
-            <SidebarLink href="/knowledge" label="Знания" icon="knowledge" />
             <div>
               <div
                 className={`studio-folder-row ${studioActive ? "is-active" : ""}`}
@@ -375,7 +417,7 @@ function SidebarLink({
 }: {
   href: string;
   label: string;
-  icon: "agents" | "knowledge" | "studio" | "history" | "credits";
+  icon: SidebarIconName;
 }) {
   return (
     <Link href={href} className="sidebar-action">
@@ -414,7 +456,7 @@ function SidebarRailLink({
 }: {
   href: string;
   label: string;
-  icon: "agents" | "knowledge" | "studio" | "history";
+  icon: SidebarIconName;
 }) {
   return (
     <Link href={href} aria-label={label} title={label} className="sidebar-icon-button">
@@ -426,8 +468,18 @@ function SidebarRailLink({
 function SidebarIcon({
   icon,
 }: {
-  icon: "agents" | "knowledge" | "studio" | "history" | "credits";
+  icon: SidebarIconName;
 }) {
+  if (icon === "chat") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path
+          d="M4 12c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8c-1.1 0-2.1-.2-3-.6L4 20l1.1-4.4A7.9 7.9 0 0 1 4 12Z"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
   if (icon === "agents") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">

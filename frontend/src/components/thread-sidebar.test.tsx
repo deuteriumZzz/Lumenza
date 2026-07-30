@@ -99,6 +99,39 @@ describe("ThreadSidebar", () => {
     );
   });
 
+  it("renders a Chat entry in the mode switcher pointing at /chat", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    expect(screen.getByRole("link", { name: "Чат" }).getAttribute("href")).toBe(
+      "/chat",
+    );
+  });
+
+  it("marks the active mode in the Chat/Agents/Knowledge switcher via aria-current", async () => {
+    mocks.pathname = "/agents";
+
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    expect(screen.getByRole("link", { name: "Агенты" }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Чат" }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "Знания" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("keeps a Chat entry reachable when the sidebar is collapsed", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Свернуть боковую панель" }));
+
+    expect(screen.getByRole("link", { name: "Чат" }).getAttribute("href")).toBe(
+      "/chat",
+    );
+  });
+
   it("keeps the Agents entry reachable when the sidebar is collapsed", async () => {
     render(<ThreadSidebar />);
     await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
