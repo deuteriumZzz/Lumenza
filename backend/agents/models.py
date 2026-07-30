@@ -69,6 +69,17 @@ class AgentRun(models.Model):
         related_name="agent_runs",
     )
     input_payload = models.JSONField()
+    # Optional RAG attachment (Phase 17) — ownership checked once at run
+    # creation (agents.services.start_agent_run), so every step's
+    # knowledge.services.search() call during execution is already scoped
+    # to a workspace this run's user owns.
+    workspace = models.ForeignKey(
+        "knowledge.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_runs",
+    )
     idempotency_key = models.CharField(max_length=64)
     status = models.CharField(
         max_length=24, choices=Status.choices, default=Status.PENDING

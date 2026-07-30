@@ -453,6 +453,92 @@ def test_agent_run_uses_saved_user_context_in_prompt(monkeypatch):
     assert all("tone: экспертный" in prompt for prompt in seen_prompts)
 
 
+def test_render_step_prompt_unchanged_without_knowledge_context():
+    agent = _threads_agent()
+    step = agent.workflow_steps[0]
+    without_arg = render_step_prompt(agent, step, VALID_INPUT, {}, None)
+    with_none = render_step_prompt(agent, step, VALID_INPUT, {}, None, None)
+    with_empty = render_step_prompt(agent, step, VALID_INPUT, {}, None, [])
+    assert without_arg == with_none == with_empty
+    assert "Контекст базы знаний" not in without_arg
+
+
+def test_render_step_prompt_includes_knowledge_context():
+    agent = _threads_agent()
+    step = agent.workflow_steps[0]
+    prompt = render_step_prompt(
+        agent, step, VALID_INPUT, {}, None, ["Lumenza — агрегатор AI-моделей."]
+    )
+    assert "Контекст базы знаний" in prompt
+    assert "Lumenza — агрегатор AI-моделей." in prompt
+
+
+def test_agent_run_uses_workspace_search_results_in_prompt(monkeypatch):
+    from knowledge.models import Workspace
+
+    client, user = _authed_client()
+    workspace = Workspace.objects.create(user=user, name="Notes")
+    client.post(
+        f"/api/knowledge/workspaces/{workspace.id}/sources/text/",
+        {"text": "Lumenza объединяет чат, поиск и изображения. " * 30},
+        format="json",
+    )
+    seen_prompts = []
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        seen_prompts.append(prompt)
+        index = len(seen_prompts)
+        text = "outline text" if index == 1 else (
+            "hooks text" if index == 2 else VALID_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok",
+            text=text,
+            provider="openai",
+            model="gpt-4o-mini",
+            task=task,
+            credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/threads-content-day/runs/",
+        {
+            "input": VALID_INPUT,
+            "idempotency_key": "workspace-run",
+            "workspace_id": workspace.id,
+        },
+        format="json",
+    )
+    assert response.status_code == 202
+    run = AgentRun.objects.get(pk=response.data["id"])
+    assert run.workspace_id == workspace.id
+    assert all("Lumenza объединяет чат" in prompt for prompt in seen_prompts)
+
+
+def test_agent_run_with_foreign_workspace_returns_400():
+    from knowledge.models import Workspace
+
+    client, _ = _authed_client(username="creator2")
+    _, other_user = _authed_client(username="other")
+    workspace = Workspace.objects.create(user=other_user, name="Not mine")
+
+    response = client.post(
+        "/api/agents/threads-content-day/runs/",
+        {
+            "input": VALID_INPUT,
+            "idempotency_key": "foreign-workspace-run",
+            "workspace_id": workspace.id,
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert not AgentRun.objects.filter(
+        idempotency_key="foreign-workspace-run"
+    ).exists()
+
+
 def test_agent_run_detail_scoped_to_owner(monkeypatch):
     client, _ = _authed_client("owner")
     _mock_run_chat_sequence(monkeypatch, ["a", "b", VALID_RESULT_JSON])

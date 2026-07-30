@@ -93,11 +93,13 @@ def render_step_prompt(
     input_payload: dict,
     context: dict,
     user_context: dict | None = None,
+    knowledge_context: list[str] | None = None,
 ) -> str:
     """Builds the prompt for one workflow step: the agent's system
-    instructions, the user's saved profile (if any), the user's form
-    input, and the accumulated text from earlier steps (so step 2 can
-    build on step 1's output, and so on)."""
+    instructions, the user's saved profile (if any), retrieved knowledge
+    chunks (if a workspace is attached), the user's form input, and the
+    accumulated text from earlier steps (so step 2 can build on step 1's
+    output, and so on)."""
     lines = [agent.system_instructions]
 
     profile_lines: list[str] = []
@@ -114,6 +116,11 @@ def render_step_prompt(
             "Профиль пользователя (используй как фон, не как прямой вопрос):"
         )
         lines.extend(profile_lines)
+
+    if knowledge_context:
+        lines.append("")
+        lines.append("Контекст базы знаний:")
+        lines.extend(f"- {text}" for text in knowledge_context)
 
     lines.append("")
     lines.append("Вводные данные пользователя:")
@@ -175,13 +182,21 @@ class StartAgentRunOutcome:
 
 
 def start_agent_run(
-    user, agent: Agent, input_payload: dict, idempotency_key: str
+    user,
+    agent: Agent,
+    input_payload: dict,
+    idempotency_key: str,
+    workspace_id: Optional[int] = None,
 ) -> StartAgentRunOutcome:
     """Common entry point for POST /api/agents/<slug>/runs/. No credits are
     held upfront (unlike imagegen's start_image_generation) — each
     workflow step charges through run_chat individually as it executes,
     so this only does a read-only sufficiency check against the first
-    step's route before creating anything."""
+    step's route before creating anything.
+
+    workspace_id — optional RAG attachment. Ownership is checked once
+    here, at creation time, so agents.tasks.run_agent can trust
+    run.workspace_id is always owned by run.user during execution."""
     existing = AgentRun.objects.filter(
         user=user, agent=agent, idempotency_key=idempotency_key
     ).first()
@@ -196,6 +211,19 @@ def start_agent_run(
         return StartAgentRunOutcome(
             status="invalid_input", error_message=str(exc)
         )
+
+    workspace = None
+    if workspace_id is not None:
+        from knowledge.models import Workspace
+
+        workspace = Workspace.objects.filter(
+            id=workspace_id, user=user
+        ).first()
+        if workspace is None:
+            return StartAgentRunOutcome(
+                status="invalid_input",
+                error_message="База знаний не найдена",
+            )
 
     first_task = agent.workflow_steps[0]["task"]
     account = get_or_create_account(user)
@@ -212,6 +240,7 @@ def start_agent_run(
                 agent_version=agent.version,
                 user=user,
                 input_payload=cleaned_input,
+                workspace=workspace,
                 idempotency_key=idempotency_key,
                 steps=[
                     {

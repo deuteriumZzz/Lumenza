@@ -10,6 +10,7 @@ import { MarkdownResponse } from "@/components/markdown-response";
 import { OptionPicker } from "@/components/option-picker";
 import { ModelPicker } from "@/components/model-picker";
 import { PresetPicker } from "@/components/preset-picker";
+import { WorkspacePicker } from "@/components/workspace-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { LumenzaConvergence } from "@/components/lumenza-brand";
 import { useChatRouting } from "@/components/chat-routing";
@@ -27,6 +28,7 @@ import {
   type ModelProgress,
   type Task,
   type TranscriptionEntry,
+  type Workspace,
 } from "@/lib/api";
 import { usePolledStatus } from "@/lib/use-polled-status";
 
@@ -90,6 +92,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const router = useRouter();
   const { setBalance } = useAuth();
   const { routing, setRouting } = useChatRouting();
+  // Отдельно от routing (auto/task/model/preset) — вложение базы знаний
+  // ортогонально выбору модели/пресета, можно совмещать с любым из них.
+  const [attachedWorkspace, setAttachedWorkspace] = useState<Workspace | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(threadId !== null);
   const [prompt, setPrompt] = useState("");
@@ -241,6 +246,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         modelOverride,
         systemOverride,
         temperatureOverride,
+        attachedWorkspace?.id ?? null,
       );
       setMessages((prev) => [
         ...prev,
@@ -523,6 +529,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
                 temperature: preset.temperature ?? undefined,
               });
             }}
+          />
+          <WorkspacePicker
+            selectedWorkspaceId={attachedWorkspace?.id ?? null}
+            onSelect={setAttachedWorkspace}
           />
           <button
             type="button"

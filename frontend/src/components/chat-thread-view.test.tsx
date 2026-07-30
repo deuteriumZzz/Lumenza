@@ -141,6 +141,7 @@ describe("ChatThreadView model routing", () => {
         "gpt-4o-mini",
         undefined,
         undefined,
+        null,
       ),
     );
     await waitFor(() => expect(mocks.modelsCatalog).toHaveBeenCalledTimes(2));
@@ -163,6 +164,7 @@ describe("ChatThreadView model routing", () => {
         undefined,
         undefined,
         undefined,
+        null,
       ),
     );
   });
@@ -184,6 +186,7 @@ describe("ChatThreadView model routing", () => {
         undefined,
         undefined,
         undefined,
+        null,
       ),
     );
 
@@ -200,6 +203,7 @@ describe("ChatThreadView model routing", () => {
         undefined,
         undefined,
         undefined,
+        null,
       ),
     );
   });
@@ -310,6 +314,7 @@ describe("ChatThreadView model routing", () => {
         "gpt-4o-mini",
         "Отвечай дерзко и коротко.",
         0.9,
+        null,
       ),
     );
   });

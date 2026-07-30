@@ -744,6 +744,76 @@ def test_chat_blocked_by_moderation_returns_422_uncharged(monkeypatch):
     ).exists()
 
 
+def test_chat_with_workspace_injects_retrieved_context_into_system(
+    monkeypatch, settings
+):
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+    settings.CELERY_TASK_EAGER_PROPAGATES = True
+    from knowledge.models import Workspace
+
+    client, user = _authed_client()
+    workspace = Workspace.objects.create(user=user, name="Notes")
+    client.post(
+        f"/api/knowledge/workspaces/{workspace.id}/sources/text/",
+        {"text": "Lumenza — агрегатор AI-моделей с единым балансом. " * 20},
+        format="json",
+    )
+
+    captured = {}
+    original_complete = REGISTRY["openai"].complete
+
+    def spy_complete(*args, **kwargs):
+        captured["system"] = kwargs.get("system")
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", spy_complete)
+
+    response = client.post(
+        "/api/chat/",
+        {
+            "prompt": "Что такое Lumenza?",
+            "task": "repurpose",
+            "workspace_id": workspace.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert captured["system"] is not None
+    assert "Lumenza — агрегатор AI-моделей" in captured["system"]
+
+
+def test_chat_with_foreign_workspace_returns_400_uncharged(monkeypatch):
+    from knowledge.models import Workspace
+
+    client, user = _authed_client(username="chatter_ws")
+    _, other_user = _authed_client(username="other_ws_owner")
+    workspace = Workspace.objects.create(user=other_user, name="Not mine")
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    called = {"count": 0}
+    original_complete = REGISTRY["openai"].complete
+
+    def spy_complete(*args, **kwargs):
+        called["count"] += 1
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", spy_complete)
+
+    response = client.post(
+        "/api/chat/",
+        {"prompt": "hello", "task": "repurpose", "workspace_id": workspace.id},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["code"] == "invalid_workspace"
+    assert called["count"] == 0
+    account.refresh_from_db()
+    assert account.balance == starting_balance
+
+
 def test_base_user_can_use_every_task_and_auto_route_skips_premium_models(
     monkeypatch,
 ):

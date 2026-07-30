@@ -7,7 +7,8 @@ from accounts.models import UserContext
 from agents.models import AgentRun
 from agents.services import parse_final_result, render_step_prompt
 from billing.services import claim_pending_record
-from providers.services import run_chat
+from knowledge.services import search as search_workspace
+from providers.services import RAG_TOP_K, run_chat
 
 _STATUS_FOR_CHAT_OUTCOME = {
     "insufficient_credits": AgentRun.Status.INSUFFICIENT_CREDITS,
@@ -54,6 +55,17 @@ def run_agent(run_id: int) -> None:
         .first()
     )
 
+    # Same "once per run, not once per step" reasoning as user_context
+    # above. Ownership of run.workspace_id was already checked at run
+    # creation (agents.services.start_agent_run), so no None/not-owned
+    # branch is needed here.
+    knowledge_context: list[str] | None = None
+    if run.workspace_id:
+        query = " ".join(str(value) for value in run.input_payload.values())
+        matches = search_workspace(run.user, run.workspace_id, query, top_k=RAG_TOP_K)
+        if matches:
+            knowledge_context = [chunk.text for chunk, _score in matches]
+
     for step in agent.workflow_steps:
         _update_step(
             run,
@@ -64,7 +76,12 @@ def run_agent(run_id: int) -> None:
         run.save(update_fields=["steps"])
 
         prompt = render_step_prompt(
-            agent, step, run.input_payload, context, user_context
+            agent,
+            step,
+            run.input_payload,
+            context,
+            user_context,
+            knowledge_context,
         )
         outcome = run_chat(run.user, prompt, task=step["task"])
 

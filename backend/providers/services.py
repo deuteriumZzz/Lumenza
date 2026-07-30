@@ -20,6 +20,10 @@ from providers.pricing import estimate_max_cost_usd
 from providers.registry import get_adapter
 from referrals.services import check_referral_reward
 
+# Число чанков knowledge.Workspace, подмешиваемых в system при RAG-вложении
+# — то же значение, что и дефолт knowledge.services.search().
+RAG_TOP_K = 5
+
 # Каждая категория задач маршрутизируется на основной вариант (provider,
 # model) и упорядоченный список запасных, которые пробуются по очереди,
 # если основной (или более ранний запасной) выбрасывает исключение.
@@ -164,6 +168,7 @@ class ChatOutcome:
         "blocked",
         "invalid_model",
         "model_requires_pro",
+        "invalid_workspace",
     ]
     text: Optional[str] = None
     provider: Optional[str] = None
@@ -198,6 +203,7 @@ def run_chat(
     model: Optional[str] = None,
     system: Optional[str] = None,
     temperature: Optional[float] = None,
+    workspace_id: Optional[int] = None,
 ) -> ChatOutcome:
     """Общая функция для /api/chat/ и для Telegram-бота — это единственные
     два вызывающих слоя провайдеров, поэтому логика резервирования/сверки
@@ -208,7 +214,23 @@ def run_chat(
     напрямую) запускает лёгкую классификацию по смыслу промпта вместо
     отсутствующего выбора пользователя. Base-план получает все категории,
     но маршрутизация использует только доступные ему standard-модели.
-    Явный premium-выбор требует Pro."""
+    Явный premium-выбор требует Pro.
+
+    workspace_id — необязательное вложение knowledge.Workspace (RAG):
+    найденные чанки подмешиваются в system одним блоком до входа в цикл
+    провайдеров, чтобы не пересчитывать поиск на каждой fallback-попытке.
+    Поиск не тарифицируется — тот же принцип, что у classify_task ниже."""
+    if workspace_id is not None:
+        from knowledge.services import format_matches_for_prompt
+        from knowledge.services import search as search_workspace
+
+        matches = search_workspace(user, workspace_id, prompt, top_k=RAG_TOP_K)
+        if matches is None:
+            return ChatOutcome(status="invalid_workspace", task=task)
+        if matches:
+            context_block = format_matches_for_prompt(matches)
+            system = f"{context_block}\n\n{system}" if system else context_block
+
     if not task:
         from providers.intent import classify_task
 

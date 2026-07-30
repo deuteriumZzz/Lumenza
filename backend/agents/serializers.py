@@ -28,6 +28,11 @@ class AgentRunRequestSerializer(serializers.Serializer):
         child=serializers.CharField(allow_blank=True)
     )
     idempotency_key = serializers.CharField(max_length=64, allow_blank=False)
+    # Необязательное вложение knowledge.Workspace (RAG) — владение
+    # проверяется в agents.services.start_agent_run.
+    workspace_id = serializers.IntegerField(
+        required=False, allow_null=True, default=None
+    )
 
 
 class AgentRunSerializer(serializers.ModelSerializer):

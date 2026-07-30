@@ -135,3 +135,13 @@ def search(
 
     scored.sort(key=lambda pair: pair[1], reverse=True)
     return scored[:top_k]
+
+
+def format_matches_for_prompt(matches: list[tuple[Chunk, float]]) -> str:
+    """Общий форматтер для чата и агентов — оба подмешивают одни и те же
+    найденные чанки в промпт модели одним и тем же образом, вместо
+    дублирования форматирования на каждой стороне."""
+    lines = ["Контекст из базы знаний пользователя:"]
+    for chunk, _score in matches:
+        lines.append(f"- {chunk.text}")
+    return "\n".join(lines)

@@ -6,6 +6,7 @@ import { AgentRunResult } from "@/components/agent-run-result";
 import { ResearchDigestResult } from "@/components/research-digest-result";
 import { DocumentSummaryResult } from "@/components/document-summary-result";
 import { FileUploadButton } from "@/components/file-upload-button";
+import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
 import { usePolledStatus } from "@/lib/use-polled-status";
 import {
@@ -18,6 +19,7 @@ import {
   type ThreadsContentPlan,
   type ResearchDigestResult as ResearchDigestResultData,
   type DocumentSummaryResult as DocumentSummaryResultData,
+  type Workspace,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 
@@ -43,6 +45,7 @@ export default function AgentRunPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [run, setRun] = useState<AgentRun | null>(null);
+  const [attachedWorkspace, setAttachedWorkspace] = useState<Workspace | null>(null);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   // At most one "document_upload" field exists per agent today (see
@@ -123,7 +126,12 @@ export default function AgentRunPage() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const created = await api.createAgentRun(agent.slug, input, idempotencyKeyRef.current);
+      const created = await api.createAgentRun(
+        agent.slug,
+        input,
+        idempotencyKeyRef.current,
+        attachedWorkspace?.id ?? null
+      );
       setRun(created);
       void refreshBalance();
     } catch (err) {
@@ -234,6 +242,14 @@ export default function AgentRunPage() {
               )}
             </label>
           ))}
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="text-muted">База знаний (необязательно)</span>
+            <WorkspacePicker
+              selectedWorkspaceId={attachedWorkspace?.id ?? null}
+              onSelect={setAttachedWorkspace}
+            />
+          </div>
 
           {submitError && (
             <p role="alert" className="text-sm text-danger">

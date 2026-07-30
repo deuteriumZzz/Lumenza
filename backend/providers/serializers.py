@@ -54,6 +54,12 @@ class ChatRequestSerializer(serializers.Serializer):
         min_value=0,
         max_value=2,
     )
+    # Необязательное вложение knowledge.Workspace — сквозной проброс до
+    # providers.services.run_chat, которая проверяет владение и достаёт
+    # релевантные чанки (см. knowledge.services.search).
+    workspace_id = serializers.IntegerField(
+        required=False, allow_null=True, default=None
+    )
 
 
 class HistoryFilterSerializer(serializers.Serializer):

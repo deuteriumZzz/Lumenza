@@ -94,6 +94,14 @@ def _chat_outcome_response(outcome):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+    if outcome.status == "invalid_workspace":
+        return Response(
+            {
+                "detail": "База знаний не найдена",
+                "code": "invalid_workspace",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     if outcome.status == "model_requires_pro":
         return Response(
             {
@@ -144,6 +152,7 @@ def chat(request):
         model=serializer.validated_data.get("model") or None,
         system=serializer.validated_data.get("system") or None,
         temperature=serializer.validated_data.get("temperature"),
+        workspace_id=serializer.validated_data.get("workspace_id"),
     )
     return _chat_outcome_response(outcome)
 
@@ -210,6 +219,7 @@ def thread_message(request, thread_id):
         model=serializer.validated_data.get("model") or None,
         system=serializer.validated_data.get("system") or None,
         temperature=serializer.validated_data.get("temperature"),
+        workspace_id=serializer.validated_data.get("workspace_id"),
     )
 
     if outcome.status == "ok":

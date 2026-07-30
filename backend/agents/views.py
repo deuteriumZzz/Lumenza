@@ -43,6 +43,7 @@ class AgentRunCreateView(generics.CreateAPIView):
             agent,
             serializer.validated_data["input"],
             serializer.validated_data["idempotency_key"],
+            workspace_id=serializer.validated_data.get("workspace_id"),
         )
 
         if outcome.status == "invalid_input":

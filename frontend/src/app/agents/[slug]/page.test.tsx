@@ -152,6 +152,7 @@ describe("AgentRunPage", () => {
       "threads-content-day",
       expect.objectContaining({ topic: "запуск продукта", tone: "дружелюбный" }),
       expect.any(String),
+      null,
     );
     expect(screen.getByText("Продумываем ветки контента")).toBeDefined();
 

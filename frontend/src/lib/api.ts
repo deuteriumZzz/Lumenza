@@ -498,7 +498,8 @@ export const api = {
   // (providers.services.run_chat -> classify_task) — веб-чат больше не
   // заставляет выбирать тему вручную по умолчанию. system/temperature
   // приходят от выбранного пресета (см. PresetPicker) — пусто/не
-  // передано ведёт себя ровно как раньше.
+  // передано ведёт себя ровно как раньше. workspaceId — вложенная база
+  // знаний (см. WorkspacePicker), тоже необязательная.
   sendThreadMessage: (
     threadId: number,
     prompt: string,
@@ -506,10 +507,11 @@ export const api = {
     model?: string,
     system?: string,
     temperature?: number,
+    workspaceId?: number | null,
   ) =>
     request<ChatResponse>(`/threads/${threadId}/messages/`, {
       method: "POST",
-      body: JSON.stringify({ prompt, task, model, system, temperature }),
+      body: JSON.stringify({ prompt, task, model, system, temperature, workspace_id: workspaceId }),
     }),
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
   modelsCatalog: () => request<ModelProgress[]>("/progress/models/"),
@@ -572,10 +574,15 @@ export const api = {
   image: (id: number) => request<GeneratedImageEntry>(`/images/${id}/`),
   agents: () => request<AgentSummary[]>("/agents/"),
   agent: (slug: string) => request<AgentDetail>(`/agents/${slug}/`),
-  createAgentRun: (slug: string, input: Record<string, string>, idempotencyKey: string) =>
+  createAgentRun: (
+    slug: string,
+    input: Record<string, string>,
+    idempotencyKey: string,
+    workspaceId?: number | null,
+  ) =>
     request<AgentRun>(`/agents/${slug}/runs/`, {
       method: "POST",
-      body: JSON.stringify({ input, idempotency_key: idempotencyKey }),
+      body: JSON.stringify({ input, idempotency_key: idempotencyKey, workspace_id: workspaceId }),
     }),
   agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
   createImageEdit: (prompt: string, imageFile: File) => {
