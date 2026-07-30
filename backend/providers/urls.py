@@ -2,6 +2,8 @@ from django.urls import path
 
 from providers.views import (
     ChatHistoryView,
+    PresetDetailView,
+    PresetListCreateView,
     ThreadDetailView,
     ThreadListCreateView,
     chat,
@@ -23,5 +25,11 @@ urlpatterns = [
         "threads/<int:thread_id>/messages/",
         thread_message,
         name="thread-message",
+    ),
+    path("presets/", PresetListCreateView.as_view(), name="preset-list"),
+    path(
+        "presets/<int:pk>/",
+        PresetDetailView.as_view(),
+        name="preset-detail",
     ),
 ]

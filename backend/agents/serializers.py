@@ -6,7 +6,7 @@ from agents.models import Agent, AgentRun
 class AgentSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Agent
-        fields = ("slug", "name", "description")
+        fields = ("slug", "name", "description", "category")
 
 
 class AgentDetailSerializer(serializers.ModelSerializer):
@@ -16,6 +16,7 @@ class AgentDetailSerializer(serializers.ModelSerializer):
             "slug",
             "name",
             "description",
+            "category",
             "version",
             "input_schema",
             "output_schema",

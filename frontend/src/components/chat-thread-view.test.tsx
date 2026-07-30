@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   modelsCatalog: vi.fn(),
   sendThreadMessage: vi.fn(),
   createThread: vi.fn(),
+  presets: vi.fn(),
+  deletePreset: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -42,6 +44,8 @@ vi.mock("@/lib/api", () => {
       modelsCatalog: mocks.modelsCatalog,
       sendThreadMessage: mocks.sendThreadMessage,
       createThread: mocks.createThread,
+      presets: mocks.presets,
+      deletePreset: mocks.deletePreset,
     },
   };
 });
@@ -99,6 +103,8 @@ describe("ChatThreadView model routing", () => {
       balance: "99.00",
     });
     mocks.createThread.mockReset().mockResolvedValue({ id: 9 });
+    mocks.presets.mockReset().mockResolvedValue([]);
+    mocks.deletePreset.mockReset();
   });
 
   afterEach(cleanup);
@@ -133,6 +139,8 @@ describe("ChatThreadView model routing", () => {
         "Сравни два подхода",
         "repurpose",
         "gpt-4o-mini",
+        undefined,
+        undefined,
       ),
     );
     await waitFor(() => expect(mocks.modelsCatalog).toHaveBeenCalledTimes(2));
@@ -151,6 +159,8 @@ describe("ChatThreadView model routing", () => {
       expect(mocks.sendThreadMessage).toHaveBeenCalledWith(
         7,
         "Что можно сделать?",
+        undefined,
+        undefined,
         undefined,
         undefined,
       ),
@@ -172,6 +182,8 @@ describe("ChatThreadView model routing", () => {
         "Свежие новости отрасли",
         "search",
         undefined,
+        undefined,
+        undefined,
       ),
     );
 
@@ -184,6 +196,8 @@ describe("ChatThreadView model routing", () => {
       expect(mocks.sendThreadMessage).toHaveBeenLastCalledWith(
         7,
         "Теперь обычный вопрос",
+        undefined,
+        undefined,
         undefined,
         undefined,
       ),
@@ -263,6 +277,41 @@ describe("ChatThreadView model routing", () => {
 
     await waitFor(() => expect(mocks.createThread).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/chat/9"));
+  });
+
+  it("sends a preset's system prompt and temperature with the next message", async () => {
+    mocks.presets.mockResolvedValue([
+      {
+        id: 3,
+        name: "Дерзкий копирайтер",
+        model: "gpt-4o-mini",
+        task: "hook",
+        system_prompt: "Отвечай дерзко и коротко.",
+        temperature: 0.9,
+        created_at: "",
+        updated_at: "",
+      },
+    ]);
+    renderChat();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Пресет: нет" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Дерзкий копирайтер/ }));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), {
+      target: { value: "Заголовок для поста" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
+
+    await waitFor(() =>
+      expect(mocks.sendThreadMessage).toHaveBeenCalledWith(
+        7,
+        "Заголовок для поста",
+        "hook",
+        "gpt-4o-mini",
+        "Отвечай дерзко и коротко.",
+        0.9,
+      ),
+    );
   });
 
   it("shows a direct microphone permission error", async () => {

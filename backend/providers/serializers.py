@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from providers.models import Message, RequestLog, Thread
+from providers.models import Message, Preset, RequestLog, Thread
 
 CHAT_TASK_CHOICES = (
     "hook",
@@ -35,6 +35,24 @@ class ChatRequestSerializer(serializers.Serializer):
     # status="model_locked").
     model = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, default=None
+    )
+    # Оба новых поля — сквозной проброс до providers.services.run_chat,
+    # который решает, что с ними делать (никакой бизнес-логики здесь).
+    # Пусто/не передано ведёт себя ровно как раньше (фиксировано
+    # регрессионным тестом).
+    system = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        max_length=4000,
+    )
+    temperature = serializers.FloatField(
+        required=False,
+        allow_null=True,
+        default=None,
+        min_value=0,
+        max_value=2,
     )
 
 
@@ -114,3 +132,33 @@ class ThreadDetailSerializer(ThreadSerializer):
 
     class Meta(ThreadSerializer.Meta):
         fields = ThreadSerializer.Meta.fields + ("messages",)
+
+
+class PresetSerializer(serializers.ModelSerializer):
+    # Та же валидация задачи, что и у ChatRequestSerializer.task — не
+    # дублирует список, ссылается на тот же тьюпл. `model` намеренно НЕ
+    # проверяется по списку допустимых значений на этом уровне (как и в
+    # ChatRequestSerializer) — реальная проверка (в том числе доступность
+    # по тарифу) происходит в run_chat() в момент отправки, а не в момент
+    # сохранения пресета.
+    task = serializers.ChoiceField(choices=CHAT_TASK_CHOICES)
+    # HiddenField, а не просто передача user= в perform_create — без
+    # этого DRF не может собрать автоматический UniqueTogetherValidator
+    # для (user, name) (полю user неоткуда взяться из тела запроса), и
+    # дубликат имени падал бы 500-й IntegrityError с БД вместо чистого
+    # 400 от валидатора.
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = Preset
+        fields = (
+            "id",
+            "user",
+            "name",
+            "model",
+            "task",
+            "system_prompt",
+            "temperature",
+            "created_at",
+            "updated_at",
+        )

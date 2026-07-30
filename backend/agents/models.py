@@ -8,9 +8,18 @@ class Agent(models.Model):
         PUBLISHED = "published", "Published"
         ARCHIVED = "archived", "Archived"
 
+    # Only domains with a real, published agent behind them belong here —
+    # add a value exactly when that domain's first agent ships (see
+    # SPEC.md Phase 16), not ahead of time as a placeholder.
+    class Category(models.TextChoices):
+        CONTENT = "content", "Контент"
+        RESEARCH = "research", "Исследования"
+        DOCUMENTS = "documents", "Документы"
+
     slug = models.SlugField(unique=True, max_length=64)
     name = models.CharField(max_length=120)
     description = models.TextField(max_length=500)
+    category = models.CharField(max_length=32, choices=Category.choices)
     # Snapshotted onto each AgentRun at creation time so a later edit to
     # an Agent's config never rewrites history for runs already in flight
     # or completed.

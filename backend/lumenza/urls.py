@@ -18,6 +18,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/", include("progression.urls")),
     path("api/", include("media_ops.urls")),
     path("api/", include("referrals.urls")),
+    path("api/", include("knowledge.urls")),
     path("bot/", include("bot.urls")),
 ]
 

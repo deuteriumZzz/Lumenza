@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "progression",
     "media_ops",
     "referrals",
+    "knowledge",
     "channels",
 ]
 
@@ -208,6 +209,7 @@ REST_FRAMEWORK = {
         "chat": "60/min",
         "image_generation": "20/min",
         "media_ops": "20/min",
+        "knowledge": "20/min",
     },
 }
 

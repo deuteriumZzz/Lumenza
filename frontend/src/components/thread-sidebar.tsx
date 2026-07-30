@@ -189,6 +189,7 @@ export function ThreadSidebar() {
       {collapsed ? (
         <nav aria-label="Разделы" className="flex flex-col items-center gap-1">
           <SidebarRailLink href="/agents" label="Агенты" icon="agents" />
+          <SidebarRailLink href="/knowledge" label="Знания" icon="knowledge" />
           <SidebarRailLink href="/studio" label="Студия" icon="studio" />
           <SidebarRailLink href="/history" label="История" icon="history" />
         </nav>
@@ -196,6 +197,7 @@ export function ThreadSidebar() {
         <>
           <nav aria-label="Разделы" className="mb-4 flex flex-col gap-0.5">
             <SidebarLink href="/agents" label="Агенты" icon="agents" />
+            <SidebarLink href="/knowledge" label="Знания" icon="knowledge" />
             <div>
               <div
                 className={`studio-folder-row ${studioActive ? "is-active" : ""}`}
@@ -373,7 +375,7 @@ function SidebarLink({
 }: {
   href: string;
   label: string;
-  icon: "agents" | "studio" | "history" | "credits";
+  icon: "agents" | "knowledge" | "studio" | "history" | "credits";
 }) {
   return (
     <Link href={href} className="sidebar-action">
@@ -412,7 +414,7 @@ function SidebarRailLink({
 }: {
   href: string;
   label: string;
-  icon: "agents" | "studio" | "history";
+  icon: "agents" | "knowledge" | "studio" | "history";
 }) {
   return (
     <Link href={href} aria-label={label} title={label} className="sidebar-icon-button">
@@ -421,7 +423,11 @@ function SidebarRailLink({
   );
 }
 
-function SidebarIcon({ icon }: { icon: "agents" | "studio" | "history" | "credits" }) {
+function SidebarIcon({
+  icon,
+}: {
+  icon: "agents" | "knowledge" | "studio" | "history" | "credits";
+}) {
   if (icon === "agents") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -429,6 +435,14 @@ function SidebarIcon({ icon }: { icon: "agents" | "studio" | "history" | "credit
         <circle cx="18" cy="7" r="2.25" />
         <circle cx="12" cy="17.5" r="2.25" />
         <path d="M7.8 8.6 10.4 15.7M16.2 8.6 13.6 15.7M8.25 7h7.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (icon === "knowledge") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13Z" />
+        <path d="M20 5.5c0-.8-.7-1.5-1.5-1.5H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5v-13Z" />
       </svg>
     );
   }

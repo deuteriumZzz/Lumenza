@@ -7,6 +7,8 @@ describe("getWorkspaceSection", () => {
     ["/chat/42", "chat"],
     ["/agents", "agents"],
     ["/agents/threads-content-day", "agents"],
+    ["/knowledge", "knowledge"],
+    ["/knowledge/42", "knowledge"],
     ["/studio", "studio"],
     ["/studio/images", "studio"],
     ["/home", "home"],
@@ -24,6 +26,7 @@ describe("isWorkspaceRoute", () => {
   it("is true for every workspace section", () => {
     expect(isWorkspaceRoute("/chat")).toBe(true);
     expect(isWorkspaceRoute("/agents")).toBe(true);
+    expect(isWorkspaceRoute("/knowledge")).toBe(true);
     expect(isWorkspaceRoute("/studio")).toBe(true);
     expect(isWorkspaceRoute("/home")).toBe(true);
   });

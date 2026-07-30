@@ -6,7 +6,16 @@ import type { Task } from "@/lib/api";
 export type ChatRoutingSelection =
   | { kind: "auto" }
   | { kind: "task"; task: Task }
-  | { kind: "model"; task: Task; model: string };
+  | { kind: "model"; task: Task; model: string }
+  | {
+      kind: "preset";
+      presetId: number;
+      presetName: string;
+      task: Task;
+      model: string;
+      system?: string;
+      temperature?: number;
+    };
 
 interface ChatRoutingValue {
   routing: ChatRoutingSelection;

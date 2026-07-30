@@ -51,6 +51,7 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
           credits: "кредитов",
           pricing: "Тариф и кредиты",
           usage: "Использование",
+          profile: "Профиль",
           language: "Язык",
           about: "О нас",
           logout: "Выйти",
@@ -61,6 +62,7 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
           credits: "credits",
           pricing: "Plan and credits",
           usage: "Usage",
+          profile: "Profile",
           language: "Language",
           about: "About",
           logout: "Sign out",
@@ -150,6 +152,21 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
               <path d="M3.5 19.5h17" strokeLinecap="round" />
             </svg>
             <span>{copy.usage}</span>
+          </Link>
+
+          <Link
+            href="/profile"
+            onClick={() => {
+              setOpen(false);
+              setLanguageOpen(false);
+            }}
+            className="account-menu-item"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <circle cx="12" cy="8.5" r="3.2" />
+              <path d="M5.5 19.5c1.4-3.4 4-5 6.5-5s5.1 1.6 6.5 5" strokeLinecap="round" />
+            </svg>
+            <span>{copy.profile}</span>
           </Link>
 
           <button

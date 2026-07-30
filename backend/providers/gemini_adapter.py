@@ -13,7 +13,12 @@ class GeminiAdapter(ProviderAdapter):
     name = "google"
 
     def complete(
-        self, prompt: str, model: str = DEFAULT_MODEL, **kwargs
+        self,
+        prompt: str,
+        model: str = DEFAULT_MODEL,
+        system: str | None = None,
+        temperature: float | None = None,
+        **kwargs,
     ) -> ProviderResult:
         start = time.monotonic()
 
@@ -31,15 +36,20 @@ class GeminiAdapter(ProviderAdapter):
         from google.genai import types
 
         client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        config_kwargs = {
+            "max_output_tokens": self.max_completion_tokens,
+            "http_options": types.HttpOptions(
+                timeout=int(self.request_timeout_seconds * 1000)
+            ),
+        }
+        if system:
+            config_kwargs["system_instruction"] = system
+        if temperature is not None:
+            config_kwargs["temperature"] = temperature
         response = client.models.generate_content(
             model=model,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                max_output_tokens=self.max_completion_tokens,
-                http_options=types.HttpOptions(
-                    timeout=int(self.request_timeout_seconds * 1000)
-                ),
-            ),
+            config=types.GenerateContentConfig(**config_kwargs),
         )
         latency_ms = int((time.monotonic() - start) * 1000)
         usage = response.usage_metadata

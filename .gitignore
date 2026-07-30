@@ -17,3 +17,7 @@ node_modules/
 celerybeat-schedule
 .agents/
 .claude/
+
+# Personal local-dev overrides (TLS/host/credit-bonus tweaks for running
+# `docker compose up` directly against a dev .env) — not meant to be shared.
+docker-compose.override.yml

@@ -36,6 +36,10 @@ class LedgerEntry(models.Model):
             "Photo analysis request",
         )
         LIVE_VOICE_SESSION = "live_voice_session", "Live voice session"
+        KNOWLEDGE_INGEST_REQUEST = (
+            "knowledge_ingest_request",
+            "Knowledge ingest request",
+        )
         REFUND = "refund", "Refund"
         REFERRAL_BONUS = "referral_bonus", "Referral bonus"
 

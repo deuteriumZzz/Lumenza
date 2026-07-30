@@ -9,6 +9,7 @@ import { CopyResponseButton } from "@/components/copy-response-button";
 import { MarkdownResponse } from "@/components/markdown-response";
 import { OptionPicker } from "@/components/option-picker";
 import { ModelPicker } from "@/components/model-picker";
+import { PresetPicker } from "@/components/preset-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { LumenzaConvergence } from "@/components/lumenza-brand";
 import { useChatRouting } from "@/components/chat-routing";
@@ -214,7 +215,13 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     setPrompt("");
     const routingAtSubmit = routing;
     const taskOverride = routingAtSubmit.kind === "auto" ? undefined : routingAtSubmit.task;
-    const modelOverride = routingAtSubmit.kind === "model" ? routingAtSubmit.model : undefined;
+    const modelOverride =
+      routingAtSubmit.kind === "model" || routingAtSubmit.kind === "preset"
+        ? routingAtSubmit.model
+        : undefined;
+    const systemOverride = routingAtSubmit.kind === "preset" ? routingAtSubmit.system : undefined;
+    const temperatureOverride =
+      routingAtSubmit.kind === "preset" ? routingAtSubmit.temperature : undefined;
     if (routingAtSubmit.kind === "task") {
       setRouting({ kind: "auto" });
     }
@@ -232,6 +239,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         trimmed,
         taskOverride,
         modelOverride,
+        systemOverride,
+        temperatureOverride,
       );
       setMessages((prev) => [
         ...prev,
@@ -495,6 +504,24 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
                 return;
               }
               setRouting({ kind: "model", model, task: task as Task });
+            }}
+          />
+          <PresetPicker
+            activePresetId={routing.kind === "preset" ? routing.presetId : null}
+            onSelect={(preset) => {
+              if (!preset) {
+                setRouting({ kind: "auto" });
+                return;
+              }
+              setRouting({
+                kind: "preset",
+                presetId: preset.id,
+                presetName: preset.name,
+                task: preset.task,
+                model: preset.model,
+                system: preset.system_prompt || undefined,
+                temperature: preset.temperature ?? undefined,
+              });
             }}
           />
           <button

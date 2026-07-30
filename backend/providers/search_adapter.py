@@ -20,7 +20,12 @@ class SearchAdapter(ProviderAdapter):
     name = "search"
 
     def complete(
-        self, prompt: str, model: str = "gpt-4o-mini", **kwargs
+        self,
+        prompt: str,
+        model: str = "gpt-4o-mini",
+        system: str | None = None,
+        temperature: float | None = None,
+        **kwargs,
     ) -> ProviderResult:
         start = time.monotonic()
 
@@ -41,7 +46,12 @@ class SearchAdapter(ProviderAdapter):
         results = response.json().get("results", [])
 
         synthesis_prompt = self._build_synthesis_prompt(prompt, results)
-        llm_result = get_adapter("openai").complete(synthesis_prompt, model=model)
+        llm_result = get_adapter("openai").complete(
+            synthesis_prompt,
+            model=model,
+            system=system,
+            temperature=temperature,
+        )
 
         return ProviderResult(
             text=llm_result.text,

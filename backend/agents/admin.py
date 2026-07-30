@@ -5,8 +5,15 @@ from agents.models import Agent, AgentRun
 
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
-    list_display = ("slug", "name", "version", "status", "updated_at")
-    list_filter = ("status",)
+    list_display = (
+        "slug",
+        "name",
+        "category",
+        "version",
+        "status",
+        "updated_at",
+    )
+    list_filter = ("status", "category")
     search_fields = ("slug", "name")
 
 

@@ -192,7 +192,12 @@ def _route_hold_credits(routes, prompt):
 
 
 def run_chat(
-    user, prompt: str, task: Optional[str] = None, model: Optional[str] = None
+    user,
+    prompt: str,
+    task: Optional[str] = None,
+    model: Optional[str] = None,
+    system: Optional[str] = None,
+    temperature: Optional[float] = None,
 ) -> ChatOutcome:
     """Общая функция для /api/chat/ и для Telegram-бота — это единственные
     два вызывающих слоя провайдеров, поэтому логика резервирования/сверки
@@ -287,7 +292,12 @@ def run_chat(
             break
         adapter = get_adapter(provider_name)
         try:
-            result = adapter.complete(prompt, model=matched_model)
+            result = adapter.complete(
+                prompt,
+                model=matched_model,
+                system=system,
+                temperature=temperature,
+            )
             break
         except Exception as exc:
             errors.append(f"{provider_name}/{matched_model}: {exc}")

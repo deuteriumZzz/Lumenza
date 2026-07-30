@@ -192,6 +192,62 @@ def test_delete_thread_cascades_messages():
     assert not Message.objects.filter(thread_id=thread.id).exists()
 
 
+def test_thread_message_passes_system_and_temperature_to_adapter(monkeypatch):
+    from providers.registry import REGISTRY
+
+    client, user = authed_client()
+    thread = Thread.objects.create(user=user)
+    seen_kwargs = {}
+    original_complete = REGISTRY["openai"].complete
+
+    def spy_complete(prompt, **kwargs):
+        seen_kwargs.update(kwargs)
+        return original_complete(prompt, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", spy_complete)
+
+    client.post(
+        f"/api/threads/{thread.id}/messages/",
+        {
+            "prompt": "hi",
+            "task": "repurpose",
+            "system": "Answer in one word.",
+            "temperature": 0.3,
+        },
+        format="json",
+    )
+
+    assert seen_kwargs["system"] == "Answer in one word."
+    assert seen_kwargs["temperature"] == 0.3
+
+
+def test_thread_message_without_system_or_temperature_omits_them(monkeypatch):
+    # Regression guard: a plain send (no preset selected) must reach the
+    # adapter with system=None/temperature=None — the exact same call
+    # shape as before this feature existed.
+    from providers.registry import REGISTRY
+
+    client, user = authed_client()
+    thread = Thread.objects.create(user=user)
+    seen_kwargs = {}
+    original_complete = REGISTRY["openai"].complete
+
+    def spy_complete(prompt, **kwargs):
+        seen_kwargs.update(kwargs)
+        return original_complete(prompt, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "complete", spy_complete)
+
+    client.post(
+        f"/api/threads/{thread.id}/messages/",
+        {"prompt": "hi", "task": "repurpose"},
+        format="json",
+    )
+
+    assert seen_kwargs["system"] is None
+    assert seen_kwargs["temperature"] is None
+
+
 def test_threads_require_authentication():
     from rest_framework.test import APIClient
 

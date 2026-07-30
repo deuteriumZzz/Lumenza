@@ -3,6 +3,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from accounts.models import UserContext
+
 User = get_user_model()
 
 
@@ -48,3 +50,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_telegram_linked(self, obj) -> bool:
         return obj.telegram_id is not None
+
+
+class UserContextSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserContext
+        fields = ("data",)

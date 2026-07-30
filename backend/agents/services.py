@@ -57,13 +57,66 @@ def validate_against_input_schema(
     return cleaned
 
 
+def _json_schema_placeholder(schema: dict) -> str:
+    """Renders a compact literal example (e.g. {"title":str,"tags":[str]})
+    from a JSON-schema-shaped dict, for embedding in a "return exactly this
+    shape" prompt instruction. Generic over any Agent.output_schema instead
+    of one hardcoded per agent, so every agent's assemble step gets a
+    correct hint from its own schema."""
+    schema_type = schema.get("type")
+    if schema_type == "object":
+        parts = [
+            f'"{key}":{_json_schema_placeholder(value)}'
+            for key, value in schema.get("properties", {}).items()
+        ]
+        return "{" + ",".join(parts) + "}"
+    if schema_type == "array":
+        return "[" + _json_schema_placeholder(schema.get("items", {})) + "]"
+    if schema_type == "number":
+        return "number"
+    if schema_type == "boolean":
+        return "bool"
+    return "str"
+
+
+def _non_empty_context_lines(block: dict) -> list[str]:
+    return [
+        f"- {key}: {value.strip()}"
+        for key, value in (block or {}).items()
+        if isinstance(value, str) and value.strip()
+    ]
+
+
 def render_step_prompt(
-    agent: Agent, step: dict, input_payload: dict, context: dict
+    agent: Agent,
+    step: dict,
+    input_payload: dict,
+    context: dict,
+    user_context: dict | None = None,
 ) -> str:
     """Builds the prompt for one workflow step: the agent's system
-    instructions, the user's form input, and the accumulated text from
-    earlier steps (so step 2 can build on step 1's output, and so on)."""
-    lines = [agent.system_instructions, "", "Вводные данные пользователя:"]
+    instructions, the user's saved profile (if any), the user's form
+    input, and the accumulated text from earlier steps (so step 2 can
+    build on step 1's output, and so on)."""
+    lines = [agent.system_instructions]
+
+    profile_lines: list[str] = []
+    if user_context:
+        profile_lines.extend(
+            _non_empty_context_lines(user_context.get("general", {}))
+        )
+        profile_lines.extend(
+            _non_empty_context_lines(user_context.get(agent.category, {}))
+        )
+    if profile_lines:
+        lines.append("")
+        lines.append(
+            "Профиль пользователя (используй как фон, не как прямой вопрос):"
+        )
+        lines.extend(profile_lines)
+
+    lines.append("")
+    lines.append("Вводные данные пользователя:")
     for key, value in input_payload.items():
         lines.append(f"- {key}: {value}")
 
@@ -80,10 +133,7 @@ def render_step_prompt(
         lines.append(
             "Верни ТОЛЬКО валидный JSON без пояснений и без "
             "markdown-обрамления, строго по следующей схеме: "
-            '{"branches":[{"title":str,"angle":str}],'
-            '"hooks":[{"branch":str,"variants":[str]}],'
-            '"schedule":[{"time":str,"branch":str,"post_text":str}],'
-            '"variants":[str]}.'
+            f"{_json_schema_placeholder(agent.output_schema)}."
         )
     return "\n".join(lines)
 

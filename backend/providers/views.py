@@ -22,10 +22,11 @@ from media_ops.models import (
     SpeechClip,
     Transcription,
 )
-from providers.models import Message, RequestLog, Thread
+from providers.models import Message, Preset, RequestLog, Thread
 from providers.serializers import (
     ChatRequestSerializer,
     HistoryFilterSerializer,
+    PresetSerializer,
     RequestLogSerializer,
     ThreadDetailSerializer,
     ThreadSerializer,
@@ -141,6 +142,8 @@ def chat(request):
         serializer.validated_data["prompt"],
         task=serializer.validated_data.get("task") or None,
         model=serializer.validated_data.get("model") or None,
+        system=serializer.validated_data.get("system") or None,
+        temperature=serializer.validated_data.get("temperature"),
     )
     return _chat_outcome_response(outcome)
 
@@ -172,6 +175,25 @@ class ThreadDetailView(generics.RetrieveDestroyAPIView):
         )
 
 
+class PresetListCreateView(generics.ListCreateAPIView):
+    serializer_class = PresetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Preset.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class PresetDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = PresetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Preset.objects.filter(user=self.request.user)
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([ChatRateThrottle])
@@ -186,6 +208,8 @@ def thread_message(request, thread_id):
         prompt,
         task=serializer.validated_data.get("task") or None,
         model=serializer.validated_data.get("model") or None,
+        system=serializer.validated_data.get("system") or None,
+        temperature=serializer.validated_data.get("temperature"),
     )
 
     if outcome.status == "ok":

@@ -104,6 +104,22 @@ export interface Balance {
   updated_at: string;
 }
 
+// Свободный текстовый профиль, подмешиваемый в промпт агента (см.
+// backend agents.services.render_step_prompt) — общий блок плюс блок по
+// домену, совпадающему с категорией агента. Домен добавляется сюда только
+// когда у него уже есть хотя бы один рабочий агент (см. AgentCategory
+// ниже) — то же правило, что у вкладок каталога.
+export interface UserContextData {
+  general?: { tone?: string; banned_topics?: string };
+  content?: { niche?: string; audience?: string; products?: string; examples?: string };
+  research?: { topics?: string; depth?: string };
+  documents?: { typical_formats?: string };
+}
+
+export interface UserContextEntry {
+  data: UserContextData;
+}
+
 export type Task =
   | "hook"
   | "longform"
@@ -163,6 +179,50 @@ export interface ChatThreadMessage {
   used_fallback: boolean;
   credits_charged: string;
   created_at: string;
+}
+
+export interface Preset {
+  id: number;
+  name: string;
+  model: string;
+  task: Task;
+  system_prompt: string;
+  temperature: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PresetInput {
+  name: string;
+  model: string;
+  task: Task;
+  system_prompt?: string;
+  temperature?: number | null;
+}
+
+export interface Workspace {
+  id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeSource {
+  id: number;
+  kind: "text" | "image";
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits";
+  raw_text: string;
+  credits_charged: string;
+  error_message: string;
+  mocked: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ChunkMatch {
+  id: number;
+  text: string;
+  score: number;
 }
 
 export interface Paginated<T> {
@@ -303,10 +363,12 @@ export interface PhotoAnalysisEntry {
   completed_at: string | null;
 }
 
+export type AgentCategory = "content" | "research" | "documents";
+
 export interface AgentField {
   key: string;
   label: string;
-  type: "text" | "select";
+  type: "text" | "select" | "document_upload";
   required: boolean;
   max_length?: number;
   options?: string[];
@@ -316,6 +378,7 @@ export interface AgentSummary {
   slug: string;
   name: string;
   description: string;
+  category: AgentCategory;
 }
 
 export interface AgentDetail extends AgentSummary {
@@ -339,13 +402,26 @@ export interface ThreadsContentPlan {
   variants: string[];
 }
 
+export interface ResearchDigestResult {
+  topic: string;
+  summary: string;
+  key_points: string[];
+  sources_note: string;
+}
+
+export interface DocumentSummaryResult {
+  summary: string;
+  key_points: string[];
+  answer: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
   agent_version: number;
   status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
   steps: AgentRunStep[];
-  result: ThreadsContentPlan | null;
+  result: ThreadsContentPlan | ResearchDigestResult | DocumentSummaryResult | null;
   credits_charged: string;
   error_message: string;
   created_at: string;
@@ -378,6 +454,12 @@ export const api = {
     request<User>("/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/auth/logout/", { method: "POST" }),
   me: () => request<User>("/auth/me/"),
+  userContext: () => request<UserContextEntry>("/auth/context/"),
+  updateUserContext: (data: UserContextData) =>
+    request<UserContextEntry>("/auth/context/", {
+      method: "PUT",
+      body: JSON.stringify({ data }),
+    }),
   publicConfig: () => request<PublicConfig>("/config/"),
   // Единый эндпоинт для входа/регистрации через Telegram и для привязки
   // Telegram к уже залогиненному веб-аккаунту — see backend
@@ -414,14 +496,59 @@ export const api = {
   deleteThread: (id: number) => request<void>(`/threads/${id}/`, { method: "DELETE" }),
   // task не передан -> бэкенд сам определяет тему по смыслу промпта
   // (providers.services.run_chat -> classify_task) — веб-чат больше не
-  // заставляет выбирать тему вручную по умолчанию.
-  sendThreadMessage: (threadId: number, prompt: string, task?: Task, model?: string) =>
+  // заставляет выбирать тему вручную по умолчанию. system/temperature
+  // приходят от выбранного пресета (см. PresetPicker) — пусто/не
+  // передано ведёт себя ровно как раньше.
+  sendThreadMessage: (
+    threadId: number,
+    prompt: string,
+    task?: Task,
+    model?: string,
+    system?: string,
+    temperature?: number,
+  ) =>
     request<ChatResponse>(`/threads/${threadId}/messages/`, {
       method: "POST",
-      body: JSON.stringify({ prompt, task, model }),
+      body: JSON.stringify({ prompt, task, model, system, temperature }),
     }),
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
   modelsCatalog: () => request<ModelProgress[]>("/progress/models/"),
+  presets: () => request<Preset[]>("/presets/"),
+  createPreset: (data: PresetInput) =>
+    request<Preset>("/presets/", { method: "POST", body: JSON.stringify(data) }),
+  updatePreset: (id: number, data: Partial<PresetInput>) =>
+    request<Preset>(`/presets/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deletePreset: (id: number) => request<void>(`/presets/${id}/`, { method: "DELETE" }),
+  workspaces: () => request<Workspace[]>("/knowledge/workspaces/"),
+  createWorkspace: (name: string) =>
+    request<Workspace>("/knowledge/workspaces/", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  deleteWorkspace: (id: number) =>
+    request<void>(`/knowledge/workspaces/${id}/`, { method: "DELETE" }),
+  workspaceSources: (workspaceId: number) =>
+    request<KnowledgeSource[]>(`/knowledge/workspaces/${workspaceId}/sources/`),
+  addTextSource: (workspaceId: number, text: string) =>
+    request<KnowledgeSource>(`/knowledge/workspaces/${workspaceId}/sources/text/`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  addImageSource: (workspaceId: number, file: File) => {
+    const formData = new FormData();
+    formData.append("image", file);
+    return requestMultipart<KnowledgeSource>(
+      `/knowledge/workspaces/${workspaceId}/sources/image/`,
+      formData,
+    );
+  },
+  sourceStatus: (id: number) =>
+    request<KnowledgeSource>(`/knowledge/sources/${id}/`),
+  searchWorkspace: (workspaceId: number, query: string) =>
+    request<ChunkMatch[]>(`/knowledge/workspaces/${workspaceId}/search/`, {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    }),
   history: (page = 1, filters: HistoryQuery = {}) => {
     const params = new URLSearchParams({ page: String(page) });
     const filterEntries: [keyof HistoryQuery, string | undefined][] = [

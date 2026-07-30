@@ -96,6 +96,57 @@ def test_me_returns_current_user():
     assert response.data["username"] == "erin"
 
 
+def test_context_requires_authentication():
+    client = APIClient()
+    response = client.get("/api/auth/context/")
+    assert response.status_code == 401
+
+
+def test_context_get_creates_empty_context_for_fresh_user():
+    user = User.objects.create_user(username="gina", password="strongpass123")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get("/api/auth/context/")
+
+    assert response.status_code == 200
+    assert response.data["data"] == {}
+
+
+def test_context_put_persists_and_round_trips():
+    user = User.objects.create_user(username="hank", password="strongpass123")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    payload = {"data": {"general": {"tone": "экспертный"}}}
+    put_response = client.put("/api/auth/context/", payload, format="json")
+    assert put_response.status_code == 200
+    assert put_response.data["data"] == payload["data"]
+
+    get_response = client.get("/api/auth/context/")
+    assert get_response.data["data"] == payload["data"]
+
+
+def test_context_is_scoped_to_the_authenticated_user():
+    owner = User.objects.create_user(username="ivan", password="strongpass123")
+    other = User.objects.create_user(username="jack", password="strongpass123")
+
+    owner_client = APIClient()
+    owner_client.force_authenticate(user=owner)
+    owner_client.put(
+        "/api/auth/context/",
+        {"data": {"general": {"tone": "секрет"}}},
+        format="json",
+    )
+
+    other_client = APIClient()
+    other_client.force_authenticate(user=other)
+    response = other_client.get("/api/auth/context/")
+
+    assert response.status_code == 200
+    assert response.data["data"] == {}
+
+
 def test_logout_deletes_token():
     client = APIClient()
     client.post(

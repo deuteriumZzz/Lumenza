@@ -90,6 +90,15 @@ describe("ThreadSidebar", () => {
     );
   });
 
+  it("renders a Knowledge entry pointing at /knowledge", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    expect(screen.getByRole("link", { name: "Знания" }).getAttribute("href")).toBe(
+      "/knowledge",
+    );
+  });
+
   it("keeps the Agents entry reachable when the sidebar is collapsed", async () => {
     render(<ThreadSidebar />);
     await waitFor(() => expect(mocks.threads).toHaveBeenCalled());

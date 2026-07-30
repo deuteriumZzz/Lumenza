@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   createAgentRun: vi.fn(),
   agentRun: vi.fn(),
   refreshBalance: vi.fn(),
+  createDocumentExtraction: vi.fn(),
+  documentExtraction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -26,6 +28,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
       agent: mocks.agent,
       createAgentRun: mocks.createAgentRun,
       agentRun: mocks.agentRun,
+      createDocumentExtraction: mocks.createDocumentExtraction,
+      documentExtraction: mocks.documentExtraction,
     },
   };
 });
@@ -37,6 +41,7 @@ const AGENT_DETAIL = {
   slug: "threads-content-day",
   name: "Контент на день для Threads",
   description: "Соберёт тему, аудиторию, тон и цель.",
+  category: "content",
   version: 1,
   input_schema: {
     fields: [
@@ -47,6 +52,32 @@ const AGENT_DETAIL = {
         type: "select",
         required: true,
         options: ["дружелюбный", "экспертный"],
+      },
+    ],
+  },
+};
+
+const DOCUMENT_SUMMARY_DETAIL = {
+  slug: "document-summary",
+  name: "Саммари документа",
+  description: "Саммари и вопросы по документу.",
+  category: "documents",
+  version: 1,
+  input_schema: {
+    fields: [
+      {
+        key: "document_text",
+        label: "Текст документа",
+        type: "document_upload",
+        required: true,
+        max_length: 20000,
+      },
+      {
+        key: "question",
+        label: "Что уточнить в документе (необязательно)",
+        type: "text",
+        required: false,
+        max_length: 300,
       },
     ],
   },
@@ -76,10 +107,13 @@ describe("AgentRunPage", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    mocks.slug = "threads-content-day";
     mocks.agent.mockReset();
     mocks.createAgentRun.mockReset();
     mocks.agentRun.mockReset();
     mocks.refreshBalance.mockReset();
+    mocks.createDocumentExtraction.mockReset();
+    mocks.documentExtraction.mockReset();
   });
 
   it("submits the form and renders step status through to the structured result", async () => {
@@ -149,5 +183,104 @@ describe("AgentRunPage", () => {
       "Недостаточно кредитов для запуска агента.",
     );
     expect(screen.queryByText("Продумываем ветки контента")).toBeNull();
+  });
+
+  it("extracts a document via OCR and fills the document_upload field before submit", async () => {
+    mocks.slug = "document-summary";
+    mocks.agent.mockResolvedValue(DOCUMENT_SUMMARY_DETAIL);
+    mocks.createDocumentExtraction.mockResolvedValue({
+      id: 9,
+      text: "",
+      status: "processing",
+      credits_charged: "0.0000",
+      mocked: false,
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: null,
+    });
+    mocks.documentExtraction.mockResolvedValue({
+      id: 9,
+      text: "Договор аренды на 12 месяцев.",
+      status: "ok",
+      credits_charged: "1.0000",
+      mocked: false,
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:00:05Z",
+    });
+
+    const { container } = render(<AgentRunPage />);
+
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["scan bytes"], "scan.png", { type: "image/png" });
+
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+      // createDocumentExtraction resolves on a microtask.
+      await Promise.resolve();
+    });
+
+    expect(mocks.createDocumentExtraction).toHaveBeenCalledWith(file);
+    // Submit is disabled until the required document_text field is filled —
+    // this is the reliable, user-visible signal that extraction landed,
+    // rather than reaching into component state directly.
+    expect(screen.getByRole("button", { name: "Запустить" })).toHaveProperty("disabled", true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("button", { name: "Запустить" })).toHaveProperty("disabled", false);
+  });
+
+  it("renders the research-digest result shape instead of the Threads plan", async () => {
+    mocks.slug = "research-digest";
+    mocks.agent.mockResolvedValue({
+      slug: "research-digest",
+      name: "Дайджест по теме",
+      description: "Ищет источники и собирает дайджест.",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue({
+      id: 2,
+      agent: "research-digest",
+      agent_version: 1,
+      status: "ok",
+      steps: [{ key: "research", label: "Ищем и синтезируем источники", status: "ok" }],
+      result: {
+        topic: "тренды контент-маркетинга",
+        summary: "Короткие форматы продолжают расти.",
+        key_points: ["Видео растёт"],
+        sources_note: "Источник: example.com",
+      },
+      credits_charged: "3.0000",
+      error_message: "",
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:00:05Z",
+    });
+
+    render(<AgentRunPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), {
+      target: { value: "тренды контент-маркетинга" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Ключевые выводы")).toBeDefined();
+    expect(screen.getByText("Источники")).toBeDefined();
+    expect(screen.queryByText("Хуки")).toBeNull();
   });
 });

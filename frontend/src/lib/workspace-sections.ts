@@ -1,9 +1,13 @@
 // Single source of truth for "which persistent-shell section does this
 // pathname belong to" — workspace-shell.tsx, nav.tsx, route-transition.tsx,
 // and zone.tsx each used to re-derive this independently via their own
-// pathname.startsWith(...) checks. Knowledge (Phase 17) isn't listed yet;
-// adding it later is one entry here, not a hunt across those 4 files.
-export type WorkspaceSectionKey = "chat" | "agents" | "studio" | "home";
+// pathname.startsWith(...) checks.
+export type WorkspaceSectionKey =
+  | "chat"
+  | "agents"
+  | "knowledge"
+  | "studio"
+  | "home";
 
 export interface WorkspaceSection {
   key: WorkspaceSectionKey;
@@ -13,6 +17,7 @@ export interface WorkspaceSection {
 export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
   { key: "chat", prefix: "/chat" },
   { key: "agents", prefix: "/agents" },
+  { key: "knowledge", prefix: "/knowledge" },
   { key: "studio", prefix: "/studio" },
   { key: "home", prefix: "/home" },
 ];

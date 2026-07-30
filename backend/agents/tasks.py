@@ -3,6 +3,7 @@ from decimal import Decimal
 from celery import shared_task
 from django.utils import timezone
 
+from accounts.models import UserContext
 from agents.models import AgentRun
 from agents.services import parse_final_result, render_step_prompt
 from billing.services import claim_pending_record
@@ -44,6 +45,14 @@ def run_agent(run_id: int) -> None:
 
     agent = run.agent
     context: dict[str, str] = {}
+    # Fetched once per run, not once per step — the profile doesn't
+    # change mid-run, and this keeps the loop below to one query total
+    # instead of one per workflow step.
+    user_context = (
+        UserContext.objects.filter(user=run.user)
+        .values_list("data", flat=True)
+        .first()
+    )
 
     for step in agent.workflow_steps:
         _update_step(
@@ -54,7 +63,9 @@ def run_agent(run_id: int) -> None:
         )
         run.save(update_fields=["steps"])
 
-        prompt = render_step_prompt(agent, step, run.input_payload, context)
+        prompt = render_step_prompt(
+            agent, step, run.input_payload, context, user_context
+        )
         outcome = run_chat(run.user, prompt, task=step["task"])
 
         if outcome.status != "ok":

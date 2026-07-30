@@ -5,7 +5,9 @@ import pytest
 
 import agents.tasks as agents_tasks
 from accounts.models import User as UserModel
+from accounts.models import UserContext
 from agents.models import AgentRun
+from agents.services import render_step_prompt
 from billing.models import CreditAccount
 from providers.registry import REGISTRY
 from providers.services import ChatOutcome
@@ -86,6 +88,21 @@ def test_agent_catalog_lists_published_agents():
     assert response.status_code == 200
     slugs = [item["slug"] for item in response.data]
     assert "threads-content-day" in slugs
+
+
+def test_agent_catalog_spans_at_least_three_categories():
+    # Guards the Phase 16 repositioning decision: the agent catalog must
+    # not read as a single-domain (content/SMM) tool with agents bolted
+    # on — see SPEC.md Phase 16 and the "Контекст пользователя"/multi-
+    # domain catalog discussion.
+    client, _ = _authed_client()
+    response = client.get("/api/agents/")
+    assert response.status_code == 200
+    by_slug = {item["slug"]: item["category"] for item in response.data}
+    assert by_slug["threads-content-day"] == "content"
+    assert by_slug["research-digest"] == "research"
+    assert by_slug["document-summary"] == "documents"
+    assert len(set(by_slug.values())) >= 3
 
 
 def test_agent_detail_returns_input_schema():
@@ -247,6 +264,193 @@ def test_enqueue_failure_marks_run_error(monkeypatch):
     assert response.status_code == 503
     run = AgentRun.objects.get(idempotency_key="run-enqueue-fail")
     assert run.status == AgentRun.Status.ERROR
+
+
+RESEARCH_DIGEST_INPUT = {"topic": "тренды контент-маркетинга"}
+
+VALID_RESEARCH_DIGEST_RESULT_JSON = json.dumps(
+    {
+        "topic": "тренды контент-маркетинга",
+        "summary": "Короткие форматы продолжают расти.",
+        "key_points": ["Видео растёт", "Текст остаётся для экспертизы"],
+        "sources_note": "Источник: example.com (2026)",
+    }
+)
+
+
+def test_research_digest_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        ["cited synthesis text", VALID_RESEARCH_DIGEST_RESULT_JSON],
+    )
+
+    response = client.post(
+        "/api/agents/research-digest/runs/",
+        {"input": RESEARCH_DIGEST_INPUT, "idempotency_key": "digest-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["summary"] == "Короткие форматы продолжают расти."
+    assert run.result["key_points"] == [
+        "Видео растёт",
+        "Текст остаётся для экспертизы",
+    ]
+    assert all(step["status"] == "ok" for step in run.steps)
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_research_digest_first_step_uses_search_task(monkeypatch):
+    seen_tasks = []
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        seen_tasks.append(task)
+        text = (
+            "cited synthesis text"
+            if len(seen_tasks) == 1
+            else VALID_RESEARCH_DIGEST_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok",
+            text=text,
+            provider="search",
+            model="gpt-4o-mini",
+            task=task,
+            credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    client, _ = _authed_client()
+    response = client.post(
+        "/api/agents/research-digest/runs/",
+        {"input": RESEARCH_DIGEST_INPUT, "idempotency_key": "digest-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+    assert seen_tasks[0] == "search"
+    assert seen_tasks[1] == "content_plan"
+
+
+DOCUMENT_SUMMARY_INPUT = {
+    "document_text": "Договор аренды офиса на 12 месяцев, оплата ежемесячно.",
+    "question": "Какой срок аренды?",
+}
+
+VALID_DOCUMENT_SUMMARY_RESULT_JSON = json.dumps(
+    {
+        "summary": "Договор аренды офиса сроком на 12 месяцев.",
+        "key_points": ["Срок 12 месяцев", "Оплата ежемесячная"],
+        "answer": "12 месяцев.",
+    }
+)
+
+
+def test_document_summary_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        ["draft summary text", VALID_DOCUMENT_SUMMARY_RESULT_JSON],
+    )
+
+    response = client.post(
+        "/api/agents/document-summary/runs/",
+        {"input": DOCUMENT_SUMMARY_INPUT, "idempotency_key": "doc-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["answer"] == "12 месяцев."
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_document_summary_question_is_optional():
+    client, _ = _authed_client()
+    incomplete_input = {
+        "document_text": DOCUMENT_SUMMARY_INPUT["document_text"]
+    }
+
+    response = client.post(
+        "/api/agents/document-summary/runs/",
+        {"input": incomplete_input, "idempotency_key": "doc-no-question"},
+        format="json",
+    )
+    # Missing 'question' must not 400 — only 'document_text' is required.
+    assert response.status_code in (202, 200)
+
+
+def _threads_agent():
+    from agents.models import Agent
+
+    return Agent.objects.get(slug="threads-content-day")
+
+
+def test_render_step_prompt_unchanged_without_user_context():
+    agent = _threads_agent()
+    step = agent.workflow_steps[0]
+    without_arg = render_step_prompt(agent, step, VALID_INPUT, {})
+    with_none = render_step_prompt(agent, step, VALID_INPUT, {}, None)
+    with_empty = render_step_prompt(agent, step, VALID_INPUT, {}, {})
+    assert without_arg == with_none == with_empty
+    assert "Профиль пользователя" not in without_arg
+
+
+def test_render_step_prompt_includes_matching_profile_blocks():
+    agent = _threads_agent()
+    step = agent.workflow_steps[0]
+    user_context = {
+        "general": {"tone": "дерзкий"},
+        "content": {"niche": "фитнес"},
+        # Другой домен не должен попасть в промпт агента категории content.
+        "research": {"topics": "нейросети"},
+    }
+    prompt = render_step_prompt(agent, step, VALID_INPUT, {}, user_context)
+    assert "Профиль пользователя" in prompt
+    assert "tone: дерзкий" in prompt
+    assert "niche: фитнес" in prompt
+    assert "topics: нейросети" not in prompt
+
+
+def test_agent_run_uses_saved_user_context_in_prompt(monkeypatch):
+    client, user = _authed_client()
+    UserContext.objects.create(
+        user=user, data={"general": {"tone": "экспертный"}}
+    )
+    seen_prompts = []
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        seen_prompts.append(prompt)
+        index = len(seen_prompts)
+        text = "outline text" if index == 1 else (
+            "hooks text" if index == 2 else VALID_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok",
+            text=text,
+            provider="openai",
+            model="gpt-4o-mini",
+            task=task,
+            credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/threads-content-day/runs/",
+        {"input": VALID_INPUT, "idempotency_key": "context-run"},
+        format="json",
+    )
+    assert response.status_code == 202
+    assert all("tone: экспертный" in prompt for prompt in seen_prompts)
 
 
 def test_agent_run_detail_scoped_to_owner(monkeypatch):

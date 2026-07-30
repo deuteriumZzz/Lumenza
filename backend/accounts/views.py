@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.db import transaction
 from django.middleware.csrf import get_token
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import (
     api_view,
@@ -12,7 +12,12 @@ from rest_framework.decorators import (
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.serializers import RegisterSerializer, UserSerializer
+from accounts.models import UserContext
+from accounts.serializers import (
+    RegisterSerializer,
+    UserContextSerializer,
+    UserSerializer,
+)
 from accounts.throttling import AuthRateThrottle
 from bot.services import get_or_create_telegram_user
 from bot.telegram_auth import (
@@ -100,6 +105,17 @@ def logout_view(request):
 def me(request):
     get_token(request)
     return Response(UserSerializer(request.user).data)
+
+
+class UserContextView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserContextSerializer
+
+    def get_object(self):
+        context, _ = UserContext.objects.get_or_create(
+            user=self.request.user
+        )
+        return context
 
 
 @api_view(["POST"])

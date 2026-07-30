@@ -79,6 +79,7 @@ describe("AccountMenu", () => {
     expect(dialog).toBeDefined();
     expect(screen.getByRole("link", { name: /Тариф и кредиты/ })).toBeDefined();
     expect(screen.getByRole("link", { name: /Использование/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /Профиль/ })).toBeDefined();
     expect(screen.getByRole("button", { name: /Язык/ })).toBeDefined();
     expect(screen.getByRole("link", { name: /О нас/ })).toBeDefined();
     expect(screen.getByRole("button", { name: /Выйти/ })).toBeDefined();

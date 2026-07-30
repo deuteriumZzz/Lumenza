@@ -8,6 +8,7 @@ from PIL import Image
 from imagegen.flux_adapter import FluxAdapter
 from imagegen.openai_image_adapter import OpenAIImageAdapter
 from imagegen.validation import MAX_GENERATED_IMAGE_BYTES
+from providers.anthropic_adapter import AnthropicAdapter
 from providers.gemini_adapter import GeminiAdapter
 from providers.nvidia_adapter import NvidiaAdapter
 from providers.openai_adapter import OpenAIAdapter
@@ -84,6 +85,138 @@ def test_openai_compatible_adapters_reject_negative_usage(
 
     with pytest.raises(ValueError, match="token count"):
         adapter_class().complete("hello")
+
+
+@pytest.mark.parametrize("adapter_class", [OpenAIAdapter, NvidiaAdapter])
+def test_openai_compatible_adapters_send_system_and_temperature(
+    monkeypatch, settings, adapter_class
+):
+    settings.OPENAI_API_KEY = "test-openai-key"
+    settings.NVIDIA_API_KEY = "test-nvidia-key"
+    usage = SimpleNamespace(prompt_tokens=1, completion_tokens=2)
+    seen_kwargs = {}
+
+    def fake_create(**kwargs):
+        seen_kwargs.update(kwargs)
+        return _openai_chat_response(usage=usage)
+
+    import openai
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+    monkeypatch.setattr(openai, "OpenAI", lambda **_kwargs: client)
+
+    adapter_class().complete(
+        "hello", system="Be terse.", temperature=0.4
+    )
+
+    assert seen_kwargs["messages"][0] == {
+        "role": "system",
+        "content": "Be terse.",
+    }
+    assert seen_kwargs["messages"][1] == {"role": "user", "content": "hello"}
+    assert seen_kwargs["temperature"] == 0.4
+
+
+@pytest.mark.parametrize("adapter_class", [OpenAIAdapter, NvidiaAdapter])
+def test_openai_compatible_adapters_omit_absent_system_and_temperature(
+    monkeypatch, settings, adapter_class
+):
+    settings.OPENAI_API_KEY = "test-openai-key"
+    settings.NVIDIA_API_KEY = "test-nvidia-key"
+    usage = SimpleNamespace(prompt_tokens=1, completion_tokens=2)
+    seen_kwargs = {}
+
+    def fake_create(**kwargs):
+        seen_kwargs.update(kwargs)
+        return _openai_chat_response(usage=usage)
+
+    import openai
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+    monkeypatch.setattr(openai, "OpenAI", lambda **_kwargs: client)
+
+    adapter_class().complete("hello")
+
+    assert seen_kwargs["messages"] == [{"role": "user", "content": "hello"}]
+    assert "temperature" not in seen_kwargs
+
+
+def test_anthropic_adapter_sends_system_and_temperature(monkeypatch, settings):
+    settings.ANTHROPIC_API_KEY = "test-anthropic-key"
+    seen_kwargs = {}
+
+    def fake_create(**kwargs):
+        seen_kwargs.update(kwargs)
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="answer")],
+            usage=SimpleNamespace(input_tokens=1, output_tokens=2),
+        )
+
+    import anthropic
+
+    client = SimpleNamespace(messages=SimpleNamespace(create=fake_create))
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **_kwargs: client)
+
+    AnthropicAdapter().complete("hello", system="Be terse.", temperature=0.4)
+
+    assert seen_kwargs["system"] == "Be terse."
+    assert seen_kwargs["temperature"] == 0.4
+    assert seen_kwargs["messages"] == [{"role": "user", "content": "hello"}]
+
+
+def test_anthropic_adapter_omits_absent_system_and_temperature(
+    monkeypatch, settings
+):
+    settings.ANTHROPIC_API_KEY = "test-anthropic-key"
+    seen_kwargs = {}
+
+    def fake_create(**kwargs):
+        seen_kwargs.update(kwargs)
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="answer")],
+            usage=SimpleNamespace(input_tokens=1, output_tokens=2),
+        )
+
+    import anthropic
+
+    client = SimpleNamespace(messages=SimpleNamespace(create=fake_create))
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **_kwargs: client)
+
+    AnthropicAdapter().complete("hello")
+
+    assert "system" not in seen_kwargs
+    assert "temperature" not in seen_kwargs
+
+
+def test_gemini_adapter_sends_system_and_temperature(monkeypatch, settings):
+    from google import genai
+
+    settings.GOOGLE_API_KEY = "test-google-key"
+    seen_kwargs = {}
+
+    def fake_generate_content(**kwargs):
+        seen_kwargs.update(kwargs)
+        return SimpleNamespace(
+            text="answer",
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=1, candidates_token_count=2
+            ),
+        )
+
+    models = SimpleNamespace(generate_content=fake_generate_content)
+    monkeypatch.setattr(
+        genai, "Client", lambda **_kwargs: SimpleNamespace(models=models)
+    )
+
+    GeminiAdapter().complete("hello", system="Be terse.", temperature=0.4)
+
+    config = seen_kwargs["config"]
+    assert config.system_instruction == "Be terse."
+    assert config.temperature == 0.4
 
 
 def test_gemini_adapter_rejects_missing_usage(monkeypatch, settings):

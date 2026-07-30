@@ -12,7 +12,12 @@ class AnthropicAdapter(ProviderAdapter):
     name = "anthropic"
 
     def complete(
-        self, prompt: str, model: str = DEFAULT_MODEL, **kwargs
+        self,
+        prompt: str,
+        model: str = DEFAULT_MODEL,
+        system: str | None = None,
+        temperature: float | None = None,
+        **kwargs,
     ) -> ProviderResult:
         start = time.monotonic()
 
@@ -25,11 +30,16 @@ class AnthropicAdapter(ProviderAdapter):
             api_key=settings.ANTHROPIC_API_KEY,
             timeout=self.request_timeout_seconds,
         )
-        response = client.messages.create(
-            model=model,
-            max_tokens=self.max_completion_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        create_kwargs = {
+            "model": model,
+            "max_tokens": self.max_completion_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            create_kwargs["system"] = system
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
+        response = client.messages.create(**create_kwargs)
         latency_ms = int((time.monotonic() - start) * 1000)
         text = "".join(
             block.text for block in response.content if block.type == "text"

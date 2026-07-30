@@ -13,7 +13,12 @@ class OpenAIAdapter(ProviderAdapter):
     name = "openai"
 
     def complete(
-        self, prompt: str, model: str = DEFAULT_MODEL, **kwargs
+        self,
+        prompt: str,
+        model: str = DEFAULT_MODEL,
+        system: str | None = None,
+        temperature: float | None = None,
+        **kwargs,
     ) -> ProviderResult:
         start = time.monotonic()
 
@@ -26,11 +31,18 @@ class OpenAIAdapter(ProviderAdapter):
             api_key=settings.OPENAI_API_KEY,
             timeout=self.request_timeout_seconds,
         )
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=self.max_completion_tokens,
-        )
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        create_kwargs = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": self.max_completion_tokens,
+        }
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
+        response = client.chat.completions.create(**create_kwargs)
         latency_ms = int((time.monotonic() - start) * 1000)
         usage = response.usage
         text = response.choices[0].message.content

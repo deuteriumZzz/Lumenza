@@ -86,3 +86,31 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.thread_id} {self.role}"
+
+
+class Preset(models.Model):
+    """A user-authored, reusable (model + task + system prompt + params)
+    bundle — selected client-side per message-send, the same way an
+    ad-hoc model/task override already works (see
+    providers.services.run_chat). Not tied to any Thread: switching
+    presets mid-conversation just changes what the next message sends."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="presets",
+    )
+    name = models.CharField(max_length=80)
+    model = models.CharField(max_length=64)
+    task = models.CharField(max_length=16)
+    system_prompt = models.TextField(blank=True, default="")
+    temperature = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "name")
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.user} preset {self.name!r}"
