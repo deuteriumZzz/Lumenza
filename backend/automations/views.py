@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.generics import get_object_or_404
@@ -76,7 +77,10 @@ class ScheduledAgentRunListCreateView(generics.ListCreateAPIView):
         data = serializer.validated_data
 
         agent = get_object_or_404(
-            Agent, slug=data["agent_slug"], status=Agent.Status.PUBLISHED
+            Agent.objects.filter(status=Agent.Status.PUBLISHED).filter(
+                Q(user__isnull=True) | Q(user=request.user)
+            ),
+            slug=data["agent_slug"],
         )
         channel = None
         if data["channel_id"] is not None:

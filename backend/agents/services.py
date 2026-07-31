@@ -1,5 +1,6 @@
 import json
 import re
+import secrets
 from dataclasses import dataclass
 from typing import Literal, Optional
 
@@ -272,3 +273,92 @@ def start_agent_run(
         return StartAgentRunOutcome(status="enqueue_failed", run=run)
 
     return StartAgentRunOutcome(status="accepted", run=run)
+
+
+def create_custom_agent(
+    user, name: str, description: str, agent_slugs: list[str]
+) -> Agent:
+    """"Мои агенты" builder: chains 2-3 existing published catalog agents
+    into one synthetic Agent row, executed by the same unmodified engine
+    every seeded agent already runs through — no changes to
+    render_step_prompt/run_agent needed. Raises InvalidAgentInputError on
+    any validation failure."""
+    if len(agent_slugs) != len(set(agent_slugs)):
+        raise InvalidAgentInputError("agent_slugs must not contain duplicates")
+    if not 2 <= len(agent_slugs) <= 3:
+        raise InvalidAgentInputError("Choose 2 or 3 agents to combine")
+
+    sources_by_slug = {
+        agent.slug: agent
+        for agent in Agent.objects.filter(
+            slug__in=agent_slugs,
+            status=Agent.Status.PUBLISHED,
+            user__isnull=True,
+        )
+    }
+    missing = [slug for slug in agent_slugs if slug not in sources_by_slug]
+    if missing:
+        raise InvalidAgentInputError(
+            f"Unknown or unavailable agents: {', '.join(missing)}"
+        )
+    sources = [sources_by_slug[slug] for slug in agent_slugs]
+
+    if len({agent.category for agent in sources}) < 2:
+        raise InvalidAgentInputError(
+            "Selected agents must span at least 2 different categories"
+        )
+
+    system_instructions = "\n\n".join(
+        f"### Роль «{agent.name}»\n{agent.system_instructions}"
+        for agent in sources
+    )
+
+    combined_steps = []
+    for agent in sources:
+        prefix = agent.slug.replace("-", "_")
+        for step in agent.workflow_steps:
+            combined_steps.append(
+                {
+                    "key": f"{prefix}__{step['key']}",
+                    "label": f"[{agent.name}] {step['label']}",
+                    "task": step["task"],
+                }
+            )
+    # Every seeded source agent's own last step is already named
+    # "assemble" by convention, colliding across sources and re-triggering
+    # render_step_prompt's JSON-forcing branch on non-final steps — force
+    # the true final step's key explicitly rather than relying on that
+    # convention holding.
+    combined_steps[-1]["key"] = "assemble"
+
+    seen_field_keys: set[str] = set()
+    combined_fields = []
+    for agent in sources:
+        for field in agent.input_schema.get("fields", []):
+            if field["key"] not in seen_field_keys:
+                seen_field_keys.add(field["key"])
+                combined_fields.append(field)
+
+    slug = None
+    for _ in range(5):
+        candidate = f"custom-{secrets.token_urlsafe(6)}"
+        if not Agent.objects.filter(slug=candidate).exists():
+            slug = candidate
+            break
+    if slug is None:
+        raise InvalidAgentInputError("Could not allocate a unique agent slug")
+
+    return Agent.objects.create(
+        slug=slug,
+        name=name,
+        description=description,
+        category=sources[0].category,
+        user=user,
+        source_agent_slugs=agent_slugs,
+        status=Agent.Status.PUBLISHED,
+        version=1,
+        input_schema={"fields": combined_fields},
+        system_instructions=system_instructions,
+        workflow_steps=combined_steps,
+        output_schema=sources[-1].output_schema,
+    )

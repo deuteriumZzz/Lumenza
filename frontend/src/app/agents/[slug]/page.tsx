@@ -87,6 +87,14 @@ export default function AgentRunPage() {
   );
   const [documentError, setDocumentError] = useState<string | null>(null);
 
+  // A custom "Мои агенты" agent's result shape matches its LAST chosen
+  // source agent's output_schema (see agents.services.create_custom_agent),
+  // not its own generated slug — so the per-slug renderer/publish-text
+  // dispatch below resolves on this instead of the raw route param.
+  const resultSourceSlug = agent?.source_agent_slugs?.length
+    ? agent.source_agent_slugs[agent.source_agent_slugs.length - 1]
+    : params.slug;
+
   useEffect(() => {
     let cancelled = false;
     api.agent(params.slug).then(
@@ -184,7 +192,7 @@ export default function AgentRunPage() {
   }
 
   function openPublishForm() {
-    if (run?.result) setPublishText(defaultPublishText(params.slug, run.result));
+    if (run?.result) setPublishText(defaultPublishText(resultSourceSlug, run.result));
     setPublishError(null);
     setPublishOpen(true);
     if (channels === null) {
@@ -350,9 +358,9 @@ export default function AgentRunPage() {
 
           {run.status === "ok" &&
             run.result &&
-            (params.slug === "research-digest" ? (
+            (resultSourceSlug === "research-digest" ? (
               <ResearchDigestResult data={run.result as ResearchDigestResultData} />
-            ) : params.slug === "document-summary" ? (
+            ) : resultSourceSlug === "document-summary" ? (
               <DocumentSummaryResult data={run.result as DocumentSummaryResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />

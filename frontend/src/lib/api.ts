@@ -408,6 +408,17 @@ export interface AgentSummary {
 export interface AgentDetail extends AgentSummary {
   version: number;
   input_schema: { fields: AgentField[] };
+  source_agent_slugs: string[];
+}
+
+export interface CustomAgentSummary {
+  slug: string;
+  name: string;
+  description: string;
+  category: AgentCategory;
+  status: "draft" | "published" | "archived";
+  source_agent_slugs: string[];
+  created_at: string;
 }
 
 export interface AgentRunStep {
@@ -662,6 +673,17 @@ export const api = {
       body: JSON.stringify({ input, idempotency_key: idempotencyKey, workspace_id: workspaceId }),
     }),
   agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
+  customAgents: () => request<CustomAgentSummary[]>("/agents/custom/"),
+  createCustomAgent: (name: string, description: string, agentSlugs: string[]) =>
+    request<CustomAgentSummary>("/agents/custom/", {
+      method: "POST",
+      body: JSON.stringify({ name, description, agent_slugs: agentSlugs }),
+    }),
+  archiveCustomAgent: (slug: string) =>
+    request<CustomAgentSummary>(`/agents/custom/${slug}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "archived" }),
+    }),
   telegramChannels: () =>
     request<TelegramChannelEntry[]>("/automations/telegram-channels/"),
   connectTelegramChannel: (chatId: number) =>

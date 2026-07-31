@@ -555,3 +555,336 @@ def test_agent_run_detail_scoped_to_owner(monkeypatch):
 
     own_response = client.get(f"/api/agents/runs/{run_id}/")
     assert own_response.status_code == 200
+
+
+# --- "Мои агенты" custom agent builder (item 10) -----------------------
+
+CUSTOM_AGENT_INPUT = {
+    **VALID_INPUT,
+    **DOCUMENT_SUMMARY_INPUT,
+}
+
+
+def test_create_custom_agent_merges_schema_and_forces_final_assemble_key():
+    from agents.services import create_custom_agent
+
+    creator = _authed_client("builder")[1]
+    agent = create_custom_agent(
+        creator,
+        "Контент + документы",
+        "Собираем план и саммари вместе",
+        ["threads-content-day", "document-summary"],
+    )
+
+    assert agent.category == "content"  # first source's category
+    assert agent.source_agent_slugs == [
+        "threads-content-day",
+        "document-summary",
+    ]
+    field_keys = {f["key"] for f in agent.input_schema["fields"]}
+    assert field_keys == {
+        "topic",
+        "audience",
+        "tone",
+        "goal",
+        "document_text",
+        "question",
+    }
+    assert agent.output_schema == {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string"},
+            "key_points": {"type": "array", "items": {"type": "string"}},
+            "answer": {"type": "string"},
+        },
+        "required": ["summary", "key_points", "answer"],
+    }
+    step_keys = [step["key"] for step in agent.workflow_steps]
+    assert len(step_keys) == 5
+    assert len(set(step_keys)) == 5  # no cross-source collisions
+    assert step_keys[-1] == "assemble"
+    assert "document_summary__assemble" not in step_keys
+
+
+def test_create_custom_agent_api_end_to_end_run(monkeypatch):
+    client, _ = _authed_client("builder2")
+    create_response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "Контент + документы",
+            "description": "Тестовая связка",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    assert create_response.status_code == 201
+    slug = create_response.data["slug"]
+    assert create_response.data["source_agent_slugs"] == [
+        "threads-content-day",
+        "document-summary",
+    ]
+
+    detail_response = client.get(f"/api/agents/{slug}/")
+    assert detail_response.status_code == 200
+    assert set(f["key"] for f in detail_response.data["input_schema"]["fields"]) == {
+        "topic",
+        "audience",
+        "tone",
+        "goal",
+        "document_text",
+        "question",
+    }
+
+    _mock_run_chat_sequence(
+        monkeypatch,
+        [
+            "outline text",
+            "hooks text",
+            "assemble text",
+            "draft summary text",
+            VALID_DOCUMENT_SUMMARY_RESULT_JSON,
+        ],
+    )
+    run_response = client.post(
+        f"/api/agents/{slug}/runs/",
+        {"input": CUSTOM_AGENT_INPUT, "idempotency_key": "custom-run-1"},
+        format="json",
+    )
+    assert run_response.status_code == 202
+    run = AgentRun.objects.get(id=run_response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert len(run.steps) == 5
+    assert run.result["answer"] == "12 месяцев."
+
+
+def test_create_custom_agent_rejects_too_few_or_too_many():
+    client, _ = _authed_client("builder3")
+    too_few = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day"],
+        },
+        format="json",
+    )
+    assert too_few.status_code == 400
+
+    too_many = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": [
+                "threads-content-day",
+                "research-digest",
+                "document-summary",
+                "threads-content-day",
+            ],
+        },
+        format="json",
+    )
+    assert too_many.status_code == 400
+
+
+def test_create_custom_agent_rejects_duplicate_slugs():
+    client, _ = _authed_client("builder4")
+    response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "threads-content-day"],
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_create_custom_agent_rejects_unknown_slug():
+    client, _ = _authed_client("builder5")
+    response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "no-such-agent"],
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_create_custom_agent_rejects_another_users_custom_agent_as_source():
+    owner_client, owner = _authed_client("builder6")
+    owner_client.post(
+        "/api/agents/custom/",
+        {
+            "name": "Приватный",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    private_slug = owner.custom_agents.get().slug
+
+    other_client, _ = _authed_client("builder7")
+    response = other_client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": [private_slug, "research-digest"],
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_create_custom_agent_requires_at_least_two_categories():
+    from agents.models import Agent
+    from agents.services import InvalidAgentInputError, create_custom_agent
+
+    # No two seeded agents share a category today, so a second content
+    # agent is created here purely to exercise the category-span check.
+    Agent.objects.create(
+        slug="second-content-agent",
+        name="Второй контентный агент",
+        description="test fixture",
+        category=Agent.Category.CONTENT,
+        status=Agent.Status.PUBLISHED,
+        input_schema={"fields": []},
+        system_instructions="test",
+        workflow_steps=[{"key": "assemble", "label": "Собрать", "task": "content_plan"}],
+        output_schema={"type": "object", "properties": {}, "required": []},
+    )
+    creator = _authed_client("builder8")[1]
+    with pytest.raises(InvalidAgentInputError):
+        create_custom_agent(
+            creator,
+            "x",
+            "x",
+            ["threads-content-day", "second-content-agent"],
+        )
+
+
+def test_custom_agent_excluded_from_public_catalog():
+    client, _ = _authed_client("builder9")
+    client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    response = client.get("/api/agents/")
+    assert response.status_code == 200
+    slugs = [item["slug"] for item in response.data]
+    assert not any(slug.startswith("custom-") for slug in slugs)
+
+
+def test_custom_agent_run_and_detail_scoped_to_owner():
+    client, _ = _authed_client("builder10")
+    create_response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    slug = create_response.data["slug"]
+
+    other_client, _ = _authed_client("builder11")
+    assert other_client.get(f"/api/agents/{slug}/").status_code == 404
+    assert (
+        other_client.post(
+            f"/api/agents/{slug}/runs/",
+            {"input": {}, "idempotency_key": "intruder-run"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert other_client.get(f"/api/agents/custom/{slug}/").status_code == 404
+    assert (
+        other_client.patch(
+            f"/api/agents/custom/{slug}/",
+            {"status": "archived"},
+            format="json",
+        ).status_code
+        == 404
+    )
+
+
+def test_archive_custom_agent_hides_it_without_deleting_run_history(
+    monkeypatch,
+):
+    client, _ = _authed_client("builder12")
+    create_response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    slug = create_response.data["slug"]
+
+    _mock_run_chat_sequence(
+        monkeypatch,
+        [
+            "outline text",
+            "hooks text",
+            "assemble text",
+            "draft summary text",
+            VALID_DOCUMENT_SUMMARY_RESULT_JSON,
+        ],
+    )
+    client.post(
+        f"/api/agents/{slug}/runs/",
+        {"input": CUSTOM_AGENT_INPUT, "idempotency_key": "archive-run-1"},
+        format="json",
+    )
+
+    archive_response = client.patch(
+        f"/api/agents/custom/{slug}/",
+        {"status": "archived"},
+        format="json",
+    )
+    assert archive_response.status_code == 200
+    assert archive_response.data["status"] == "archived"
+
+    # Excluded from "my agents" list and no longer runnable, but the run
+    # row (and its agent FK, on_delete=PROTECT) is untouched.
+    assert slug not in [
+        item["slug"] for item in client.get("/api/agents/custom/").data
+    ]
+    assert client.get(f"/api/agents/{slug}/").status_code == 404
+    assert AgentRun.objects.filter(
+        idempotency_key="archive-run-1"
+    ).exists()
+
+
+def test_archive_custom_agent_rejects_other_payloads():
+    client, _ = _authed_client("builder13")
+    create_response = client.post(
+        "/api/agents/custom/",
+        {
+            "name": "x",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    slug = create_response.data["slug"]
+
+    response = client.patch(
+        f"/api/agents/custom/{slug}/",
+        {"status": "draft"},
+        format="json",
+    )
+    assert response.status_code == 400

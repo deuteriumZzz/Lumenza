@@ -347,4 +347,59 @@ describe("AgentRunPage", () => {
     expect(screen.getByText("Источники")).toBeDefined();
     expect(screen.queryByText("Хуки")).toBeNull();
   });
+
+  it("renders a custom agent's result using its last source agent's renderer, not its own slug", async () => {
+    // A "Мои агенты" custom agent (item 10) has a generated slug like
+    // "custom-abc123" that matches none of the hardcoded per-slug result
+    // components — the dispatch must key off source_agent_slugs[-1] instead.
+    mocks.slug = "custom-abc123";
+    mocks.agent.mockResolvedValue({
+      slug: "custom-abc123",
+      name: "Контент + исследования",
+      description: "test",
+      category: "content",
+      version: 1,
+      source_agent_slugs: ["threads-content-day", "research-digest"],
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue({
+      id: 3,
+      agent: "custom-abc123",
+      agent_version: 1,
+      status: "ok",
+      steps: [{ key: "assemble", label: "Собираем", status: "ok" }],
+      result: {
+        topic: "тренды контент-маркетинга",
+        summary: "Короткие форматы продолжают расти.",
+        key_points: ["Видео растёт"],
+        sources_note: "Источник: example.com",
+      },
+      credits_charged: "3.0000",
+      error_message: "",
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:00:05Z",
+    });
+
+    render(<AgentRunPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), {
+      target: { value: "тренды контент-маркетинга" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    // The research-digest-shaped result renders correctly...
+    expect(screen.getByText("Ключевые выводы")).toBeDefined();
+    expect(screen.getByText("Источники")).toBeDefined();
+    // ...rather than falling through to the ThreadsContentPlan-typed
+    // fallback component, which would render "Хуки"/schedule sections.
+    expect(screen.queryByText("Хуки")).toBeNull();
+  });
 });

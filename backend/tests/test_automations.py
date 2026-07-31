@@ -164,6 +164,39 @@ def test_create_schedule_rejects_invalid_input():
     assert not ScheduledAgentRun.objects.filter(user=user).exists()
 
 
+def test_create_schedule_rejects_another_users_custom_agent():
+    # Regression guard for the agents.Agent.user ownership scoping added
+    # alongside the "Мои агенты" builder (item 10) — a custom agent is
+    # status=PUBLISHED like the global catalog, so this lookup must stay
+    # ownership-scoped or any user could schedule against a private agent
+    # by guessing its slug.
+    owner_client, owner = _authed_client("sched_owner")
+    owner_client.post(
+        "/api/agents/custom/",
+        {
+            "name": "Приватный",
+            "description": "x",
+            "agent_slugs": ["threads-content-day", "document-summary"],
+        },
+        format="json",
+    )
+    private_slug = owner.custom_agents.get().slug
+
+    intruder_client, intruder = _authed_client("sched_intruder")
+    response = intruder_client.post(
+        "/api/automations/schedules/",
+        {
+            "agent_slug": private_slug,
+            "input": {},
+            "hour": 9,
+            "minute": 0,
+        },
+        format="json",
+    )
+    assert response.status_code == 404
+    assert not ScheduledAgentRun.objects.filter(user=intruder).exists()
+
+
 def test_create_schedule_success_computes_next_run_at():
     client, user = _authed_client("sched_ok")
 

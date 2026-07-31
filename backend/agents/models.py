@@ -20,6 +20,21 @@ class Agent(models.Model):
     name = models.CharField(max_length=120)
     description = models.TextField(max_length=500)
     category = models.CharField(max_length=32, choices=Category.choices)
+    # Null for the global/seeded catalog agents; set for a user-built "Мои
+    # агенты" custom agent, which is excluded from the public catalog and
+    # only runnable by its owner (see agents.views ownership filters).
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="custom_agents",
+    )
+    # Empty for normal agents. For a custom agent, the ordered slugs of the
+    # existing published agents it was built from — lets the frontend
+    # reuse the right per-slug result renderer (source_agent_slugs[-1])
+    # instead of one keyed to this agent's own generated slug.
+    source_agent_slugs = models.JSONField(default=list, blank=True)
     # Snapshotted onto each AgentRun at creation time so a later edit to
     # an Agent's config never rewrites history for runs already in flight
     # or completed.

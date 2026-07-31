@@ -20,7 +20,30 @@ class AgentDetailSerializer(serializers.ModelSerializer):
             "version",
             "input_schema",
             "output_schema",
+            "source_agent_slugs",
         )
+
+
+class CustomAgentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Agent
+        fields = (
+            "slug",
+            "name",
+            "description",
+            "category",
+            "status",
+            "source_agent_slugs",
+            "created_at",
+        )
+
+
+class CustomAgentCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=120)
+    description = serializers.CharField(max_length=500, allow_blank=True)
+    agent_slugs = serializers.ListField(
+        child=serializers.CharField(), min_length=2, max_length=3
+    )
 
 
 class AgentRunRequestSerializer(serializers.Serializer):
