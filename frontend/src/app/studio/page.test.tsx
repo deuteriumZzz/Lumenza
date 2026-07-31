@@ -44,6 +44,10 @@ vi.mock("@/app/analyze/page", () => ({
   Analyze: () => <p>Анализ изображений</p>,
 }));
 
+vi.mock("@/app/code/page", () => ({
+  Code: () => <p>Код-песочница</p>,
+}));
+
 import StudioPage from "@/app/studio/page";
 import { ZoneProvider } from "@/components/zone";
 
@@ -107,6 +111,9 @@ describe("StudioPage motion", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Анализ фото/i }));
     expect(screen.getByText("Анализ изображений")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Код/i }));
+    expect(screen.getByText("Код-песочница")).toBeDefined();
   });
 
   it("honors the voice deep link while disabling motion when requested", () => {

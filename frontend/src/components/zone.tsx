@@ -4,17 +4,19 @@ import { createContext, useContext, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getWorkspaceSection } from "@/lib/workspace-sections";
 
-export type StudioMode = "images" | "voice" | "documents" | "analyze";
+export type StudioMode = "images" | "voice" | "documents" | "analyze" | "code";
 export type Zone = "desk" | "studio" | "voice" | "archive";
 
 // Какой режим Студии принадлежит какой "зоне" — см. раздел Zones в
 // DESIGN.md. images/analyze делят тёплую "studio"-зону (см. globals.css),
-// voice — своя холодная зона, documents — нейтральная "archive".
+// voice — своя холодная зона, documents/code — нейтральная "archive"
+// (утилитарные задачи, не творческая генерация контента).
 const STUDIO_MODE_ZONE: Record<StudioMode, Zone> = {
   images: "studio",
   analyze: "studio",
   voice: "voice",
   documents: "archive",
+  code: "archive",
 };
 
 interface ZoneContextValue {

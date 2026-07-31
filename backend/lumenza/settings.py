@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "media_ops",
     "referrals",
     "knowledge",
+    "code_interpreter",
     "channels",
 ]
 
@@ -210,6 +211,7 @@ REST_FRAMEWORK = {
         "image_generation": "20/min",
         "media_ops": "20/min",
         "knowledge": "20/min",
+        "code_interpreter": "20/min",
     },
 }
 
@@ -318,6 +320,13 @@ GOOGLE_API_KEY = env("GOOGLE_API_KEY", default="")
 REPLICATE_API_TOKEN = env("REPLICATE_API_TOKEN", default="")
 NVIDIA_API_KEY = env("NVIDIA_API_KEY", default="")
 TAVILY_API_KEY = env("TAVILY_API_KEY", default="")
+# Self-hosted Piston instance (docker-compose.yml `piston` service) for
+# Studio's Code Interpreter mode — blank by default, same "unset -> mock"
+# convention as the API keys above, so a fresh clone without that service
+# running (or without `manage.py setup_piston` having installed Python)
+# safely falls back to a mocked execution result instead of failing every
+# request. Set to http://piston:2000 once both are done.
+PISTON_API_URL = env("PISTON_API_URL", default="")
 
 # 1 кредит = $0.001 себестоимости у провайдера (до наценки).
 CREDIT_USD_VALUE = env.float("CREDIT_USD_VALUE", default=0.001)

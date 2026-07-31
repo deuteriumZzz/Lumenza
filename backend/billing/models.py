@@ -40,6 +40,10 @@ class LedgerEntry(models.Model):
             "knowledge_ingest_request",
             "Knowledge ingest request",
         )
+        CODE_EXECUTION_REQUEST = (
+            "code_execution_request",
+            "Code execution request",
+        )
         REFUND = "refund", "Refund"
         REFERRAL_BONUS = "referral_bonus", "Referral bonus"
 

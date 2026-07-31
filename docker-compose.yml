@@ -91,5 +91,28 @@ services:
       redis:
         condition: service_healthy
 
+  # Self-hosted sandboxed code execution (code_interpreter app) — the
+  # public Piston API (emkc.org) has been whitelist-only since 2026-02-15
+  # and excludes paid/commercial products, so this project runs its own
+  # instance instead. `--privileged` is required by Piston's own isolation
+  # (see their docs) — deliberately NOT publishing a host port, only
+  # `web`/`worker` reach it internally via the compose network. Python
+  # itself isn't preinstalled — run `docker compose exec web python
+  # manage.py setup_piston` once after this service is up.
+  piston:
+    image: ghcr.io/engineer-man/piston
+    privileged: true
+    # Piston's own server-side ceiling (default 3000ms/unlimited memory) —
+    # a per-request run_timeout/run_memory_limit above this is rejected
+    # with a 400, so these must stay >= code_interpreter/piston_adapter.py's
+    # RUN_TIMEOUT_MS/RUN_MEMORY_LIMIT_BYTES constants.
+    environment:
+      PISTON_RUN_TIMEOUT: "10000"
+      PISTON_RUN_CPU_TIME: "10000"
+      PISTON_RUN_MEMORY_LIMIT: "134217728"
+    volumes:
+      - piston_data:/piston
+
 volumes:
   postgres_data:
+  piston_data:

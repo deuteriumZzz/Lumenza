@@ -19,6 +19,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/", include("media_ops.urls")),
     path("api/", include("referrals.urls")),
     path("api/", include("knowledge.urls")),
+    path("api/", include("code_interpreter.urls")),
     path("bot/", include("bot.urls")),
 ]
 

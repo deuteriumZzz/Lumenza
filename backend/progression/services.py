@@ -28,6 +28,7 @@ ALL_KEYS = frozenset(
         "text_to_voice",
         "document_to_text",
         "photo_to_caption",
+        "code_execution",
     }
 )
 BASE_FREE_KEYS = ALL_KEYS

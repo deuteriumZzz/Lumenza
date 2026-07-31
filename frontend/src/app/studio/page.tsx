@@ -12,17 +12,19 @@ import { Images } from "@/app/images/page";
 import { Voice } from "@/app/voice/page";
 import { Documents } from "@/app/documents/page";
 import { Analyze } from "@/app/analyze/page";
+import { Code } from "@/app/code/page";
 import { StudioMark } from "@/components/studio-mark";
 import { motionTokens, springs } from "@/lib/motion";
 import { useSetStudioMode } from "@/components/zone";
 
-type Mode = "images" | "voice" | "documents" | "analyze";
+type Mode = "images" | "voice" | "documents" | "analyze" | "code";
 
 const MODES: { key: Mode; icon: string; label: string }[] = [
   { key: "images", icon: "🎨", label: "Картинки" },
   { key: "voice", icon: "🎙️", label: "Голос" },
   { key: "documents", icon: "📄", label: "Документы" },
   { key: "analyze", icon: "🖼️", label: "Анализ фото" },
+  { key: "code", icon: "💻", label: "Код" },
 ];
 
 export default function StudioPage() {
@@ -197,6 +199,7 @@ function StudioModePanel({
       {mode === "voice" && <Voice autoStart={autoStart} />}
       {mode === "documents" && <Documents />}
       {mode === "analyze" && <Analyze />}
+      {mode === "code" && <Code />}
     </motion.div>
   );
 }

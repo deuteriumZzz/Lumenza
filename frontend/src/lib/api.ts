@@ -372,6 +372,21 @@ export interface PhotoAnalysisEntry {
   completed_at: string | null;
 }
 
+export interface CodeExecutionEntry {
+  id: number;
+  code: string;
+  language: string;
+  version: string;
+  stdout: string;
+  stderr: string;
+  exit_code: number | null;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "task_locked" | "blocked";
+  credits_charged: string;
+  mocked: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export type AgentCategory = "content" | "research" | "documents";
 
 export interface AgentField {
@@ -642,4 +657,10 @@ export const api = {
     return requestMultipart<PhotoAnalysisEntry>("/photos/analyze/", formData);
   },
   photoAnalysis: (id: number) => request<PhotoAnalysisEntry>(`/photos/analyze/${id}/`),
+  createCodeExecution: (code: string) =>
+    request<CodeExecutionEntry>("/code/executions/", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  codeExecution: (id: number) => request<CodeExecutionEntry>(`/code/executions/${id}/`),
 };

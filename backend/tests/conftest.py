@@ -12,6 +12,7 @@ def _never_call_real_providers(settings):
     settings.GOOGLE_API_KEY = ""
     settings.REPLICATE_API_TOKEN = ""
     settings.NVIDIA_API_KEY = ""
+    settings.PISTON_API_URL = ""
 
 
 @pytest.fixture(autouse=True)
