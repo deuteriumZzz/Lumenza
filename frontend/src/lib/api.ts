@@ -452,6 +452,39 @@ export interface AgentRun {
   completed_at: string | null;
 }
 
+export interface TelegramChannelEntry {
+  id: number;
+  chat_id: number;
+  title: string;
+  connected_at: string;
+}
+
+export interface ScheduledAgentRunEntry {
+  id: number;
+  agent: string;
+  input_payload: Record<string, string>;
+  hour: number;
+  minute: number;
+  publish_channel: number | null;
+  is_active: boolean;
+  next_run_at: string;
+  last_run_at: string | null;
+  last_agent_run: number | null;
+  created_at: string;
+}
+
+export interface PendingActionEntry {
+  id: number;
+  agent_run: number;
+  channel: number;
+  text: string;
+  status: "pending_confirmation" | "confirmed" | "sent" | "failed" | "canceled";
+  error_message: string;
+  created_at: string;
+  confirmed_at: string | null;
+  sent_at: string | null;
+}
+
 async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
   const headers = new Headers();
   const csrfToken = getCsrfToken();
@@ -629,6 +662,63 @@ export const api = {
       body: JSON.stringify({ input, idempotency_key: idempotencyKey, workspace_id: workspaceId }),
     }),
   agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
+  telegramChannels: () =>
+    request<TelegramChannelEntry[]>("/automations/telegram-channels/"),
+  connectTelegramChannel: (chatId: number) =>
+    request<TelegramChannelEntry>("/automations/telegram-channels/", {
+      method: "POST",
+      body: JSON.stringify({ chat_id: chatId }),
+    }),
+  deleteTelegramChannel: (id: number) =>
+    request<void>(`/automations/telegram-channels/${id}/`, { method: "DELETE" }),
+  schedules: () => request<ScheduledAgentRunEntry[]>("/automations/schedules/"),
+  createSchedule: (
+    agentSlug: string,
+    input: Record<string, string>,
+    hour: number,
+    minute: number,
+    channelId?: number | null,
+  ) =>
+    request<ScheduledAgentRunEntry>("/automations/schedules/", {
+      method: "POST",
+      body: JSON.stringify({
+        agent_slug: agentSlug,
+        input,
+        hour,
+        minute,
+        channel_id: channelId,
+      }),
+    }),
+  updateSchedule: (id: number, isActive: boolean) =>
+    request<ScheduledAgentRunEntry>(`/automations/schedules/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  deleteSchedule: (id: number) =>
+    request<void>(`/automations/schedules/${id}/`, { method: "DELETE" }),
+  pendingActions: () => request<PendingActionEntry[]>("/automations/pending-actions/"),
+  updatePendingActionText: (id: number, text: string) =>
+    request<PendingActionEntry>(`/automations/pending-actions/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }),
+  requestPublish: (agentRunId: number, channelId: number, text: string) =>
+    request<PendingActionEntry>("/automations/pending-actions/", {
+      method: "POST",
+      body: JSON.stringify({
+        agent_run_id: agentRunId,
+        channel_id: channelId,
+        text,
+      }),
+    }),
+  confirmPendingAction: (id: number) =>
+    request<PendingActionEntry>(`/automations/pending-actions/${id}/confirm/`, {
+      method: "POST",
+    }),
+  cancelPendingAction: (id: number) =>
+    request<PendingActionEntry>(`/automations/pending-actions/${id}/cancel/`, {
+      method: "POST",
+    }),
   createImageEdit: (prompt: string, imageFile: File) => {
     const formData = new FormData();
     formData.append("prompt", prompt);

@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "referrals",
     "knowledge",
     "code_interpreter",
+    "automations",
     "channels",
 ]
 
@@ -310,6 +311,13 @@ CELERY_BEAT_SCHEDULE = {
     "renew-subscriptions-daily": {
         "task": "billing.renew_subscriptions",
         "schedule": 86400.0,
+    },
+    # automations.tasks.run_due_schedules — hour:minute-precision schedules
+    # (see ScheduledAgentRun), so this needs a much tighter tick than the
+    # daily subscription scan above.
+    "run-due-automation-schedules": {
+        "task": "automations.run_due_schedules",
+        "schedule": 300.0,
     },
 }
 

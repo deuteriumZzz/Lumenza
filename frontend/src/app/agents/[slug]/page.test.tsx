@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   refreshBalance: vi.fn(),
   createDocumentExtraction: vi.fn(),
   documentExtraction: vi.fn(),
+  telegramChannels: vi.fn(),
+  requestPublish: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -30,6 +32,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
       agentRun: mocks.agentRun,
       createDocumentExtraction: mocks.createDocumentExtraction,
       documentExtraction: mocks.documentExtraction,
+      telegramChannels: mocks.telegramChannels,
+      requestPublish: mocks.requestPublish,
     },
   };
 });
@@ -114,6 +118,8 @@ describe("AgentRunPage", () => {
     mocks.refreshBalance.mockReset();
     mocks.createDocumentExtraction.mockReset();
     mocks.documentExtraction.mockReset();
+    mocks.telegramChannels.mockReset();
+    mocks.requestPublish.mockReset();
   });
 
   it("submits the form and renders step status through to the structured result", async () => {
@@ -164,6 +170,63 @@ describe("AgentRunPage", () => {
 
     expect(screen.getAllByText("Запуск").length).toBeGreaterThan(0);
     expect(screen.getByText("Сегодня мы запускаемся.")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Опубликовать в Telegram" })).toBeDefined();
+  });
+
+  it("creates a publish draft with a prefilled, editable text", async () => {
+    mocks.createAgentRun.mockResolvedValue(makeRun());
+    mocks.agentRun.mockResolvedValue(
+      makeRun({
+        status: "ok",
+        result: {
+          branches: [],
+          hooks: [],
+          schedule: [{ time: "09:00", branch: "Запуск", post_text: "Черновик поста." }],
+          variants: [],
+        },
+      }),
+    );
+    mocks.telegramChannels.mockResolvedValue([
+      { id: 1, chat_id: -100123, title: "Мой канал", connected_at: "" },
+    ]);
+    mocks.requestPublish.mockResolvedValue({
+      id: 9,
+      agent_run: 1,
+      channel: 1,
+      text: "Черновик поста.",
+      status: "pending_confirmation",
+      error_message: "",
+      created_at: "",
+      confirmed_at: null,
+      sent_at: null,
+    });
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), { target: { value: "запуск" } });
+
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    vi.useRealTimers();
+
+    fireEvent.click(screen.getByRole("button", { name: "Опубликовать в Telegram" }));
+    await screen.findByText("Мой канал");
+
+    expect(screen.getByDisplayValue("Черновик поста.")).toBeDefined();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать черновик" }));
+
+    await waitFor(() =>
+      expect(mocks.requestPublish).toHaveBeenCalledWith(1, 1, "Черновик поста."),
+    );
+    expect(await screen.findByText("Подтвердить публикацию")).toBeDefined();
   });
 
   it("shows an insufficient-credits message on 402 without advancing past the form", async () => {

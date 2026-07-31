@@ -99,6 +99,15 @@ describe("ThreadSidebar", () => {
     );
   });
 
+  it("renders an Automations entry pointing at /automations", async () => {
+    render(<ThreadSidebar />);
+    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
+
+    expect(
+      screen.getByRole("link", { name: "Автоматизации" }).getAttribute("href"),
+    ).toBe("/automations");
+  });
+
   it("renders a Chat entry in the mode switcher pointing at /chat", async () => {
     render(<ThreadSidebar />);
     await waitFor(() => expect(mocks.threads).toHaveBeenCalled());

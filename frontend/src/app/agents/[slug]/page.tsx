@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AgentRunResult } from "@/components/agent-run-result";
@@ -19,9 +20,30 @@ import {
   type ThreadsContentPlan,
   type ResearchDigestResult as ResearchDigestResultData,
   type DocumentSummaryResult as DocumentSummaryResultData,
+  type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
+
+// Mirrors automations.services.default_publish_text on the backend — the
+// same fallback used when a *scheduled* run has no user present to fill a
+// draft in. Here it's only the starting point for an editable textarea the
+// user reviews before creating the PendingAction, so it doesn't need to be
+// exhaustive — just a reasonable default per agent result shape.
+function defaultPublishText(slug: string, result: AgentRun["result"]): string {
+  if (!result) return "";
+  if (
+    (slug === "research-digest" || slug === "document-summary") &&
+    "summary" in result &&
+    result.summary
+  ) {
+    return result.summary;
+  }
+  if (slug === "threads-content-day" && "schedule" in result) {
+    return result.schedule.map((item) => item.post_text).filter(Boolean).join("\n\n");
+  }
+  return JSON.stringify(result);
+}
 
 const POLL_INTERVAL_MS = 2000;
 const IN_PROGRESS = new Set<AgentRun["status"]>(["pending", "processing"]);
@@ -47,6 +69,14 @@ export default function AgentRunPage() {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [attachedWorkspace, setAttachedWorkspace] = useState<Workspace | null>(null);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
+
+  const [channels, setChannels] = useState<TelegramChannelEntry[] | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishChannelId, setPublishChannelId] = useState<number | null>(null);
+  const [publishText, setPublishText] = useState("");
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishedAt, setPublishedAt] = useState(false);
 
   // At most one "document_upload" field exists per agent today (see
   // document-summary's input_schema) — a single slot is enough; this
@@ -149,6 +179,34 @@ export default function AgentRunPage() {
     idempotencyKeyRef.current = crypto.randomUUID();
     setRun(null);
     setSubmitError(null);
+    setPublishOpen(false);
+    setPublishedAt(false);
+  }
+
+  function openPublishForm() {
+    if (run?.result) setPublishText(defaultPublishText(params.slug, run.result));
+    setPublishError(null);
+    setPublishOpen(true);
+    if (channels === null) {
+      api.telegramChannels().then(setChannels, () =>
+        setPublishError("Не удалось загрузить каналы Telegram.")
+      );
+    }
+  }
+
+  async function submitPublish() {
+    if (!run || !publishChannelId || !publishText.trim() || publishing) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      await api.requestPublish(run.id, publishChannelId, publishText.trim());
+      setPublishOpen(false);
+      setPublishedAt(true);
+    } catch (err) {
+      setPublishError(apiErrorMessage(err, "Не удалось создать черновик публикации."));
+    } finally {
+      setPublishing(false);
+    }
   }
 
   if (loadError) {
@@ -299,6 +357,92 @@ export default function AgentRunPage() {
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}
+
+          {run.status === "ok" && run.result && (
+            <div className="rounded-md border border-border bg-surface p-4">
+              {publishedAt ? (
+                <p className="text-sm text-ink">
+                  Черновик создан.{" "}
+                  <Link href="/automations" className="font-medium underline">
+                    Подтвердить публикацию
+                  </Link>
+                </p>
+              ) : !publishOpen ? (
+                <button type="button" onClick={openPublishForm} className="btn-secondary">
+                  Опубликовать в Telegram
+                </button>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    <span className="text-muted">Канал</span>
+                    {channels === null ? (
+                      <p role="status" className="text-sm text-muted">
+                        Загрузка каналов…
+                      </p>
+                    ) : channels.length === 0 ? (
+                      <p className="text-sm text-muted">
+                        Нет подключённых каналов —{" "}
+                        <Link href="/automations" className="underline">
+                          подключите канал
+                        </Link>
+                        .
+                      </p>
+                    ) : (
+                      <select
+                        value={publishChannelId ?? ""}
+                        onChange={(event) =>
+                          setPublishChannelId(Number(event.target.value) || null)
+                        }
+                        className="input"
+                      >
+                        <option value="">Выберите канал</option>
+                        {channels.map((channel) => (
+                          <option key={channel.id} value={channel.id}>
+                            {channel.title}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </label>
+
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    <span className="text-muted">Текст поста (можно отредактировать)</span>
+                    <textarea
+                      value={publishText}
+                      onChange={(event) => setPublishText(event.target.value)}
+                      rows={6}
+                      maxLength={8000}
+                      className="input"
+                    />
+                  </label>
+
+                  {publishError && (
+                    <p role="alert" className="text-sm text-danger">
+                      {publishError}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void submitPublish()}
+                      disabled={publishing || !publishChannelId || !publishText.trim()}
+                      className="btn-primary"
+                    >
+                      {publishing ? "Создаём…" : "Создать черновик"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPublishOpen(false)}
+                      className="btn-secondary"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {!IN_PROGRESS.has(run.status) && (
             <button type="button" onClick={startOver} className="btn-secondary self-start">

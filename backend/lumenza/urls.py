@@ -20,6 +20,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/", include("referrals.urls")),
     path("api/", include("knowledge.urls")),
     path("api/", include("code_interpreter.urls")),
+    path("api/", include("automations.urls")),
     path("bot/", include("bot.urls")),
 ]
 

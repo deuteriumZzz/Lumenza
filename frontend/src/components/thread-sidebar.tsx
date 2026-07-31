@@ -14,7 +14,14 @@ import { StudioMark } from "@/components/studio-mark";
 
 const SIDEBAR_STORAGE_KEY = "lumenza:sidebar-collapsed";
 
-type SidebarIconName = "chat" | "agents" | "knowledge" | "studio" | "history" | "credits";
+type SidebarIconName =
+  | "chat"
+  | "agents"
+  | "knowledge"
+  | "studio"
+  | "automations"
+  | "history"
+  | "credits";
 
 // Порядок — то же 3-стороннее переключение, что у abacus.ai (Chat Mode |
 // AI Agent | Company Knowledge, SPEC.md Phase 17) — Студия остаётся
@@ -205,6 +212,7 @@ export function ThreadSidebar() {
           <SidebarRailLink href="/agents" label="Агенты" icon="agents" />
           <SidebarRailLink href="/knowledge" label="Знания" icon="knowledge" />
           <SidebarRailLink href="/studio" label="Студия" icon="studio" />
+          <SidebarRailLink href="/automations" label="Автоматизации" icon="automations" />
           <SidebarRailLink href="/history" label="История" icon="history" />
         </nav>
       ) : (
@@ -340,6 +348,7 @@ export function ThreadSidebar() {
                 )}
               </AnimatePresence>
             </div>
+            <SidebarLink href="/automations" label="Автоматизации" icon="automations" />
             <SidebarLink href="/history" label="История" icon="history" />
             <SidebarLink href="/pricing" label="Тариф и кредиты" icon="credits" />
           </nav>
@@ -500,6 +509,14 @@ function SidebarIcon({
   }
   if (icon === "studio") {
     return <StudioMark className="size-4.5 shrink-0" />;
+  }
+  if (icon === "automations") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 8v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
   }
   if (icon === "history") {
     return (
