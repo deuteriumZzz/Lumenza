@@ -8,6 +8,8 @@ from providers.views import (
     ThreadListCreateView,
     chat,
     thread_message,
+    thread_message_stream,
+    thread_message_stream_events,
     usage_summary,
 )
 
@@ -25,6 +27,16 @@ urlpatterns = [
         "threads/<int:thread_id>/messages/",
         thread_message,
         name="thread-message",
+    ),
+    path(
+        "threads/<int:thread_id>/messages/stream/",
+        thread_message_stream,
+        name="thread-message-stream",
+    ),
+    path(
+        "threads/<int:thread_id>/messages/stream/<str:generation_id>/",
+        thread_message_stream_events,
+        name="thread-message-stream-events",
     ),
     path("presets/", PresetListCreateView.as_view(), name="preset-list"),
     path(

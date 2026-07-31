@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -8,13 +9,22 @@ from rest_framework.test import APIClient
 from accounts.models import User as UserModel
 from billing.models import CreditAccount
 from billing.services import usd_to_credits
-from providers.models import RequestLog
+from providers.models import Message, RequestLog, Thread
 from providers.pricing import estimate_max_cost_usd
 from providers.registry import REGISTRY
 from providers.services import TASK_ROUTES, _route_hold_credits
 from tests.helpers import authed_client as _shared_authed_client
 
 pytestmark = pytest.mark.django_db
+
+
+def _sse_events(raw: bytes) -> list[dict]:
+    text = raw.decode() if isinstance(raw, bytes) else raw
+    return [
+        json.loads(block[len("data: ") :])
+        for block in text.split("\n\n")
+        if block.startswith("data: ")
+    ]
 
 
 def test_route_hold_credits_uses_the_most_expensive_route_candidate():
@@ -812,6 +822,170 @@ def test_chat_with_foreign_workspace_returns_400_uncharged(monkeypatch):
     assert called["count"] == 0
     account.refresh_from_db()
     assert account.balance == starting_balance
+
+
+def test_stream_start_and_sse_events_happy_path(settings):
+    # CELERY_TASK_ALWAYS_EAGER means stream_chat_task.delay(...) runs
+    # synchronously inside start_chat_stream() itself — by the time the
+    # POST below returns, the generation is already fully "done" in the
+    # buffer, so the SSE GET can be consumed in full without ever hitting
+    # the poll loop's time.sleep().
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+    settings.CELERY_TASK_EAGER_PROPAGATES = True
+    client, user = _authed_client("stream_happy")
+    thread_response = client.post("/api/threads/", {}, format="json")
+    thread_id = thread_response.data["id"]
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    start_response = client.post(
+        f"/api/threads/{thread_id}/messages/stream/",
+        {"prompt": "hello", "task": "repurpose"},
+        format="json",
+    )
+    assert start_response.status_code == 202
+    generation_id = start_response.data["generation_id"]
+
+    thread = Thread.objects.get(id=thread_id)
+    assert thread.active_generation_id is None  # already cleared, eager
+
+    events_response = client.get(
+        f"/api/threads/{thread_id}/messages/stream/{generation_id}/"
+    )
+    assert events_response.status_code == 200
+    raw = b"".join(events_response.streaming_content)
+    events = _sse_events(raw)
+
+    chunk_events = [e for e in events if e["type"] == "chunk"]
+    done_events = [e for e in events if e["type"] == "done"]
+    assert len(done_events) == 1
+    assert chunk_events[-1]["text"] == done_events[0]["text"]
+    assert done_events[0]["text"]
+
+    messages = list(Message.objects.filter(thread_id=thread_id).order_by("id"))
+    assert [m.role for m in messages] == ["user", "assistant"]
+    assert messages[0].text == "hello"
+    assert messages[1].text == done_events[0]["text"]
+
+    account.refresh_from_db()
+    assert account.balance < starting_balance
+    assert str(account.balance) == done_events[0]["balance"]
+
+
+def test_stream_start_blocked_by_moderation_returns_422_uncharged(
+    monkeypatch, settings
+):
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+    settings.CELERY_TASK_EAGER_PROPAGATES = True
+    client, user = _authed_client("stream_moderated")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    called = {"count": 0}
+    original_complete = REGISTRY["openai"].stream_complete
+
+    def spy_stream_complete(*args, **kwargs):
+        called["count"] += 1
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(REGISTRY["openai"], "stream_complete", spy_stream_complete)
+
+    response = client.post(
+        f"/api/threads/{thread_id}/messages/stream/",
+        {"prompt": "child sexual content", "task": "repurpose"},
+        format="json",
+    )
+
+    assert response.status_code == 422
+    assert called["count"] == 0
+    account.refresh_from_db()
+    assert account.balance == starting_balance
+    assert not Message.objects.filter(thread_id=thread_id).exists()
+
+
+def test_stream_start_with_zero_balance_returns_402_without_enqueueing():
+    client, user = _authed_client("stream_broke")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+    account = CreditAccount.objects.get(user=user)
+    account.balance = Decimal("0")
+    account.save(update_fields=["balance"])
+
+    response = client.post(
+        f"/api/threads/{thread_id}/messages/stream/",
+        {"prompt": "hello", "task": "repurpose"},
+        format="json",
+    )
+
+    assert response.status_code == 402
+    assert not Message.objects.filter(thread_id=thread_id).exists()
+
+
+def test_stream_start_with_foreign_workspace_returns_400_uncharged():
+    from knowledge.models import Workspace
+
+    client, user = _authed_client("stream_ws")
+    _, other_user = _authed_client("stream_ws_other")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+    workspace = Workspace.objects.create(user=other_user, name="Not mine")
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    response = client.post(
+        f"/api/threads/{thread_id}/messages/stream/",
+        {"prompt": "hello", "task": "repurpose", "workspace_id": workspace.id},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["code"] == "invalid_workspace"
+    account.refresh_from_db()
+    assert account.balance == starting_balance
+
+
+def test_stream_events_requires_thread_ownership():
+    client, _ = _authed_client("stream_owner")
+    _, other_user = _authed_client("stream_intruder")
+    other_client, _ = _authed_client("stream_intruder2")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+
+    response = other_client.get(
+        f"/api/threads/{thread_id}/messages/stream/some-generation-id/"
+    )
+    assert response.status_code == 404
+
+
+def test_stream_events_unknown_generation_returns_404():
+    client, _ = _authed_client("stream_unknown_gen")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+
+    response = client.get(
+        f"/api/threads/{thread_id}/messages/stream/does-not-exist/"
+    )
+    assert response.status_code == 404
+
+
+def test_stream_events_replays_buffered_text_on_first_connect():
+    from providers.streaming import append_delta, create_generation
+
+    client, user = _authed_client("stream_resume")
+    thread_id = client.post("/api/threads/", {}, format="json").data["id"]
+    generation_id = create_generation(user_id=user.id, thread_id=thread_id)
+    append_delta(generation_id, "Hel")
+    append_delta(generation_id, "lo")
+
+    response = client.get(
+        f"/api/threads/{thread_id}/messages/stream/{generation_id}/"
+    )
+    assert response.status_code == 200
+    # Only the first event — the generation is deliberately left in
+    # "streaming" status forever in this test, so fully draining the
+    # generator would block on the real poll loop. The first yield always
+    # happens before any sleep, so this is enough to prove resume replays
+    # the full buffered-so-far text as one snapshot, not just new deltas.
+    first_event = next(iter(response.streaming_content))
+    events = _sse_events(first_event)
+    assert events == [{"type": "chunk", "text": "Hello"}]
 
 
 def test_base_user_can_use_every_task_and_auto_route_skips_premium_models(

@@ -166,7 +166,16 @@ export interface ChatThread {
   title: string;
   created_at: string;
   updated_at: string;
+  // Set while a streamed generation (see streamThreadMessage) is still
+  // running for this thread — lets the client resume tailing it after a
+  // page reload instead of losing the in-progress response.
+  active_generation_id: string | null;
 }
+
+export type StreamChatEvent =
+  | { type: "chunk"; text: string }
+  | (ChatResponse & { type: "done" })
+  | { type: "error"; code?: string; detail?: string };
 
 export interface ChatThreadMessage {
   id: number;
@@ -513,6 +522,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ prompt, task, model, system, temperature, workspace_id: workspaceId }),
     }),
+  // Streaming counterpart to sendThreadMessage — same rejection behavior
+  // (402/403/422/502/400 map identically, this just returns a
+  // generation_id on success instead of the finished text). Open an
+  // EventSource at chatStreamUrl(threadId, generation_id) to receive the
+  // actual response; reconnecting to the same URL resumes it.
+  streamThreadMessage: (
+    threadId: number,
+    prompt: string,
+    task?: Task,
+    model?: string,
+    system?: string,
+    temperature?: number,
+    workspaceId?: number | null,
+  ) =>
+    request<{ generation_id: string }>(`/threads/${threadId}/messages/stream/`, {
+      method: "POST",
+      body: JSON.stringify({ prompt, task, model, system, temperature, workspace_id: workspaceId }),
+    }),
+  chatStreamUrl: (threadId: number, generationId: string) =>
+    `/api/threads/${threadId}/messages/stream/${generationId}/`,
   modelsProgress: (task: Task) => request<ModelProgress[]>(`/progress/models/${task}/`),
   modelsCatalog: () => request<ModelProgress[]>("/progress/models/"),
   presets: () => request<Preset[]>("/presets/"),

@@ -1,4 +1,5 @@
 import time
+from typing import Callable
 
 from django.conf import settings
 
@@ -76,4 +77,60 @@ class AnthropicAdapter(ProviderAdapter):
             latency_ms=latency_ms,
             model=model,
             mocked=True,
+        )
+
+    def stream_complete(
+        self,
+        prompt: str,
+        on_delta: Callable[[str], None],
+        model: str = DEFAULT_MODEL,
+        system: str | None = None,
+        temperature: float | None = None,
+        **kwargs,
+    ) -> ProviderResult:
+        start = time.monotonic()
+
+        if not settings.ANTHROPIC_API_KEY:
+            result = self._mock_result(prompt, model, start)
+            on_delta(result.text)
+            return result
+
+        from anthropic import Anthropic
+
+        client = Anthropic(
+            api_key=settings.ANTHROPIC_API_KEY,
+            timeout=self.request_timeout_seconds,
+        )
+        create_kwargs = {
+            "model": model,
+            "max_tokens": self.max_completion_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            create_kwargs["system"] = system
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
+
+        with client.messages.stream(**create_kwargs) as stream:
+            for delta in stream.text_stream:
+                on_delta(delta)
+            final = stream.get_final_message()
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        text = "".join(
+            block.text for block in final.content if block.type == "text"
+        )
+
+        return ProviderResult(
+            text=text,
+            prompt_tokens=final.usage.input_tokens,
+            completion_tokens=final.usage.output_tokens,
+            cost_usd=estimate_cost_usd(
+                model,
+                final.usage.input_tokens,
+                final.usage.output_tokens,
+            ),
+            latency_ms=latency_ms,
+            model=model,
+            mocked=False,
         )

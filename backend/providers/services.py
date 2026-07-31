@@ -196,25 +196,26 @@ def _route_hold_credits(routes, prompt):
     return usd_to_credits(max_cost_usd)
 
 
-def run_chat(
+@dataclass
+class _PreparedChatRequest:
+    task: str
+    routes: list
+    system: Optional[str]
+
+
+def _prepare_chat_request(
     user,
     prompt: str,
-    task: Optional[str] = None,
-    model: Optional[str] = None,
-    system: Optional[str] = None,
-    temperature: Optional[float] = None,
-    workspace_id: Optional[int] = None,
-) -> ChatOutcome:
-    """Общая функция для /api/chat/ и для Telegram-бота — это единственные
-    два вызывающих слоя провайдеров, поэтому логика резервирования/сверки
-    кредитов существует ровно в одном месте.
-
-    task=None (веб-чат больше не заставляет выбирать тему вручную —
-    Telegram-бот и явный override через UI по-прежнему передают строку
-    напрямую) запускает лёгкую классификацию по смыслу промпта вместо
-    отсутствующего выбора пользователя. Base-план получает все категории,
-    но маршрутизация использует только доступные ему standard-модели.
-    Явный premium-выбор требует Pro.
+    task: Optional[str],
+    model: Optional[str],
+    system: Optional[str],
+    workspace_id: Optional[int],
+):
+    """Routing/RAG/moderation only — no credits touched, no provider ever
+    called. Shared by run_chat() and start_chat_stream() so both reject the
+    same way for the same reasons. Returns a ChatOutcome for any rejection
+    (blocked/invalid_model/model_requires_pro/invalid_workspace), or a
+    _PreparedChatRequest ready for a credit hold + provider attempt.
 
     workspace_id — необязательное вложение knowledge.Workspace (RAG):
     найденные чанки подмешиваются в system одним блоком до входа в цикл
@@ -279,13 +280,14 @@ def run_chat(
         flag_repeated_moderation_blocks(user)
         return ChatOutcome(status="blocked", task=task)
 
+    return _PreparedChatRequest(task=task, routes=routes, system=system)
+
+
+def _hold_credits_or_reject(user, routes, prompt: str, task: str):
     get_or_create_account(user)
     hold_credits = _route_hold_credits(routes, prompt)
-
     try:
-        account = charge_credits(
-            user, hold_credits, reason=LedgerEntry.Reason.CHAT_REQUEST
-        )
+        charge_credits(user, hold_credits, reason=LedgerEntry.Reason.CHAT_REQUEST)
     except InsufficientCreditsError:
         RequestLog.objects.create(
             user=user,
@@ -295,6 +297,97 @@ def run_chat(
             status=RequestLog.Status.INSUFFICIENT_CREDITS,
         )
         return ChatOutcome(status="insufficient_credits", task=task)
+    return hold_credits
+
+
+def _finalize_provider_failure(
+    user, task: str, routes, hold_credits: Decimal, error_message: str, used_fallback: bool
+) -> None:
+    grant_credits(user, hold_credits, reason=LedgerEntry.Reason.REFUND)
+    # Ошибка приписывается основному варианту маршрута (а не тому
+    # кандидату, что оказался последним), чтобы отчёты о надёжности
+    # провайдеров группировались по «какой маршрут не сработал», а
+    # не по «какой запасной вариант тоже не сработал» —
+    # error_message всё равно содержит детали каждой попытки.
+    RequestLog.objects.create(
+        user=user,
+        provider=routes[0][0],
+        model=routes[0][1],
+        task=task,
+        status=RequestLog.Status.ERROR,
+        error_message=error_message,
+        used_fallback=used_fallback,
+    )
+
+
+def _finalize_provider_success(
+    user,
+    task: str,
+    provider_name: str,
+    matched_model: str,
+    result,
+    hold_credits: Decimal,
+    used_fallback: bool,
+    error_message: str,
+):
+    actual_credits = usd_to_credits(result.cost_usd)
+    refund = hold_credits - actual_credits
+    if refund > 0:
+        account = grant_credits(user, refund, reason=LedgerEntry.Reason.REFUND)
+    else:
+        account = get_or_create_account(user)
+
+    RequestLog.objects.create(
+        user=user,
+        provider=provider_name,
+        model=matched_model,
+        task=task,
+        prompt_tokens=result.prompt_tokens,
+        completion_tokens=result.completion_tokens,
+        cost_usd=Decimal(str(result.cost_usd)),
+        credits_charged=actual_credits,
+        latency_ms=result.latency_ms,
+        status=RequestLog.Status.OK,
+        mocked=result.mocked,
+        used_fallback=used_fallback,
+        error_message=error_message,
+    )
+    check_and_unlock(user)
+    check_referral_reward(user)
+
+    return actual_credits, account
+
+
+def run_chat(
+    user,
+    prompt: str,
+    task: Optional[str] = None,
+    model: Optional[str] = None,
+    system: Optional[str] = None,
+    temperature: Optional[float] = None,
+    workspace_id: Optional[int] = None,
+) -> ChatOutcome:
+    """Общая функция для /api/chat/ и для Telegram-бота — это единственные
+    два вызывающих слоя провайдеров, поэтому логика резервирования/сверки
+    кредитов существует ровно в одном месте (см. также start_chat_stream()
+    ниже для потокового варианта /api/threads/<id>/messages/stream/ —
+    делит с этой функцией все четыре helper'а выше).
+
+    task=None (веб-чат больше не заставляет выбирать тему вручную —
+    Telegram-бот и явный override через UI по-прежнему передают строку
+    напрямую) запускает лёгкую классификацию по смыслу промпта вместо
+    отсутствующего выбора пользователя. Base-план получает все категории,
+    но маршрутизация использует только доступные ему standard-модели.
+    Явный premium-выбор требует Pro."""
+    prepared = _prepare_chat_request(user, prompt, task, model, system, workspace_id)
+    if isinstance(prepared, ChatOutcome):
+        return prepared
+    task, routes, system = prepared.task, prepared.routes, prepared.system
+
+    hold_or_outcome = _hold_credits_or_reject(user, routes, prompt, task)
+    if isinstance(hold_or_outcome, ChatOutcome):
+        return hold_or_outcome
+    hold_credits = hold_or_outcome
 
     result = None
     provider_name = matched_model = None
@@ -327,46 +420,21 @@ def run_chat(
     error_message = " | ".join(errors)[:ERROR_MESSAGE_MAX_LEN]
 
     if result is None:
-        grant_credits(user, hold_credits, reason=LedgerEntry.Reason.REFUND)
-        # Ошибка приписывается основному варианту маршрута (а не тому
-        # кандидату, что оказался последним), чтобы отчёты о надёжности
-        # провайдеров группировались по «какой маршрут не сработал», а
-        # не по «какой запасной вариант тоже не сработал» —
-        # error_message всё равно содержит детали каждой попытки.
-        RequestLog.objects.create(
-            user=user,
-            provider=routes[0][0],
-            model=routes[0][1],
-            task=task,
-            status=RequestLog.Status.ERROR,
-            error_message=error_message,
-            used_fallback=attempt_index > 0,
+        _finalize_provider_failure(
+            user, task, routes, hold_credits, error_message, attempt_index > 0
         )
         return ChatOutcome(status="provider_error", task=task)
 
-    actual_credits = usd_to_credits(result.cost_usd)
-    refund = hold_credits - actual_credits
-    if refund > 0:
-        account = grant_credits(user, refund, reason=LedgerEntry.Reason.REFUND)
-
-    used_fallback = attempt_index > 0
-    RequestLog.objects.create(
-        user=user,
-        provider=provider_name,
-        model=matched_model,
-        task=task,
-        prompt_tokens=result.prompt_tokens,
-        completion_tokens=result.completion_tokens,
-        cost_usd=Decimal(str(result.cost_usd)),
-        credits_charged=actual_credits,
-        latency_ms=result.latency_ms,
-        status=RequestLog.Status.OK,
-        mocked=result.mocked,
-        used_fallback=used_fallback,
-        error_message=error_message,
+    actual_credits, account = _finalize_provider_success(
+        user,
+        task,
+        provider_name,
+        matched_model,
+        result,
+        hold_credits,
+        attempt_index > 0,
+        error_message,
     )
-    check_and_unlock(user)
-    check_referral_reward(user)
 
     return ChatOutcome(
         status="ok",
@@ -375,7 +443,106 @@ def run_chat(
         model=matched_model,
         task=task,
         mocked=result.mocked,
-        used_fallback=used_fallback,
+        used_fallback=attempt_index > 0,
         credits_charged=actual_credits,
         balance=account.balance,
     )
+
+
+@dataclass
+class StreamStartOutcome:
+    status: Literal[
+        "accepted",
+        "insufficient_credits",
+        "provider_error",
+        "blocked",
+        "invalid_model",
+        "model_requires_pro",
+        "invalid_workspace",
+        "enqueue_failed",
+    ]
+    generation_id: Optional[str] = None
+    task: Optional[str] = None
+    rejection: Optional[ChatOutcome] = None
+
+
+def start_chat_stream(
+    user,
+    prompt: str,
+    task: Optional[str] = None,
+    model: Optional[str] = None,
+    system: Optional[str] = None,
+    temperature: Optional[float] = None,
+    workspace_id: Optional[int] = None,
+    thread_id: Optional[int] = None,
+) -> StreamStartOutcome:
+    """Streaming counterpart to run_chat() for
+    POST /api/threads/<id>/messages/stream/. Does the exact same
+    synchronous pre-flight (routing/RAG/moderation/credit hold) so a
+    rejection is returned immediately without the client ever opening an
+    SSE connection — only on success does it create a generation buffer
+    and hand the actual provider call off to a Celery task
+    (providers.tasks.stream_chat_task), mirroring
+    agents.services.start_agent_run's shape."""
+    prepared = _prepare_chat_request(user, prompt, task, model, system, workspace_id)
+    if isinstance(prepared, ChatOutcome):
+        return StreamStartOutcome(
+            status=prepared.status, task=prepared.task, rejection=prepared
+        )
+    task, routes, system = prepared.task, prepared.routes, prepared.system
+
+    hold_or_outcome = _hold_credits_or_reject(user, routes, prompt, task)
+    if isinstance(hold_or_outcome, ChatOutcome):
+        return StreamStartOutcome(
+            status=hold_or_outcome.status, task=task, rejection=hold_or_outcome
+        )
+    hold_credits = hold_or_outcome
+
+    from providers.streaming import create_generation, mark_error
+
+    generation_id = create_generation(user_id=user.id, thread_id=thread_id)
+
+    # Set *before* enqueueing, not after: under CELERY_TASK_ALWAYS_EAGER
+    # (tests, and any future eager-in-prod config) .delay() below runs the
+    # whole task synchronously — including its own clear-on-completion of
+    # this same field — so setting it afterwards would clobber that clear
+    # with a stale value. Setting it first is correct in both the eager
+    # and the normal async-worker case.
+    if thread_id is not None:
+        from providers.models import Thread
+
+        Thread.objects.filter(id=thread_id).update(
+            active_generation_id=generation_id
+        )
+
+    try:
+        from providers.tasks import stream_chat_task
+
+        stream_chat_task.delay(
+            generation_id,
+            user.id,
+            prompt,
+            task,
+            system,
+            temperature,
+            routes,
+            str(hold_credits),
+            thread_id,
+        )
+    except Exception:
+        grant_credits(user, hold_credits, reason=LedgerEntry.Reason.REFUND)
+        mark_error(
+            generation_id,
+            {"code": "enqueue_failed", "detail": "Failed to enqueue generation"},
+        )
+        if thread_id is not None:
+            from providers.models import Thread
+
+            Thread.objects.filter(id=thread_id).update(active_generation_id=None)
+        return StreamStartOutcome(
+            status="enqueue_failed",
+            task=task,
+            rejection=ChatOutcome(status="provider_error", task=task),
+        )
+
+    return StreamStartOutcome(status="accepted", generation_id=generation_id, task=task)

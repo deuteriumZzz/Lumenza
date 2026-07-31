@@ -53,6 +53,14 @@ class Thread(models.Model):
     # сайдбара по последней активности, а не по дате создания (как в
     # ChatGPT: последний активный тред всегда сверху).
     updated_at = models.DateTimeField(auto_now=True)
+    # Set when a streaming generation starts (providers.services.
+    # start_chat_stream), cleared when it finishes/fails
+    # (providers.tasks.stream_chat_task). Lets the frontend rediscover an
+    # in-flight generation after a full page reload and resume tailing it
+    # — see providers/streaming.py for the actual buffer.
+    active_generation_id = models.CharField(
+        max_length=40, null=True, blank=True, default=None
+    )
 
     class Meta:
         ordering = ["-updated_at"]

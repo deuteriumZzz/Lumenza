@@ -26,6 +26,7 @@ import {
   ApiError,
   type ChatThreadMessage,
   type ModelProgress,
+  type StreamChatEvent,
   type Task,
   type TranscriptionEntry,
   type Workspace,
@@ -96,6 +97,12 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   // ортогонально выбору модели/пресета, можно совмещать с любым из них.
   const [attachedWorkspace, setAttachedWorkspace] = useState<Workspace | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  // null while sending is true -> the pre-stream POST is still in flight
+  // (show the dot skeleton, same as before streaming existed); non-null
+  // once a generation was accepted -> that message's text grows with each
+  // SSE chunk instead, so the skeleton is hidden in favor of the message.
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const [loadingThread, setLoadingThread] = useState(threadId !== null);
   const [prompt, setPrompt] = useState("");
   const [themePickerOpen, setThemePickerOpen] = useState(false);
@@ -171,6 +178,14 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         setMessages(data.messages.map(toLocalMessage));
         const lastAssistant = [...data.messages].reverse().find((m) => m.role === "assistant");
         if (lastAssistant) setLastModel(lastAssistant.model);
+        // A generation was still running when the page loaded/reloaded —
+        // resume tailing it instead of losing the in-progress response.
+        if (data.active_generation_id) {
+          const assistantId = crypto.randomUUID();
+          setMessages((prev) => [...prev, { id: assistantId, role: "assistant", text: "" }]);
+          setSending(true);
+          attachStream(data.active_generation_id, assistantId, threadId);
+        }
       })
       .catch(() => {
         if (!cancelled) setError({ kind: "generic", message: "Не удалось загрузить чат." });
@@ -180,7 +195,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       });
     return () => {
       cancelled = true;
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
   // Ctrl/Cmd+Shift+M — быстрая надиктовка, не отвлекаясь на мышь.
@@ -208,6 +226,81 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     void sendPrompt();
+  }
+
+  // Opens (or reopens) an SSE connection tailing a generation — used both
+  // right after starting a new one and when resuming an in-flight one on
+  // thread load. The server always resends the full buffered text as the
+  // first event of any connection, so reconnecting (network blip, or the
+  // browser's own EventSource auto-retry) is inherently safe here — no
+  // offset/dedup bookkeeping needed on this end.
+  function attachStream(generationId: string, messageId: string, forThreadId: number) {
+    eventSourceRef.current?.close();
+    const source = new EventSource(api.chatStreamUrl(forThreadId, generationId), {
+      withCredentials: true,
+    });
+    eventSourceRef.current = source;
+    setStreamingMessageId(messageId);
+
+    function finish() {
+      source.close();
+      if (eventSourceRef.current === source) eventSourceRef.current = null;
+      setSending(false);
+      setStreamingMessageId(null);
+    }
+
+    source.onmessage = (event) => {
+      let payload: StreamChatEvent;
+      try {
+        payload = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      if (payload.type === "chunk") {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, text: payload.text } : m))
+        );
+        return;
+      }
+
+      if (payload.type === "done") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  text: payload.text,
+                  meta: {
+                    provider: payload.provider,
+                    model: payload.model,
+                    task: payload.task as Task,
+                    mocked: payload.mocked,
+                    used_fallback: payload.used_fallback,
+                    credits_charged: payload.credits_charged,
+                  },
+                }
+              : m
+          )
+        );
+        setBalance({ balance: payload.balance, updated_at: new Date().toISOString() });
+        setLastModel(payload.model);
+        void refreshModelsCatalog();
+        finish();
+        return;
+      }
+
+      // "error" here only happens after acceptance — moderation/credit
+      // rejections are already returned synchronously from
+      // streamThreadMessage() below, never as an SSE event.
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setError(
+        payload.code === "provider_error" || payload.code === "stalled"
+          ? { kind: "provider", message: "Все провайдеры для этой задачи не сработали. Списание не производилось." }
+          : { kind: "generic", message: payload.detail ?? "Что-то пошло не так." }
+      );
+      finish();
+    };
   }
 
   async function sendPrompt() {
@@ -239,7 +332,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         activeThreadId = created.id;
       }
 
-      const res = await api.sendThreadMessage(
+      const { generation_id } = await api.streamThreadMessage(
         activeThreadId,
         trimmed,
         taskOverride,
@@ -248,31 +341,15 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         temperatureOverride,
         attachedWorkspace?.id ?? null,
       );
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: res.text,
-          meta: {
-            provider: res.provider,
-            model: res.model,
-            task: res.task,
-            mocked: res.mocked,
-            used_fallback: res.used_fallback,
-            credits_charged: res.credits_charged,
-          },
-        },
-      ]);
-      setBalance({ balance: res.balance, updated_at: new Date().toISOString() });
-      setLastModel(res.model);
-      void refreshModelsCatalog();
+      const assistantId = crypto.randomUUID();
+      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", text: "" }]);
 
       // Первое сообщение нового чата — переезжаем на постоянный URL треда,
       // чтобы он появился в сайдбаре и пережил обновление страницы.
       if (threadId === null) {
         router.push(`/chat/${activeThreadId}`);
       }
+      attachStream(generation_id, assistantId, activeThreadId);
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
         setError({ kind: "insufficient", message: "Недостаточно кредитов для этого запроса. Пополните баланс, чтобы продолжить." });
@@ -290,8 +367,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       } else {
         setError({ kind: "generic", message: apiErrorMessage(err) });
       }
-    } finally {
       setSending(false);
+    } finally {
       requestAnimationFrame(() => {
         const list = listRef.current;
         if (list && typeof list.scrollTo === "function") {
@@ -400,7 +477,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           </ol>
         )}
 
-        {sending && <ResponseSkeleton />}
+        {sending && streamingMessageId === null && <ResponseSkeleton />}
       </div>
 
       {error && (

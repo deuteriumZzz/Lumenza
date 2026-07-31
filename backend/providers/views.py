@@ -31,8 +31,15 @@ from providers.serializers import (
     ThreadDetailSerializer,
     ThreadSerializer,
 )
-from providers.services import run_chat
+from providers.services import run_chat, start_chat_stream
 from providers.throttling import ChatRateThrottle
+
+# Верхняя граница суммарного времени ожидания в цикле опроса ниже — если
+# generation так и не дошла до done/error за это время (застрявший/упавший
+# celery-воркер, единственный сценарий без явной очистки в этой версии),
+# соединение закрывается с явной ошибкой вместо зависания навечно.
+MAX_STREAM_WAIT_SECONDS = 90
+STREAM_POLL_INTERVAL_SECONDS = 0.2
 
 # Длина усечения заголовка треда по первому сообщению — простое усечение,
 # без отдельного LLM-вызова на генерацию заголовка (сознательное
@@ -243,6 +250,103 @@ def thread_message(request, thread_id):
             thread.save()  # save() всегда бампает auto_now updated_at
 
     return _chat_outcome_response(outcome)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ChatRateThrottle])
+def thread_message_stream(request, thread_id):
+    """Starts a streamed generation. Does the same synchronous pre-flight
+    as thread_message() (routing/RAG/moderation/credit hold) so a
+    rejection is returned immediately, exactly like the non-streaming
+    endpoint — only success hands off to a Celery task and returns a
+    generation_id for the client to open an SSE connection against (see
+    thread_message_stream_events below)."""
+    thread = get_object_or_404(Thread, pk=thread_id, user=request.user)
+    serializer = ChatRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    prompt = serializer.validated_data["prompt"]
+
+    outcome = start_chat_stream(
+        request.user,
+        prompt,
+        task=serializer.validated_data.get("task") or None,
+        model=serializer.validated_data.get("model") or None,
+        system=serializer.validated_data.get("system") or None,
+        temperature=serializer.validated_data.get("temperature"),
+        workspace_id=serializer.validated_data.get("workspace_id"),
+        thread_id=thread.id,
+    )
+
+    if outcome.status != "accepted":
+        return _chat_outcome_response(outcome.rejection)
+
+    return Response(
+        {"generation_id": outcome.generation_id},
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
+def _sse_event(payload: dict) -> str:
+    import json
+
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def thread_message_stream_events(request, thread_id, generation_id):
+    """SSE tail of a generation buffer (providers/streaming.py). No
+    CHANNEL_LAYERS/pub-sub is configured in this project, so this polls
+    the (Redis-backed) cache instead of a true push — the buffer stores
+    cumulative text, so a (re)connecting client always gets sent whatever
+    has been generated so far as its very first event, which is what
+    makes this resumable: reconnect to the same generation_id from
+    anywhere and pick up exactly where the buffer is."""
+    import time
+
+    from django.http import StreamingHttpResponse
+
+    from providers.streaming import get_snapshot
+
+    thread = get_object_or_404(Thread, pk=thread_id, user=request.user)
+    snapshot = get_snapshot(generation_id)
+    if (
+        snapshot is None
+        or snapshot.get("thread_id") != thread.id
+        or snapshot.get("user_id") != request.user.id
+    ):
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    def event_stream():
+        last_sent_text = None
+        waited = 0.0
+        while True:
+            current = get_snapshot(generation_id)
+            if current is None:
+                yield _sse_event({"type": "error", "code": "expired"})
+                return
+            if current["text"] != last_sent_text:
+                last_sent_text = current["text"]
+                yield _sse_event({"type": "chunk", "text": last_sent_text})
+            if current["status"] == "done":
+                yield _sse_event({"type": "done", **current["payload"]})
+                return
+            if current["status"] == "error":
+                yield _sse_event({"type": "error", **current["error"]})
+                return
+            if waited >= MAX_STREAM_WAIT_SECONDS:
+                yield _sse_event({"type": "error", "code": "stalled"})
+                return
+            time.sleep(STREAM_POLL_INTERVAL_SECONDS)
+            waited += STREAM_POLL_INTERVAL_SECONDS
+
+    response = StreamingHttpResponse(
+        event_stream(), content_type="text/event-stream"
+    )
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
 
 
 class HistoryPagination(PageNumberPagination):

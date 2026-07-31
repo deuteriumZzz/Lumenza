@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 
 
 @dataclass
@@ -23,3 +24,17 @@ class ProviderAdapter:
 
     def complete(self, prompt: str, **kwargs) -> ProviderResult:
         raise NotImplementedError
+
+    def stream_complete(
+        self, prompt: str, on_delta: Callable[[str], None], **kwargs
+    ) -> ProviderResult:
+        """Same contract as complete() (returns one final ProviderResult),
+        but calls on_delta(text) as text becomes available so a caller can
+        show progress. Default: adapters without real incremental
+        streaming (currently SearchAdapter, since Tavily itself isn't a
+        streaming API) just emit the whole result as a single delta once
+        complete() returns — callers always get a stream-shaped interface,
+        even when nothing was actually streamed under the hood."""
+        result = self.complete(prompt, **kwargs)
+        on_delta(result.text)
+        return result
