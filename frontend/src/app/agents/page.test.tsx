@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   agents: vi.fn(),
+  modelsCatalog: vi.fn(),
   customAgents: vi.fn(),
   createCustomAgent: vi.fn(),
   archiveCustomAgent: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...actual.api,
       agents: mocks.agents,
+      modelsCatalog: mocks.modelsCatalog,
       customAgents: mocks.customAgents,
       createCustomAgent: mocks.createCustomAgent,
       archiveCustomAgent: mocks.archiveCustomAgent,
@@ -33,9 +35,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import AgentsPage from "@/app/agents/page";
 
 describe("AgentsPage", () => {
+  beforeEach(() => {
+    mocks.modelsCatalog.mockResolvedValue([]);
+  });
+
   afterEach(() => {
     cleanup();
+    sessionStorage.clear();
     mocks.agents.mockReset();
+    mocks.modelsCatalog.mockReset();
     mocks.customAgents.mockReset();
     mocks.createCustomAgent.mockReset();
     mocks.archiveCustomAgent.mockReset();
@@ -65,6 +73,69 @@ describe("AgentsPage", () => {
     },
   ];
 
+  const MODELS = [
+    {
+      task: "content_plan",
+      provider: "openai",
+      model: "gpt-4o-mini",
+      unlocked: true,
+      access_class: "standard" as const,
+      current_requests: 0,
+      target_requests: 0,
+      current_days: 0,
+      target_days: 0,
+    },
+  ];
+
+  function prepareCatalog() {
+    mocks.agents.mockResolvedValue(AGENTS);
+    mocks.modelsCatalog.mockResolvedValue(MODELS);
+  }
+
+  it("offers a real model preference dropdown in the Agents composer", async () => {
+    prepareCatalog();
+    render(<AgentsPage />);
+
+    const form = screen.getByRole("form", { name: "Запустить агента" });
+    fireEvent.click(await within(form).findByRole("button", { name: "Модель: Автовыбор" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Выбор модели" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /gpt-4o-mini/i }));
+
+    expect(within(form).getByRole("button", { name: /Модель: gpt-4o-mini · openai/i })).toBeDefined();
+  });
+
+  it("exposes Chat, AI Agent and Knowledge as real navigation in the mode menu", async () => {
+    prepareCatalog();
+    render(<AgentsPage />);
+
+    const trigger = screen.getByRole("button", { name: "Режим: AI Agent" });
+    fireEvent.click(trigger);
+
+    const menu = screen.getByRole("menu", { name: "Режим Lumenza" });
+    expect(within(menu).getByRole("link", { name: "Chat" }).getAttribute("href")).toBe("/chat");
+    expect(within(menu).getByRole("link", { name: "AI Agent" }).getAttribute("href")).toBe("/agents");
+    expect(within(menu).getByRole("link", { name: "AI Agent" }).getAttribute("aria-current")).toBe("page");
+    expect(within(menu).getByRole("link", { name: "Knowledge" }).getAttribute("href")).toBe("/knowledge");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Режим Lumenza" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("keeps the active capability chip inside the Agents composer", async () => {
+    prepareCatalog();
+    render(<AgentsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));
+
+    expect(
+      within(screen.getByRole("form", { name: "Запустить агента" })).getByRole("status", {
+        name: "Активная возможность: Исследования",
+      }),
+    ).toBeDefined();
+  });
+
   it("renders a catalog card for each published agent", async () => {
     mocks.agents.mockResolvedValue(AGENTS);
 
@@ -80,6 +151,50 @@ describe("AgentsPage", () => {
         .getByRole("link", { name: /Контент на день для Threads/ })
         .getAttribute("href"),
     ).toBe("/agents/threads-content-day");
+  });
+
+  it("presents Agents as a separate chat workspace and keeps the selected domain visible", async () => {
+    mocks.agents.mockResolvedValue(AGENTS);
+
+    render(<AgentsPage />);
+
+    expect(screen.getByRole("region", { name: "Чат агентов" })).toBeDefined();
+    expect(screen.getByText("Агентный режим")).toBeDefined();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));
+
+    expect(screen.getByText("Активная область: Исследования")).toBeDefined();
+  });
+
+  it("keeps an agent draft out of the URL while carrying it to the run workspace", async () => {
+    mocks.agents.mockResolvedValue(AGENTS);
+    render(<AgentsPage />);
+
+    fireEvent.change(await screen.findByLabelText("Задача агенту"), {
+      target: { value: "Конфиденциальный план запуска" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    expect(sessionStorage.getItem("lumenza:agent-draft:threads-content-day")).toBe(
+      "Конфиденциальный план запуска",
+    );
+    expect(mocks.push).toHaveBeenCalledWith("/agents/threads-content-day");
+  });
+
+  it("still navigates when private browser storage is unavailable", async () => {
+    mocks.agents.mockResolvedValue(AGENTS);
+    const storageSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+    render(<AgentsPage />);
+
+    fireEvent.change(await screen.findByLabelText("Задача агенту"), {
+      target: { value: "План запуска" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    expect(mocks.push).toHaveBeenCalledWith("/agents/threads-content-day");
+    storageSpy.mockRestore();
   });
 
   it("shows all agents under Популярное and filters by category tab", async () => {

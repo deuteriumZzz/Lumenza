@@ -8,19 +8,35 @@ import type { NextConfig } from "next";
 // Поэтому голосовой WS-клиент (frontend/src/app/voice/page.tsx) ходит на
 // backend-origin напрямую, а не через этот сервер — см. NEXT_PUBLIC_WS_ORIGIN.
 const nextConfig: NextConfig = {
+  // The desktop preview is intentionally opened through 127.0.0.1 while
+  // Next's dev server advertises localhost. Without this narrow allowance
+  // the browser receives HTML but blocks the client bundle, so a login form
+  // falls back to a plain GET submission before React can intercept it.
+  allowedDevOrigins: process.env.LUMENZA_ALLOW_HTTP_LOCALHOST === "true"
+    ? ["127.0.0.1"]
+    : [],
+  // Django deliberately exposes slash-terminated API routes. Let proxy.ts
+  // preserve that contract instead of making every unsafe request cross a
+  // framework-level 308 before it can reach the backend.
+  skipTrailingSlashRedirect: true,
   // The workspace profile lives in the bottom-left corner. Keep Next.js'
   // development-only indicator from covering it. Runtime and build errors
   // still surface through the regular Next.js error overlay.
   devIndicators: false,
   async headers() {
-    return [
-      {
-        source: "/:path*",
-        headers: [
+    const transportHeaders = process.env.LUMENZA_TLS_TERMINATED === "true"
+      ? [
           {
             key: "Strict-Transport-Security",
             value: "max-age=31536000; includeSubDomains",
           },
+        ]
+      : [];
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          ...transportHeaders,
           {
             key: "X-Content-Type-Options",
             value: "nosniff",

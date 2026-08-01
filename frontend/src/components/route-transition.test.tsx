@@ -120,4 +120,22 @@ describe("RouteTransition", () => {
       screen.getByText("Узкий экран").parentElement?.parentElement?.className,
     ).toContain("overflow-x-clip");
   });
+
+  it("marks the seamless Chat to Agents morph without mixing the route families", () => {
+    const { rerender } = render(<RouteTransition><p>Чат</p></RouteTransition>);
+
+    mocks.pathname = "/agents";
+    rerender(<RouteTransition><p>Агенты</p></RouteTransition>);
+
+    expect(
+      screen.getByText("Агенты").closest("[data-route-transition]")?.getAttribute("data-transition"),
+    ).toBe("chat-to-agents");
+
+    mocks.pathname = "/agents/threads-content-day";
+    rerender(<RouteTransition><p>Запуск агента</p></RouteTransition>);
+
+    expect(
+      screen.getByText("Запуск агента").closest("[data-route-transition]")?.getAttribute("data-transition"),
+    ).toBe("standard");
+  });
 });

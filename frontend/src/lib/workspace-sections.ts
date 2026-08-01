@@ -23,7 +23,9 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
 ];
 
 export function getWorkspaceSection(pathname: string): WorkspaceSection | null {
-  return WORKSPACE_SECTIONS.find((section) => pathname.startsWith(section.prefix)) ?? null;
+  return WORKSPACE_SECTIONS.find(
+    (section) => pathname === section.prefix || pathname.startsWith(`${section.prefix}/`),
+  ) ?? null;
 }
 
 export function isWorkspaceRoute(pathname: string): boolean {

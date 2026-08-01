@@ -29,7 +29,7 @@ describe("history API", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/history/?page=2&task=repurpose&provider=openai&status=ok&created_after=2026-07-19T16%3A00%3A00.000Z&created_before=2026-07-20T16%3A00%3A00.000Z",
-      expect.objectContaining({ credentials: "include" }),
+      expect.objectContaining({ credentials: "omit" }),
     );
   });
 });

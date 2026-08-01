@@ -320,9 +320,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     const systemOverride = routingAtSubmit.kind === "preset" ? routingAtSubmit.system : undefined;
     const temperatureOverride =
       routingAtSubmit.kind === "preset" ? routingAtSubmit.temperature : undefined;
-    if (routingAtSubmit.kind === "task") {
-      setRouting({ kind: "auto" });
-    }
     setSending(true);
 
     try {
@@ -458,7 +455,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           <ResponseSkeleton />
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center pb-8 text-center">
-            <LumenzaConvergence />
+            <motion.div layoutId="lumenza-workspace-core" transition={springs.gentle}>
+              <LumenzaConvergence />
+            </motion.div>
             <h2 className="text-balance text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">{greeting.title}</h2>
             <p className="mt-3 max-w-lg text-pretty text-sm leading-6 text-muted">{greeting.subtitle}</p>
           </div>
@@ -509,7 +508,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         </p>
       )}
 
-      <form
+      <motion.form
+        layoutId="lumenza-workspace-composer"
+        transition={springs.gentle}
         aria-label="Написать сообщение"
         data-focus-surface="composer"
         onSubmit={onSubmit}
@@ -691,7 +692,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             ))}
           </div>
         )}
-      </form>
+      </motion.form>
 
       <div className="mb-5 flex flex-wrap items-center justify-center gap-1.5" aria-label="Быстрые действия">
         <button
@@ -707,10 +708,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         <button type="button" onClick={() => router.push("/studio")} className="quick-action-chip">
           <span aria-hidden="true">◇</span> Изображение
         </button>
-        <button type="button" onClick={() => router.push("/documents")} className="quick-action-chip">
+        <button type="button" onClick={() => router.push("/studio?mode=documents")} className="quick-action-chip">
           <span aria-hidden="true">▤</span> Документ
         </button>
-        <button type="button" onClick={() => router.push("/analyze")} className="quick-action-chip">
+        <button type="button" onClick={() => router.push("/studio?mode=analyze")} className="quick-action-chip">
           <span aria-hidden="true">◎</span> Анализ
         </button>
         <span className="hidden text-[11px] text-muted sm:inline">Введите / для всех режимов</span>

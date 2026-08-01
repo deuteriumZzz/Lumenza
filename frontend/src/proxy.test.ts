@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { config, proxy } from "@/proxy";
 
 describe("frontend proxy", () => {
@@ -17,26 +17,18 @@ describe("frontend proxy", () => {
     );
   });
 
-  it("keeps the backend's trailing-slash convention for API routes", () => {
+  it("hands API routes to the same-origin Next.js route handler", () => {
     const response = proxy(
       new NextRequest("http://localhost:3000/api/images?page=2"),
     );
 
-    expect(response.headers.get("x-middleware-rewrite")).toBe(
-      "http://localhost:8000/api/images/?page=2",
-    );
-
-    const apiRootResponse = proxy(
-      new NextRequest("http://localhost:3000/api"),
-    );
-    expect(apiRootResponse.headers.get("x-middleware-rewrite")).toBe(
-      "http://localhost:8000/api/",
-    );
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
-  it("forwards the public HTTPS protocol to Django explicitly", () => {
+  it("forwards the public HTTPS protocol on rewritten media requests", () => {
     const response = proxy(
-      new NextRequest("https://public.example/api/auth/me", {
+      new NextRequest("https://public.example/media/generated/result.webp", {
         headers: { "x-forwarded-proto": "https" },
       }),
     );
@@ -60,6 +52,22 @@ describe("frontend proxy", () => {
     expect(response.headers.get("location")).toBe(
       "https://localhost:3000/studio?mode=images",
     );
+  });
+
+  it("allows an explicitly enabled localhost HTTP preview", () => {
+    vi.stubEnv("LUMENZA_ALLOW_HTTP_LOCALHOST", "true");
+
+    const response = proxy(
+      new NextRequest("http://localhost:3000/studio?mode=image", {
+        headers: {
+          host: "localhost:3000",
+          "x-forwarded-proto": "http",
+        },
+      }),
+    );
+
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    vi.unstubAllEnvs();
   });
 
   it("rejects an unsafe forwarded host instead of redirecting to it", () => {

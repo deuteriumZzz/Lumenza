@@ -8,6 +8,40 @@ function getCsrfToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function storeCsrfToken(token: string | null): void {
+  if (!token || !/^[A-Za-z0-9]{32,64}$/.test(token)) return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `csrftoken=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure}`;
+}
+
+const PREVIEW_TOKEN_KEY = "lumenza_preview_token";
+
+function isLocalHttpPreview(): boolean {
+  return window.location.protocol === "http:"
+    && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+}
+
+function storePreviewToken(token: string | null): void {
+  if (!isLocalHttpPreview() || !token || !/^[A-Za-z0-9]{20,128}$/.test(token)) return;
+  sessionStorage.setItem(PREVIEW_TOKEN_KEY, token);
+}
+
+function applyPreviewAuthorization(headers: Headers): void {
+  if (!isLocalHttpPreview()) return;
+  const token = sessionStorage.getItem(PREVIEW_TOKEN_KEY);
+  if (token && /^[A-Za-z0-9]{20,128}$/.test(token)) {
+    headers.set("X-Lumenza-Preview-Token", token);
+  }
+}
+
+function effectiveResponseStatus(response: Response): number {
+  if (!isLocalHttpPreview() || response.status !== 418) return response.status;
+  const encoded = response.headers?.get("x-lumenza-preview-status") ?? "";
+  if (!/^[0-9]{3}$/.test(encoded)) return response.status;
+  const status = Number(encoded);
+  return status >= 200 && status < 300 ? status : response.status;
+}
+
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export class ApiError extends Error {
@@ -59,18 +93,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const csrfToken = getCsrfToken();
     if (csrfToken) headers.set("X-CSRFToken", csrfToken);
   }
+  applyPreviewAuthorization(headers);
 
   const res = await fetch(`/api${path}`, {
     ...options,
     headers,
-    credentials: "include",
+    // The embedded Chromium preview stalls requests that touch its local
+    // HTTP cookie jar. Preview auth already uses an explicit Token header,
+    // while deployed HTTPS continues to use the HttpOnly cookie contract.
+    credentials: isLocalHttpPreview() ? "omit" : "include",
     signal: options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
+  storeCsrfToken(res.headers?.get("x-lumenza-csrf-token") ?? null);
+  storePreviewToken(res.headers?.get("x-lumenza-preview-token") ?? null);
+  const status = effectiveResponseStatus(res);
 
-  if (res.status === 204) return undefined as T;
+  if (status === 204) return undefined as T;
 
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data);
+  if (status < 200 || status >= 300) throw new ApiError(status, data);
   return data as T;
 }
 
@@ -455,6 +496,7 @@ export interface AgentRun {
   agent: string;
   agent_version: number;
   status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
+  preferred_model?: string;
   steps: AgentRunStep[];
   result: ThreadsContentPlan | ResearchDigestResult | DocumentSummaryResult | null;
   credits_charged: string;
@@ -500,15 +542,19 @@ async function requestMultipart<T>(path: string, formData: FormData): Promise<T>
   const headers = new Headers();
   const csrfToken = getCsrfToken();
   if (csrfToken) headers.set("X-CSRFToken", csrfToken);
+  applyPreviewAuthorization(headers);
   const res = await fetch(`/api${path}`, {
     method: "POST",
     headers,
     body: formData,
-    credentials: "include",
+    credentials: isLocalHttpPreview() ? "omit" : "include",
     signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
+  storeCsrfToken(res.headers?.get("x-lumenza-csrf-token") ?? null);
+  storePreviewToken(res.headers?.get("x-lumenza-preview-token") ?? null);
+  const status = effectiveResponseStatus(res);
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data);
+  if (status < 200 || status >= 300) throw new ApiError(status, data);
   return data as T;
 }
 
@@ -519,8 +565,17 @@ export const api = {
       body: JSON.stringify({ username, email, password, referral_code: referralCode }),
     }),
   login: (username: string, password: string) =>
-    request<User>("/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) }),
-  logout: () => request<void>("/auth/logout/", { method: "POST" }),
+    request<User>("/auth/login/", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: async () => {
+    try {
+      await request<void>("/auth/logout/", { method: "POST" });
+    } finally {
+      if (isLocalHttpPreview()) sessionStorage.removeItem(PREVIEW_TOKEN_KEY);
+    }
+  },
   me: () => request<User>("/auth/me/"),
   userContext: () => request<UserContextEntry>("/auth/context/"),
   updateUserContext: (data: UserContextData) =>
@@ -667,10 +722,16 @@ export const api = {
     input: Record<string, string>,
     idempotencyKey: string,
     workspaceId?: number | null,
+    preferredModel?: string | null,
   ) =>
     request<AgentRun>(`/agents/${slug}/runs/`, {
       method: "POST",
-      body: JSON.stringify({ input, idempotency_key: idempotencyKey, workspace_id: workspaceId }),
+      body: JSON.stringify({
+        input,
+        idempotency_key: idempotencyKey,
+        workspace_id: workspaceId,
+        preferred_model: preferredModel || undefined,
+      }),
     }),
   agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
   customAgents: () => request<CustomAgentSummary[]>("/agents/custom/"),

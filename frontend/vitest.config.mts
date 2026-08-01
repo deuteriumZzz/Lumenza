@@ -37,6 +37,7 @@ export default defineConfig({
         "src/components/response-skeleton.tsx",
         "src/components/route-transition.tsx",
         "src/components/studio-mark.tsx",
+        "src/components/studio-workspace-controls.tsx",
         "src/components/thread-sidebar.tsx",
         "src/components/telegram-webapp-provider.tsx",
         "src/components/zone.tsx",

@@ -8,7 +8,7 @@ from agents.models import AgentRun
 from agents.services import parse_final_result, render_step_prompt
 from billing.services import claim_pending_record
 from knowledge.services import search as search_workspace
-from providers.services import RAG_TOP_K, run_chat
+from providers.services import RAG_TOP_K, TASK_ROUTES, run_chat
 
 _STATUS_FOR_CHAT_OUTCOME = {
     "insufficient_credits": AgentRun.Status.INSUFFICIENT_CREDITS,
@@ -19,6 +19,9 @@ _STEP_ERROR_MESSAGES = {
     "insufficient_credits": "Недостаточно кредитов для этого шага",
     "blocked": "Запрос заблокирован модерацией",
     "provider_error": "Ошибка провайдера модели",
+    "invalid_model": "Выбранная модель не поддерживается для этого шага",
+    "model_requires_pro": "Выбранная premium-модель доступна только в тарифе Pro",
+    "invalid_workspace": "Подключённая база знаний недоступна",
 }
 
 
@@ -83,7 +86,17 @@ def run_agent(run_id: int) -> None:
             user_context,
             knowledge_context,
         )
-        outcome = run_chat(run.user, prompt, task=step["task"])
+        preferred_model = run.preferred_model or None
+        if preferred_model and not any(
+            model == preferred_model for _provider, model in TASK_ROUTES[step["task"]]
+        ):
+            preferred_model = None
+        outcome = run_chat(
+            run.user,
+            prompt,
+            task=step["task"],
+            model=preferred_model,
+        )
 
         if outcome.status != "ok":
             _update_step(

@@ -56,6 +56,9 @@ class AgentRunRequestSerializer(serializers.Serializer):
     workspace_id = serializers.IntegerField(
         required=False, allow_null=True, default=None
     )
+    preferred_model = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
 
 
 class AgentRunSerializer(serializers.ModelSerializer):
@@ -68,6 +71,7 @@ class AgentRunSerializer(serializers.ModelSerializer):
             "agent",
             "agent_version",
             "status",
+            "preferred_model",
             "steps",
             "result",
             "credits_charged",

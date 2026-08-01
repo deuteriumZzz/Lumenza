@@ -61,11 +61,12 @@ def _mock_run_chat_sequence(monkeypatch, texts):
     the final step — so the happy-path tests need controlled per-call
     text instead of relying on the real (mocked) adapters."""
 
-    calls = {"count": 0}
+    calls = {"count": 0, "models": []}
 
     def fake_run_chat(user, prompt, task=None, model=None):
         index = calls["count"]
         calls["count"] += 1
+        calls["models"].append(model)
         return ChatOutcome(
             status="ok",
             text=texts[index],
@@ -133,6 +134,54 @@ def test_create_run_charges_credits_and_returns_structured_result(
     assert run.result["branches"][0]["title"] == "Запуск"
     assert all(step["status"] == "ok" for step in run.steps)
     assert run.credits_charged == Decimal("4.5")
+
+
+def test_agent_model_preference_is_used_only_for_compatible_steps(monkeypatch):
+    client, _ = _authed_client()
+    calls = _mock_run_chat_sequence(
+        monkeypatch, ["outline text", "hooks text", VALID_RESULT_JSON]
+    )
+
+    response = client.post(
+        "/api/agents/threads-content-day/runs/",
+        {
+            "input": VALID_INPUT,
+            "idempotency_key": "run-preferred-model",
+            "preferred_model": "gpt-4o-mini",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 202
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.preferred_model == "gpt-4o-mini"
+    assert calls["models"] == [None, "gpt-4o-mini", None]
+
+
+def test_agent_model_access_error_is_user_friendly(monkeypatch):
+    client, _ = _authed_client()
+
+    def reject_premium_model(user, prompt, task=None, model=None):
+        return ChatOutcome(status="model_requires_pro", task=task)
+
+    monkeypatch.setattr(agents_tasks, "run_chat", reject_premium_model)
+    response = client.post(
+        "/api/agents/threads-content-day/runs/",
+        {
+            "input": VALID_INPUT,
+            "idempotency_key": "run-locked-model",
+            "preferred_model": "gpt-4o-mini",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 202
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.ERROR
+    assert "только в тарифе Pro" in run.error_message
+    assert run.steps[0]["error_message"] == (
+        "Выбранная premium-модель доступна только в тарифе Pro"
+    )
 
 
 def test_create_run_with_zero_balance_returns_402_without_calling_provider(

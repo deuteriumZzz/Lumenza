@@ -13,7 +13,7 @@ const STALLED_MESSAGE = "Потеряна связь при проверке с�
 
 // /analyze теперь режим внутри творческой студии (/studio).
 export default function AnalyzePage() {
-  redirect("/studio");
+  redirect("/studio?mode=analyze");
 }
 
 export function Analyze() {

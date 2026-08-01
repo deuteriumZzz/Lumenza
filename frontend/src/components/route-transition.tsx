@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { motionTokens } from "@/lib/motion";
 import { getWorkspaceSection } from "@/lib/workspace-sections";
@@ -13,6 +14,21 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const family = routeFamily(pathname);
+  const [routeState, setRouteState] = useState(() => ({
+    pathname,
+    current: family,
+    previous: family,
+  }));
+  if (routeState.pathname !== pathname) {
+    setRouteState({ pathname, current: family, previous: routeState.current });
+  }
+  const previousFamily = routeState.previous;
+  const workspaceMorph =
+    previousFamily === "chat" && family === "agents"
+      ? "chat-to-agents"
+      : previousFamily === "agents" && family === "chat"
+        ? "agents-to-chat"
+        : "standard";
   const veilDirection = family === "chat" ? 1 : -1;
 
   return (
@@ -21,13 +37,14 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
         key={pathname}
         data-route-transition={pathname}
         data-route-family={family}
+        data-transition={workspaceMorph}
         data-reduced-motion={String(Boolean(shouldReduceMotion))}
         initial={
           shouldReduceMotion
             ? false
             : {
                 opacity: 0,
-                y: motionTokens.distance.sm,
+                y: workspaceMorph === "chat-to-agents" ? motionTokens.distance.lg : motionTokens.distance.sm,
                 scale: motionTokens.scale.route,
               }
         }

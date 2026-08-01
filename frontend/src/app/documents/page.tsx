@@ -13,7 +13,7 @@ const STALLED_MESSAGE = "Потеряна связь при проверке с�
 
 // /documents теперь режим внутри творческой студии (/studio).
 export default function DocumentsPage() {
-  redirect("/studio");
+  redirect("/studio?mode=documents");
 }
 
 export function Documents() {

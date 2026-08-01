@@ -188,6 +188,7 @@ def start_agent_run(
     input_payload: dict,
     idempotency_key: str,
     workspace_id: Optional[int] = None,
+    preferred_model: str = "",
 ) -> StartAgentRunOutcome:
     """Common entry point for POST /api/agents/<slug>/runs/. No credits are
     held upfront (unlike imagegen's start_image_generation) — each
@@ -243,6 +244,7 @@ def start_agent_run(
                 input_payload=cleaned_input,
                 workspace=workspace,
                 idempotency_key=idempotency_key,
+                preferred_model=preferred_model,
                 steps=[
                     {
                         "key": step["key"],

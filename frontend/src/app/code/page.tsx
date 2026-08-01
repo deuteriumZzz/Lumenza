@@ -13,7 +13,7 @@ const MAX_CODE_LENGTH = 20000;
 
 // /code теперь режим внутри творческой студии (/studio).
 export default function CodePage() {
-  redirect("/studio");
+  redirect("/studio?mode=code");
 }
 
 export function Code() {

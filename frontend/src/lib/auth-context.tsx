@@ -108,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (err instanceof ApiError && err.status === 401) {
             setUser(null);
             setBalanceState(null);
+          } else if (process.env.NODE_ENV === "development") {
+            console.error("[auth] session bootstrap failed", err);
           }
         })
         .finally(() => {

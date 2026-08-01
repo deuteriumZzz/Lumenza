@@ -19,6 +19,9 @@ describe("getWorkspaceSection", () => {
   it("returns null for a non-workspace pathname", () => {
     expect(getWorkspaceSection("/pricing")).toBeNull();
     expect(getWorkspaceSection("/")).toBeNull();
+    expect(getWorkspaceSection("/chatty")).toBeNull();
+    expect(getWorkspaceSection("/agents-old")).toBeNull();
+    expect(getWorkspaceSection("/studio-demo")).toBeNull();
   });
 });
 

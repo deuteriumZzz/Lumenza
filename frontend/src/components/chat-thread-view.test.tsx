@@ -217,7 +217,7 @@ describe("ChatThreadView model routing", () => {
     );
   });
 
-  it("uses a task quick action once and then returns to automatic routing", async () => {
+  it("keeps the selected topic visible and active after sending", async () => {
     renderChat();
 
     fireEvent.click(await screen.findByRole("button", { name: "Исследовать" }));
@@ -255,7 +255,7 @@ describe("ChatThreadView model routing", () => {
       expect(mocks.streamThreadMessage).toHaveBeenLastCalledWith(
         7,
         "Теперь обычный вопрос",
-        undefined,
+        "search",
         undefined,
         undefined,
         undefined,
@@ -316,8 +316,8 @@ describe("ChatThreadView model routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Документ" }));
     fireEvent.click(screen.getByRole("button", { name: "Анализ" }));
     expect(mocks.push).toHaveBeenCalledWith("/studio");
-    expect(mocks.push).toHaveBeenCalledWith("/documents");
-    expect(mocks.push).toHaveBeenCalledWith("/analyze");
+    expect(mocks.push).toHaveBeenCalledWith("/studio?mode=documents");
+    expect(mocks.push).toHaveBeenCalledWith("/studio?mode=analyze");
 
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(mocks.push).toHaveBeenCalledWith("/chat");

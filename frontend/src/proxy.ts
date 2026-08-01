@@ -34,9 +34,13 @@ export function proxy(request: NextRequest) {
   const isMediaPath =
     requestPath === "/media" || requestPath.startsWith("/media/");
   const forwardedProto = request.headers.get("x-forwarded-proto");
+  const requestHost = (request.headers.get("host") ?? "").trim().toLowerCase();
+  const allowsLocalHttpPreview =
+    process.env.LUMENZA_ALLOW_HTTP_LOCALHOST === "true"
+    && /^(localhost|127\.0\.0\.1)(?::[0-9]{1,5})?$/.test(requestHost);
 
-  if (forwardedProto === "http") {
-    const publicHost = (request.headers.get("host") ?? "").trim().toLowerCase();
+  if (forwardedProto === "http" && !allowsLocalHttpPreview) {
+    const publicHost = requestHost;
     if (
       !/^[a-z0-9.-]+(?::[0-9]{1,5})?$/i.test(publicHost)
       || !REDIRECT_HOSTS.has(publicHost)
@@ -54,9 +58,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const pathname = isApiPath && !requestPath.endsWith("/")
-    ? `${requestPath}/`
-    : requestPath;
+  // API calls are handled by the Node.js catch-all route in app/api. It
+  // constructs a fresh same-origin response, including multiple Set-Cookie
+  // headers, instead of exposing an external middleware rewrite to browsers.
+  if (isApiPath) return NextResponse.next();
+
+  const pathname = requestPath;
   const target = new URL(pathname + request.nextUrl.search, API_ORIGIN);
   const requestHeaders = new Headers(request.headers);
   if (forwardedProto === "http" || forwardedProto === "https") {

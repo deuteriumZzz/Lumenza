@@ -96,6 +96,10 @@ class AgentRun(models.Model):
         related_name="agent_runs",
     )
     idempotency_key = models.CharField(max_length=64)
+    # Optional user preference from the Agents composer. A workflow step
+    # uses it only when that model is part of the step's curated route;
+    # specialised/search steps otherwise retain automatic routing.
+    preferred_model = models.CharField(max_length=255, blank=True, default="")
     status = models.CharField(
         max_length=24, choices=Status.choices, default=Status.PENDING
     )

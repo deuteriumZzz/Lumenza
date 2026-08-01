@@ -105,6 +105,7 @@ function makeRun(overrides: Record<string, unknown> = {}) {
 
 describe("AgentRunPage", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     mocks.agent.mockResolvedValue(AGENT_DETAIL);
   });
 
@@ -120,6 +121,30 @@ describe("AgentRunPage", () => {
     mocks.documentExtraction.mockReset();
     mocks.telegramChannels.mockReset();
     mocks.requestPublish.mockReset();
+    sessionStorage.clear();
+  });
+
+  it("prefills and consumes a private draft from session storage", async () => {
+    sessionStorage.setItem(
+      "lumenza:agent-draft:threads-content-day",
+      "Конфиденциальный план запуска",
+    );
+
+    render(<AgentRunPage />);
+
+    expect(await screen.findByDisplayValue("Конфиденциальный план запуска")).toBeDefined();
+    expect(sessionStorage.getItem("lumenza:agent-draft:threads-content-day")).toBeNull();
+  });
+
+  it("loads the agent form when private browser storage is unavailable", async () => {
+    const storageSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+
+    render(<AgentRunPage />);
+
+    expect(await screen.findByLabelText("Тема")).toBeDefined();
+    storageSpy.mockRestore();
   });
 
   it("submits the form and renders step status through to the structured result", async () => {
@@ -171,6 +196,24 @@ describe("AgentRunPage", () => {
     expect(screen.getAllByText("Запуск").length).toBeGreaterThan(0);
     expect(screen.getByText("Сегодня мы запускаемся.")).toBeDefined();
     expect(screen.getByRole("button", { name: "Опубликовать в Telegram" })).toBeDefined();
+  });
+
+  it("passes the composer model preference to the real Agent run API", async () => {
+    sessionStorage.setItem("lumenza:agent-model:threads-content-day", "gpt-4o-mini");
+    mocks.createAgentRun.mockResolvedValue(makeRun());
+    render(<AgentRunPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), { target: { value: "запуск" } });
+    fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+
+    await waitFor(() => expect(mocks.createAgentRun).toHaveBeenCalledWith(
+      "threads-content-day",
+      expect.objectContaining({ topic: "запуск" }),
+      expect.any(String),
+      null,
+      "gpt-4o-mini",
+    ));
   });
 
   it("creates a publish draft with a prefilled, editable text", async () => {

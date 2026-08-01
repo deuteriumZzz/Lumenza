@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { GoalCard } from "@/components/goal-card";
+import { ModelPicker } from "@/components/model-picker";
 import { springs } from "@/lib/motion";
 import {
   api,
@@ -12,6 +13,7 @@ import {
   type AgentCategory,
   type AgentSummary,
   type CustomAgentSummary,
+  type ModelProgress,
 } from "@/lib/api";
 
 type CategoryFilter = "all" | AgentCategory | "mine";
@@ -51,7 +53,12 @@ function Agents() {
   const shouldReduceMotion = useReducedMotion();
 
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
+  const [models, setModels] = useState<ModelProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedModelTask, setSelectedModelTask] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +73,15 @@ function Agents() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.modelsCatalog().then(
+      (data) => { if (!cancelled) setModels(data); },
+      () => { if (!cancelled) setModels([]); },
+    );
+    return () => { cancelled = true; };
   }, []);
 
   // Same "local state reconciled against the query string" pattern as
@@ -96,18 +112,113 @@ function Agents() {
       : category === "all"
         ? agents
         : agents.filter((agent) => agent.category === category);
+  const activeCategoryLabel = CATEGORIES.find((item) => item.key === category)?.label ?? "Популярное";
+  const selectableAgents = category === "mine" ? [] : visibleAgents ?? [];
+  const selectedAgent =
+    selectableAgents.find((agent) => agent.slug === selectedAgentSlug) ?? selectableAgents[0] ?? null;
+
+  function startAgentChat(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedAgent) return;
+    const draft = prompt.trim();
+    if (draft) {
+      try {
+        sessionStorage.setItem(`lumenza:agent-draft:${selectedAgent.slug}`, draft);
+      } catch {
+        // Storage can be disabled by privacy settings. Navigation must still work;
+        // the user can paste the draft into the agent form after the transition.
+      }
+    }
+    try {
+      const preferenceKey = `lumenza:agent-model:${selectedAgent.slug}`;
+      if (selectedModel) sessionStorage.setItem(preferenceKey, selectedModel);
+      else sessionStorage.removeItem(preferenceKey);
+    } catch {
+      // The workflow still starts with automatic routing if private storage
+      // is unavailable.
+    }
+    router.push(`/agents/${selectedAgent.slug}`);
+  }
 
   return (
-    <div className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 min-[380px]:px-4 sm:px-6 sm:py-12">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Агенты</h1>
-      <p className="mt-1 text-sm text-muted">
-        Готовые сценарии: отвечаете на несколько вопросов — получаете структурированный результат.
-      </p>
+    <div className="agent-workspace mx-auto w-full max-w-5xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10">
+      <section aria-label="Чат агентов" className="agent-chat-hero">
+        <motion.div
+          layoutId="lumenza-workspace-core"
+          className="agent-orbit-mark"
+          transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
+          aria-hidden="true"
+        >
+          <span /><span /><span />
+        </motion.div>
+        <div className="agent-hero-copy">
+          <p className="agent-mode-label">Агентный режим</p>
+          <h1>Поставьте цель. Агент соберёт результат.</h1>
+          <p>
+            Это отдельное рабочее пространство: обычные диалоги остаются в Chat,
+            а здесь выполняются многошаговые сценарии с понятным прогрессом.
+          </p>
+          <span className="agent-active-domain" data-active-domain="">
+            Активная область: {activeCategoryLabel}
+          </span>
+        </div>
+
+        <motion.form
+          layoutId="lumenza-workspace-composer"
+          transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
+          aria-label="Запустить агента"
+          onSubmit={startAgentChat}
+          className="agent-composer"
+        >
+          <textarea
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Опишите результат, который хотите получить"
+            aria-label="Задача агенту"
+            rows={5}
+          />
+          <div className="agent-composer-footer">
+            <ModelPicker
+              models={models}
+              selectedModel={selectedModel}
+              selectedTask={selectedModelTask}
+              onSelect={(model, task) => {
+                setSelectedModel(model);
+                setSelectedModelTask(task);
+              }}
+            />
+            <AgentModeMenu />
+            <label className="agent-selector">
+              <span className="sr-only">Выбрать агента</span>
+              <select
+                aria-label="Выбрать агента"
+                value={selectedAgent?.slug ?? ""}
+                onChange={(event) => setSelectedAgentSlug(event.target.value)}
+                disabled={selectableAgents.length === 0}
+              >
+                {selectableAgents.map((agent) => <option key={agent.slug} value={agent.slug}>{agent.name}</option>)}
+              </select>
+            </label>
+            <span role="status" aria-label={`Активная возможность: ${activeCategoryLabel}`} className="agent-capability-chip">
+              {activeCategoryLabel}
+            </span>
+            <span className="agent-routing-note">Предпочтение применяется к совместимым шагам</span>
+            <motion.button
+              type="submit"
+              disabled={!selectedAgent}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+              className="btn-primary"
+            >
+              Продолжить
+            </motion.button>
+          </div>
+        </motion.form>
+      </section>
 
       <nav
         aria-label="Категория агентов"
         data-testid="agents-category-navigation"
-        className="mt-6 flex flex-wrap items-center gap-1 min-[380px]:gap-2"
+        className="agent-domain-navigation mt-7 flex flex-wrap items-center gap-1 min-[380px]:gap-2"
       >
         {CATEGORIES.map((option) => (
           <button
@@ -134,6 +245,8 @@ function Agents() {
         ))}
       </nav>
 
+      <AgentCapabilityRail />
+
       {category === "mine" ? (
         <MyAgents catalog={agents} />
       ) : (
@@ -151,7 +264,7 @@ function Agents() {
           )}
 
           {visibleAgents && visibleAgents.length > 0 && (
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <div className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visibleAgents.map((agent, index) => (
                 <GoalCard
                   key={agent.slug}
@@ -170,6 +283,73 @@ function Agents() {
         </>
       )}
     </div>
+  );
+}
+
+function AgentModeMenu() {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutside(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("mousedown", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="agent-mode-picker">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Режим: AI Agent"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        AI Agent <span aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div role="menu" aria-label="Режим Lumenza" className="agent-mode-menu">
+          <Link href="/chat" aria-label="Chat"><strong>Chat</strong><span>Обычный диалог с AI</span></Link>
+          <Link href="/agents" aria-label="AI Agent" aria-current="page"><strong>AI Agent</strong><span>Многошаговые workflow</span></Link>
+          <Link href="/knowledge" aria-label="Knowledge"><strong>Knowledge</strong><span>Ответы по вашим источникам</span></Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CAPABILITY_LINKS = [
+  ["Featured", "/agents"],
+  ["Agent workflows", "/agents"],
+  ["Research", "/agents?category=research"],
+  ["Documents", "/agents?category=documents"],
+  ["Knowledge", "/knowledge"],
+  ["Code", "/studio?mode=code"],
+  ["Videos", "/studio?mode=video"],
+  ["Audio", "/studio?mode=audio"],
+  ["Apps", "/studio?view=apps"],
+  ["All tools", "/studio?view=tools"],
+] as const;
+
+function AgentCapabilityRail() {
+  return (
+    <nav aria-label="Возможности Lumenza" className="agent-capability-rail">
+      {CAPABILITY_LINKS.map(([label, href]) => <Link key={label} href={href}>{label}</Link>)}
+    </nav>
   );
 }
 

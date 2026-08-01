@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motionTokens, springs } from "@/lib/motion";
 import { api, apiErrorMessage, type ChatThread, type Paginated } from "@/lib/api";
 import { getWorkspaceSection } from "@/lib/workspace-sections";
@@ -21,7 +21,10 @@ type SidebarIconName =
   | "studio"
   | "automations"
   | "history"
-  | "credits";
+  | "credits"
+  | "tools"
+  | "apps"
+  | "community";
 
 // Порядок — то же 3-стороннее переключение, что у abacus.ai (Chat Mode |
 // AI Agent | Company Knowledge, SPEC.md Phase 17) — Студия остаётся
@@ -84,6 +87,12 @@ export function ThreadSidebar() {
 
   const studioOpen = studioFolderState.open;
   const activeThreadId = pathname.startsWith("/chat/") ? pathname.slice("/chat/".length) : null;
+  const showsChatHistory = activeSection === "chat";
+  const primaryAction = activeSection === "agents"
+    ? { href: "/agents", label: "Новый запуск агента" }
+    : activeSection === "studio"
+      ? { href: "/studio", label: "Новый проект" }
+      : { href: "/chat", label: "Новый чат" };
 
   // Рефетч при каждой смене pathname внутри /chat — самый простой способ
   // подхватить только что созданный тред (ChatThreadView создаёт его и сам
@@ -91,6 +100,7 @@ export function ThreadSidebar() {
   // заводить его ради одного списка — overkill). Список маленький и
   // пагинированный, лишний повторный запрос дёшев.
   useEffect(() => {
+    if (!showsChatHistory) return;
     let cancelled = false;
     api.threads().then(
       (data) => {
@@ -103,7 +113,7 @@ export function ThreadSidebar() {
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, showsChatHistory]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -183,9 +193,9 @@ export function ThreadSidebar() {
       </div>
 
       <Link
-        href="/chat"
-        aria-label={collapsed ? "Новый чат" : undefined}
-        title={collapsed ? "Новый чат (⌘K)" : undefined}
+        href={primaryAction.href}
+        aria-label={collapsed ? primaryAction.label : undefined}
+        title={collapsed ? primaryAction.label : undefined}
         className={`sidebar-new-chat ${collapsed ? "justify-center px-0" : ""}`}
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -194,8 +204,8 @@ export function ThreadSidebar() {
         </svg>
         {!collapsed && (
           <>
-            <span>Новый чат</span>
-            <kbd className="ml-auto text-[10px] text-muted">⌘K</kbd>
+            <span>{primaryAction.label}</span>
+            {showsChatHistory && <kbd className="ml-auto text-[10px] text-muted">⌘K</kbd>}
           </>
         )}
       </Link>
@@ -328,31 +338,26 @@ export function ThreadSidebar() {
                     className="overflow-hidden"
                   >
                     <div className="studio-folder-tree">
-                      <StudioCategoryLink
-                        href="/studio?mode=images"
-                        label="Создание"
-                        description="Картинки и голос"
-                      />
-                      <StudioCategoryLink
-                        href="/studio?mode=documents"
-                        label="Работа"
-                        description="Документы"
-                      />
-                      <StudioCategoryLink
-                        href="/studio?mode=analyze"
-                        label="Исследование"
-                        description="Анализ фото"
-                      />
+                      <StudioCategoryLink href="/studio?mode=image" label="Image" description="Generate visuals" />
+                      <StudioCategoryLink href="/studio?mode=video" label="Video" description="Motion workspace" />
+                      <StudioCategoryLink href="/studio?mode=audio" label="Audio" description="Voice and speech" />
+                      <StudioCategoryLink href="/studio?mode=edit" label="Edit" description="Transform media" />
+                      <StudioCategoryLink href="/studio?mode=upscale" label="Upscale" description="Recover detail" />
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
+            <p className="sidebar-section-label">Apps</p>
+            <StudioOverviewLink href="/studio?view=tools" label="All Tools" icon="tools" />
+            <StudioOverviewLink href="/studio?view=apps" label="Apps" icon="apps" />
+            <SidebarLink href="/studio?view=community" label="Community" icon="community" />
             <SidebarLink href="/automations" label="Автоматизации" icon="automations" />
             <SidebarLink href="/history" label="История" icon="history" />
             <SidebarLink href="/pricing" label="Тариф и кредиты" icon="credits" />
           </nav>
 
+          {showsChatHistory ? <>
           <div className="mb-2 flex items-center justify-between px-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">Недавние</p>
             <kbd className="text-[10px] text-muted">⌘B</kbd>
@@ -406,6 +411,7 @@ export function ThreadSidebar() {
               </ol>
             )}
           </nav>
+          </> : <div className="min-h-4 flex-1" aria-hidden="true" />}
         </>
       )}
 
@@ -445,16 +451,129 @@ function StudioCategoryLink({
   label: string;
   description: string;
 }) {
+  const items = STUDIO_FLYOUTS[label] ?? [];
   return (
-    <Link href={href} className="studio-category-link">
-      <span aria-hidden="true" className="studio-category-node" />
-      <span className="min-w-0">
-        <span className="block text-[13px] leading-4 text-ink/90">{label}</span>
-        <span className="block truncate text-[10px] leading-4 text-muted">
-          {description}
+    <StudioFlyoutRoot label={`${label} tools`} items={items}>
+      <Link href={href} className="studio-category-link">
+        <span aria-hidden="true" className="studio-category-node" />
+        <span className="min-w-0">
+          <span className="block text-[13px] leading-4 text-ink/90">{label}</span>
+          <span className="block truncate text-[10px] leading-4 text-muted">
+            {description}
+          </span>
         </span>
-      </span>
-    </Link>
+      </Link>
+    </StudioFlyoutRoot>
+  );
+}
+
+const STUDIO_FLYOUTS: Record<string, { label: string; href: string; status?: string }[]> = {
+  Image: [
+    { label: "Create image", href: "/studio?mode=image" },
+    { label: "Edit image", href: "/studio?mode=edit" },
+    { label: "Style reference", href: "/studio?mode=image", status: "Preview" },
+    { label: "Inpaint", href: "/studio?mode=edit" },
+  ],
+  Video: [
+    { label: "Create video", href: "/studio?mode=video", status: "Soon" },
+    { label: "Animate image", href: "/studio?mode=video", status: "Soon" },
+    { label: "Motion control", href: "/studio?mode=video", status: "Soon" },
+  ],
+  Audio: [
+    { label: "Text to speech", href: "/studio?mode=audio" },
+    { label: "Transcription", href: "/studio?mode=audio" },
+    { label: "Voice cloning", href: "/studio?mode=audio", status: "Soon" },
+  ],
+  Edit: [
+    { label: "Edit image", href: "/studio?mode=edit" },
+    { label: "Inpaint", href: "/studio?mode=edit" },
+    { label: "Outpaint", href: "/studio?mode=edit", status: "Preview" },
+    { label: "Camera angles", href: "/studio?mode=edit", status: "Preview" },
+  ],
+  Upscale: [
+    { label: "Topaz", href: "/studio?mode=upscale", status: "Soon" },
+    { label: "Magnific Precision", href: "/studio?mode=upscale", status: "Soon" },
+    { label: "Face recovery", href: "/studio?mode=upscale", status: "Soon" },
+  ],
+  "All Tools": [
+    { label: "Image tools", href: "/studio?mode=image" },
+    { label: "Video tools", href: "/studio?mode=video", status: "Preview" },
+    { label: "Audio tools", href: "/studio?mode=audio" },
+    { label: "Show all", href: "/studio?view=tools" },
+  ],
+  Apps: [
+    { label: "Campaign canvas", href: "/studio?view=apps" },
+    { label: "Portrait lab", href: "/studio?view=apps" },
+    { label: "Product stories", href: "/studio?view=apps" },
+  ],
+};
+
+function StudioOverviewLink({ href, label, icon }: { href: string; label: "All Tools" | "Apps"; icon: SidebarIconName }) {
+  return (
+    <StudioFlyoutRoot label={`${label} overview`} items={STUDIO_FLYOUTS[label]}>
+      <Link href={href} className="sidebar-action">
+        <SidebarIcon icon={icon} />
+        <span>{label}</span>
+      </Link>
+    </StudioFlyoutRoot>
+  );
+}
+
+function StudioFlyoutRoot({ label, items, children }: { label: string; items: { label: string; href: string; status?: string }[]; children: React.ReactNode }) {
+  const shouldReduceMotion = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      requestAnimationFrame(() => {
+        rootRef.current?.querySelector<HTMLElement>(":scope > a, :scope > button")?.focus();
+      });
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className="sidebar-studio-flyout-root"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      {children}
+      <AnimatePresence>
+        {open && (
+          <motion.aside
+            role="dialog"
+            aria-label={label}
+            initial={shouldReduceMotion ? false : { opacity: 0, x: -8, scale: 0.985 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -6, scale: 0.99 }}
+            transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
+            className="sidebar-studio-flyout"
+          >
+            <p>{label}</p>
+            <div>
+              {items.map((item) => (
+                <Link key={item.label} href={item.href} aria-label={item.label}>
+                  <span aria-hidden="true">◇</span>
+                  <strong>{item.label}</strong>
+                  {item.status && <em>{item.status}</em>}
+                </Link>
+              ))}
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -509,6 +628,31 @@ function SidebarIcon({
   }
   if (icon === "studio") {
     return <StudioMark className="size-4.5 shrink-0" />;
+  }
+  if (icon === "tools") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="6" cy="6" r="1.5" /><circle cx="12" cy="6" r="1.5" /><circle cx="18" cy="6" r="1.5" />
+        <circle cx="6" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="18" cy="12" r="1.5" />
+        <circle cx="6" cy="18" r="1.5" /><circle cx="12" cy="18" r="1.5" /><circle cx="18" cy="18" r="1.5" />
+      </svg>
+    );
+  }
+  if (icon === "apps") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <rect x="4" y="4" width="6" height="6" rx="1.5" /><rect x="14" y="4" width="6" height="6" rx="1.5" />
+        <rect x="4" y="14" width="6" height="6" rx="1.5" /><path d="M17 14v6m-3-3h6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (icon === "community") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="9" cy="9" r="3" /><circle cx="17" cy="8" r="2" />
+        <path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5s4.9 1.5 5.5 4.5M15 13.5c2.8 0 4.5 1.2 5 3.5" strokeLinecap="round" />
+      </svg>
+    );
   }
   if (icon === "automations") {
     return (

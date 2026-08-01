@@ -68,6 +68,7 @@ export default function AgentRunPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [run, setRun] = useState<AgentRun | null>(null);
   const [attachedWorkspace, setAttachedWorkspace] = useState<Workspace | null>(null);
+  const [preferredModel, setPreferredModel] = useState<string | null>(null);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const [channels, setChannels] = useState<TelegramChannelEntry[] | null>(null);
@@ -101,10 +102,27 @@ export default function AgentRunPage() {
       (data) => {
         if (cancelled) return;
         setAgent(data);
+        const draftKey = `lumenza:agent-draft:${params.slug}`;
+        const modelKey = `lumenza:agent-model:${params.slug}`;
+        let requestedPrompt = "";
+        try {
+          requestedPrompt = sessionStorage.getItem(draftKey)?.trim() ?? "";
+          sessionStorage.removeItem(draftKey);
+          setPreferredModel(sessionStorage.getItem(modelKey));
+          sessionStorage.removeItem(modelKey);
+        } catch {
+          // Continue with an empty form when browser privacy settings block storage.
+        }
         setInput((prev) => {
           const next = { ...prev };
           for (const field of data.input_schema.fields) {
             if (!(field.key in next)) next[field.key] = field.options?.[0] ?? "";
+          }
+          const promptField = data.input_schema.fields.find(
+            (field) => field.type !== "select" && field.type !== "document_upload",
+          );
+          if (requestedPrompt && promptField && !next[promptField.key]) {
+            next[promptField.key] = requestedPrompt;
           }
           return next;
         });
@@ -164,12 +182,15 @@ export default function AgentRunPage() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const created = await api.createAgentRun(
+      const args = [
         agent.slug,
         input,
         idempotencyKeyRef.current,
-        attachedWorkspace?.id ?? null
-      );
+        attachedWorkspace?.id ?? null,
+      ] as const;
+      const created = preferredModel
+        ? await api.createAgentRun(...args, preferredModel)
+        : await api.createAgentRun(...args);
       setRun(created);
       void refreshBalance();
     } catch (err) {
@@ -242,12 +263,16 @@ export default function AgentRunPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 min-[380px]:px-4 sm:px-6 sm:py-12">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{agent.name}</h1>
-      <p className="mt-1 text-sm text-muted">{agent.description}</p>
+    <div className="agent-run-workspace mx-auto w-full max-w-5xl flex-1 px-3 py-7 min-[380px]:px-4 sm:px-6 sm:py-10">
+      <header className="agent-run-header">
+        <Link href="/agents" className="agent-back-link">← Все агенты</Link>
+        <span className="agent-active-domain">Активная область: {agent.category}</span>
+        <h1>{agent.name}</h1>
+        <p>{agent.description}</p>
+      </header>
 
       {!run && (
-        <div className="mt-6 flex flex-col gap-4 rounded-md border border-border bg-surface p-4">
+        <div className="agent-run-composer mt-6 flex flex-col gap-4">
           {agent.input_schema.fields.map((field) => (
             <label key={field.key} className="flex flex-col gap-1.5 text-sm">
               <span className="text-muted">{field.label}</span>
@@ -327,7 +352,7 @@ export default function AgentRunPage() {
             type="button"
             onClick={() => void submit()}
             disabled={submitting || !requiredFilled}
-            className="btn-primary self-start"
+            className="btn-primary self-end"
           >
             {submitting ? "Запускаем…" : "Запустить"}
           </button>
@@ -335,7 +360,7 @@ export default function AgentRunPage() {
       )}
 
       {run && (
-        <div className="mt-6 flex flex-col gap-6">
+        <div className="agent-run-transcript mt-6 flex flex-col gap-6">
           <ol className="flex flex-col gap-2">
             {run.steps.map((step) => (
               <li

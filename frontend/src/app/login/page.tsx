@@ -17,6 +17,12 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent) {
+    if (
+      window.location.protocol === "http:"
+      && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+    ) {
+      return;
+    }
     event.preventDefault();
     setError(null);
     setSubmitting(true);
@@ -36,10 +42,16 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Вход</h1>
         <p className="mt-2 text-sm text-muted">С возвращением — продолжите с того же места.</p>
 
-        <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+        <form
+          action="/auth/preview-login"
+          method="post"
+          onSubmit={onSubmit}
+          className="mt-8 flex flex-col gap-4"
+        >
           <Field label="Имя пользователя">
             <input
               required
+              name="username"
               autoFocus
               autoComplete="username"
               value={username}
@@ -50,6 +62,7 @@ export default function LoginPage() {
           <Field label="Пароль">
             <input
               required
+              name="password"
               type="password"
               autoComplete="current-password"
               value={password}

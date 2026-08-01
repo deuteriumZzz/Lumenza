@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImageLightbox } from "@/components/image-lightbox";
-import { OptionPicker } from "@/components/option-picker";
+import { StudioPromptDock } from "@/components/studio-prompt-dock";
 import { useAuth } from "@/lib/auth-context";
 import {
   api,
@@ -15,11 +15,15 @@ import {
 import { statusPillClass } from "@/lib/status-styles";
 import { redirect } from "next/navigation";
 
-const TASKS: { value: ImageTask; label: string; hint: string }[] = [
-  { value: "realistic", label: "Реализм", hint: "Лучшее качество, фотореалистично" },
-  { value: "illustration", label: "Иллюстрация", hint: "Быстро и дёшево, стилизовано" },
-  { value: "premium", label: "Премиум", hint: "Более высокое качество, универсальная генерация" },
-];
+const MODEL_BY_TASK: Record<ImageTask, string> = {
+  illustration: "FLUX Schnell",
+  realistic: "DALL·E 3",
+  premium: "FLUX.1 Dev",
+};
+
+const TASK_BY_MODEL = Object.fromEntries(
+  Object.entries(MODEL_BY_TASK).map(([task, model]) => [model, task]),
+) as Record<string, ImageTask>;
 
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
 const POLL_INTERVAL_MS = 2000;
@@ -30,7 +34,13 @@ export default function ImagesPage() {
   redirect("/studio");
 }
 
-export function Images() {
+export function Images({
+  initialMode = "generate",
+  initialPrompt = "",
+}: {
+  initialMode?: "generate" | "edit";
+  initialPrompt?: string;
+}) {
   const { refreshBalance } = useAuth();
   const [page, setPage] = useState(1);
   // Тот же паттерн пометки страницы, что и на странице history: `loading`
@@ -41,8 +51,8 @@ export function Images() {
   );
   const [error, setError] = useState<string | null>(null);
 
-  const [mode, setMode] = useState<"generate" | "edit">("generate");
-  const [prompt, setPrompt] = useState("");
+  const mode = initialMode;
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [task, setTask] = useState<ImageTask>("illustration");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -50,6 +60,7 @@ export function Images() {
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,131 +192,59 @@ export function Images() {
   return (
     <div
       data-testid="images-content"
-      className="studio-content mx-auto w-full max-w-5xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10"
+      className="studio-content studio-image-workspace mx-auto w-full max-w-[92rem] flex-1 px-3 pb-44 pt-2 min-[380px]:px-4 sm:px-8 lg:px-10"
     >
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Картинки</h1>
-      <p className="mt-1 text-sm text-muted">
-        Создавайте и редактируйте изображения — результаты сохраняются в галерее ниже.
-      </p>
-
-      <div className="mt-6 flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:p-4">
-        <div
-          role="group"
-          aria-label="Режим работы с картинкой"
-          className="studio-segmented-control"
-        >
-          <button
-            type="button"
-            aria-pressed={mode === "generate"}
-            onClick={() => setMode("generate")}
-            className={`rounded px-3 py-1 text-xs font-medium transition-colors duration-150 ${
-              mode === "generate" ? "bg-primary text-bg" : "text-muted hover:text-ink"
-            }`}
-          >
-            Сгенерировать
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "edit"}
-            onClick={() => setMode("edit")}
-            className={`rounded px-3 py-1 text-xs font-medium transition-colors duration-150 ${
-              mode === "edit" ? "bg-primary text-bg" : "text-muted hover:text-ink"
-            }`}
-          >
-            Редактировать фото
-          </button>
+      <div className="studio-gallery-heading">
+        <div>
+          <p className="studio-kicker">{mode === "edit" ? "Transform" : "Inspirations"}</p>
+          <h2>{mode === "edit" ? "Edit mode" : "Your visual workspace"}</h2>
+          <p>{mode === "edit" ? "Добавьте исходник и опишите точную правку." : "Создавайте визуалы внизу — новые результаты появляются здесь."}</p>
         </div>
-
-        {mode === "edit" ? (
-          <div className="flex flex-col gap-3">
-            <input
-              type="file"
-              accept="image/*"
-              aria-label="Исходное фото"
-              onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
-              className="text-sm text-muted"
-            />
-            <div data-testid="images-edit-row" className="studio-action-row">
-              <textarea
-                value={editPrompt}
-                onChange={(event) => setEditPrompt(event.target.value)}
-                placeholder='Опишите правку — например, "сделай фон синим"…'
-                aria-label="Промпт для редактирования"
-                rows={2}
-                maxLength={4000}
-                className="input min-w-0 flex-1 resize-none"
-              />
-              <button
-                type="button"
-                onClick={() => void submitEdit()}
-                disabled={editSubmitting || !editPrompt.trim() || !editFile}
-                className="btn-primary h-fit"
-              >
-                {editSubmitting ? "Редактируем…" : "Редактировать"}
-              </button>
-            </div>
-            {editSubmitError && (
-              <p role="alert" className="text-sm text-danger">
-                {editSubmitError}
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-        <OptionPicker
-          ariaLabel="Тип картинки"
-          options={TASKS}
-          selected={task}
-          onSelect={(value) => setTask(value as ImageTask)}
-          className="studio-option-grid"
-        />
-
-        <div data-testid="images-prompt-row" className="studio-action-row">
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Опишите изображение, которое хотите создать…"
-            aria-label="Промпт для картинки"
-            rows={2}
-            maxLength={4000}
-            className="input min-w-0 flex-1 resize-none"
-          />
-          <button
-            type="button"
-            onClick={() => void generate()}
-            disabled={submitting || !prompt.trim()}
-            className="btn-primary h-fit"
-          >
-            {submitting ? "Генерируем…" : "Сгенерировать"}
-          </button>
-        </div>
-
-        {submitError && (
-          <p role="alert" className="text-sm text-danger">
-            {submitError}
-          </p>
-        )}
-          </>
-        )}
+        <span>{data?.count ?? 0} creations</span>
       </div>
 
+      {mode === "edit" && (
+        <input
+          ref={editFileInputRef}
+          type="file"
+          accept="image/*"
+          aria-label="Исходное фото"
+          onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
+          className="sr-only"
+        />
+      )}
+
       {error && (
-        <p role="alert" className="mt-6 text-sm text-danger">
+        <p role="alert" className="studio-gallery-notice text-danger">
           {error}
         </p>
       )}
 
-      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Загрузка…</p>}
+      {!error && loading && <p role="status" className="studio-gallery-notice">Загрузка…</p>}
 
       {!error && !loading && data && data.results.length === 0 && (
-        <p className="mt-10 text-sm text-muted">Пока нет визуалов — сгенерируйте один выше.</p>
+        mode === "edit" ? (
+          <button
+            type="button"
+            aria-label="Загрузить исходное изображение"
+            onClick={() => editFileInputRef.current?.click()}
+            className="studio-gallery-empty studio-gallery-upload"
+          >
+            <span aria-hidden="true">＋</span>
+            <h3>Загрузите первый исходник</h3>
+            <p>PNG, JPG или WEBP · затем опишите правку в нижней панели.</p>
+          </button>
+        ) : (
+          <div className="studio-gallery-empty">
+            <span aria-hidden="true">✦</span>
+            <h3>Здесь появится ваша первая серия</h3>
+            <p>Выберите модель, опишите идею и нажмите «Создать».</p>
+          </div>
+        )
       )}
 
       {!error && data && data.results.length > 0 && (
-        <div
-          className="mt-8 grid gap-4"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}
-        >
+        <div className="studio-generation-grid">
           {data.results.map((entry) => (
             <ImageCard key={entry.id} entry={entry} />
           ))}
@@ -313,7 +252,7 @@ export function Images() {
       )}
 
       {data && (data.next || data.previous) && (
-        <div className="mt-6 flex items-center justify-between text-sm">
+        <div className="studio-gallery-pagination">
           <button
             type="button"
             disabled={!data.previous}
@@ -332,6 +271,23 @@ export function Images() {
           </button>
         </div>
       )}
+
+      <StudioPromptDock
+        mode={mode === "edit" ? "edit" : "image"}
+        prompt={mode === "edit" ? editPrompt : prompt}
+        onPromptChange={mode === "edit" ? setEditPrompt : setPrompt}
+        onSubmit={() => void (mode === "edit" ? submitEdit() : generate())}
+        onAddReference={mode === "edit" ? () => editFileInputRef.current?.click() : undefined}
+        submitDisabled={mode === "edit" && !editFile}
+        busy={mode === "edit" ? editSubmitting : submitting}
+        selectedModel={mode === "edit" ? "FLUX.1 Kontext" : MODEL_BY_TASK[task]}
+        onModelChange={mode === "edit" ? undefined : (model) => {
+          const nextTask = TASK_BY_MODEL[model];
+          if (nextTask) setTask(nextTask);
+        }}
+        referenceLabel={editFile?.name}
+        status={mode === "edit" ? editSubmitError ?? undefined : submitError ?? undefined}
+      />
     </div>
   );
 }
@@ -339,8 +295,8 @@ export function Images() {
 function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
   const inProgress = IN_PROGRESS.has(entry.status);
   return (
-    <div className="flex flex-col overflow-hidden rounded-md border border-border bg-surface">
-      <div className="flex aspect-square items-center justify-center bg-bg">
+    <article className="studio-generation-card group">
+      <div className="studio-generation-media">
         {entry.image_url ? (
           <ImageLightbox
             src={entry.image_url}
@@ -355,7 +311,7 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
           <span className="text-xs text-muted">Нет картинки</span>
         )}
       </div>
-      <div className="flex flex-col gap-1 p-3">
+      <div className="studio-generation-meta">
         {entry.source_image_url && (
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -375,6 +331,6 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
           <span>{entry.credits_charged}</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 }

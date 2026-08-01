@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -121,13 +121,28 @@ describe("ThreadSidebar", () => {
     mocks.pathname = "/agents";
 
     render(<ThreadSidebar />);
-    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
 
     expect(screen.getByRole("link", { name: "Агенты" }).getAttribute("aria-current")).toBe(
       "page",
     );
     expect(screen.getByRole("link", { name: "Чат" }).getAttribute("aria-current")).toBeNull();
     expect(screen.getByRole("link", { name: "Знания" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("does not mix ordinary chat history into the Agents workspace", async () => {
+    mocks.pathname = "/agents";
+    mocks.threads.mockResolvedValue({
+      count: 1,
+      results: [{ id: 17, title: "Секретный обычный чат" }],
+    });
+
+    render(<ThreadSidebar />);
+
+    expect(mocks.threads).not.toHaveBeenCalled();
+    expect(screen.queryByRole("navigation", { name: "Чаты" })).toBeNull();
+    expect(screen.queryByText("Секретный обычный чат")).toBeNull();
+    expect(screen.getByRole("link", { name: "Новый запуск агента" }).getAttribute("href"))
+      .toBe("/agents");
   });
 
   it("keeps a Chat entry reachable when the sidebar is collapsed", async () => {
@@ -165,19 +180,55 @@ describe("ThreadSidebar", () => {
     fireEvent.click(toggle);
 
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("link", { name: /Создание/i }).getAttribute("href"))
-      .toBe("/studio?mode=images");
-    expect(screen.getByRole("link", { name: /Работа/i }).getAttribute("href"))
-      .toBe("/studio?mode=documents");
-    expect(screen.getByRole("link", { name: /Исследование/i }).getAttribute("href"))
-      .toBe("/studio?mode=analyze");
+    expect(screen.getByRole("link", { name: /Image/i }).getAttribute("href"))
+      .toBe("/studio?mode=image");
+    expect(screen.getByRole("link", { name: /Video/i }).getAttribute("href"))
+      .toBe("/studio?mode=video");
+    expect(screen.getByRole("link", { name: /Audio/i }).getAttribute("href"))
+      .toBe("/studio?mode=audio");
+    expect(screen.getByRole("link", { name: /Edit/i }).getAttribute("href"))
+      .toBe("/studio?mode=edit");
+    expect(screen.getByRole("link", { name: /Upscale/i }).getAttribute("href"))
+      .toBe("/studio?mode=upscale");
+    expect(screen.getByRole("link", { name: "All Tools" }).getAttribute("href"))
+      .toBe("/studio?view=tools");
+    expect(screen.getByRole("link", { name: "Apps" }).getAttribute("href"))
+      .toBe("/studio?view=apps");
+    expect(screen.getByRole("link", { name: "Community" }).getAttribute("href"))
+      .toBe("/studio?view=community");
+  });
+
+  it("opens contextual Studio flyouts on hover and keyboard focus", async () => {
+    render(<ThreadSidebar />);
+    fireEvent.click(await screen.findByRole("button", { name: "Развернуть категории Студии" }));
+
+    fireEvent.mouseEnter(screen.getByRole("link", { name: /Image/i }));
+    expect(screen.getByRole("dialog", { name: "Image tools" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Create image" }).getAttribute("href")).toBe("/studio?mode=image");
+
+    fireEvent.focus(screen.getByRole("link", { name: "All Tools" }));
+    expect(screen.getByRole("dialog", { name: "All Tools overview" })).toBeDefined();
+  });
+
+  it("returns focus to a Studio flyout trigger after Escape", async () => {
+    render(<ThreadSidebar />);
+    fireEvent.click(await screen.findByRole("button", { name: "Развернуть категории Студии" }));
+    const imageLink = screen.getByRole("link", { name: /Image/i });
+
+    fireEvent.focus(imageLink);
+    const flyout = screen.getByRole("dialog", { name: "Image tools" });
+    const firstTool = within(flyout).getByRole("link", { name: "Create image" });
+    firstTool.focus();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Image tools" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(imageLink));
   });
 
   it("keeps the Studio folder open while the Studio route is active", async () => {
     mocks.pathname = "/studio";
 
     render(<ThreadSidebar />);
-    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
 
     expect(
       screen.getByRole("button", { name: "Свернуть категории Студии" })
@@ -185,13 +236,12 @@ describe("ThreadSidebar", () => {
     ).toBe("true");
     expect(screen.getByRole("link", { name: "Студия", current: "page" }))
       .toBeDefined();
-    expect(screen.getByRole("link", { name: /Создание/i })).toBeDefined();
+    expect(screen.getByRole("link", { name: /Image/i })).toBeDefined();
   });
 
   it("closes the Studio folder after returning to chat", async () => {
     mocks.pathname = "/studio";
     const { rerender } = render(<ThreadSidebar />);
-    await waitFor(() => expect(mocks.threads).toHaveBeenCalled());
 
     mocks.pathname = "/chat";
     rerender(<ThreadSidebar />);
@@ -201,7 +251,7 @@ describe("ThreadSidebar", () => {
         .getAttribute("aria-expanded"),
     ).toBe("false");
     await waitFor(() =>
-      expect(screen.queryByRole("link", { name: /Создание/i })).toBeNull(),
+      expect(screen.queryByRole("link", { name: /Image/i })).toBeNull(),
     );
   });
 
