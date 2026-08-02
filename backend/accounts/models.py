@@ -59,7 +59,8 @@ class UserContext(models.Model):
     {"general": {"tone","banned_topics"},
      "content": {"niche","audience","products","examples"},
      "research": {"topics","depth"},
-     "documents": {"typical_formats"}}
+     "documents": {"typical_formats"},
+     "finance": {"topics","risk_profile"}}
     Domain blocks match agents.models.Agent.Category — add a block only
     once an agent in that category actually reads it."""
 

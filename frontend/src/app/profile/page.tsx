@@ -18,6 +18,7 @@ interface UserContextForm {
   content: { niche: string; audience: string; products: string; examples: string };
   research: { topics: string; depth: string };
   documents: { typical_formats: string };
+  finance: { topics: string; risk_profile: string };
 }
 
 const EMPTY: UserContextForm = {
@@ -25,6 +26,7 @@ const EMPTY: UserContextForm = {
   content: { niche: "", audience: "", products: "", examples: "" },
   research: { topics: "", depth: "" },
   documents: { typical_formats: "" },
+  finance: { topics: "", risk_profile: "" },
 };
 
 export default function ProfilePage() {
@@ -53,6 +55,7 @@ function Profile() {
           content: { ...EMPTY.content, ...entry.data.content },
           research: { ...EMPTY.research, ...entry.data.research },
           documents: { ...EMPTY.documents, ...entry.data.documents },
+          finance: { ...EMPTY.finance, ...entry.data.finance },
         });
       },
       (err) => {
@@ -178,6 +181,16 @@ function Profile() {
               label="Типичные форматы"
               value={data.documents.typical_formats}
               onChange={(value) => updateField("documents", "typical_formats", value)}
+            />
+            <Field
+              label="Темы/активы, которые интересны"
+              value={data.finance.topics}
+              onChange={(value) => updateField("finance", "topics", value)}
+            />
+            <Field
+              label="Риск-профиль"
+              value={data.finance.risk_profile}
+              onChange={(value) => updateField("finance", "risk_profile", value)}
             />
           </ProfileSection>
 

@@ -88,6 +88,37 @@ describe("ProfilePage", () => {
     expect(screen.getByText("Сохранено.")).toBeDefined();
   });
 
+  it("loads and saves the finance context block", async () => {
+    mocks.userContext.mockResolvedValue({
+      data: { finance: { topics: "облигации", risk_profile: "умеренный" } },
+    });
+    mocks.updateUserContext.mockResolvedValue({ data: {} });
+
+    render(<ProfilePage />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Темы/активы, которые интересны")).toBeDefined(),
+    );
+    expect(screen.getByLabelText("Темы/активы, которые интересны")).toHaveProperty(
+      "value",
+      "облигации",
+    );
+    expect(screen.getByLabelText("Риск-профиль")).toHaveProperty("value", "умеренный");
+
+    fireEvent.change(screen.getByLabelText("Риск-профиль"), {
+      target: { value: "консервативный" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    });
+
+    expect(mocks.updateUserContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finance: { topics: "облигации", risk_profile: "консервативный" },
+      }),
+    );
+  });
+
   it("shows the current pet and saves name, image and visibility", async () => {
     mocks.userContext.mockResolvedValue({ data: {} });
     mocks.updatePet.mockResolvedValue({ ...mocks.user, pet_name: "Искорка" });

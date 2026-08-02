@@ -15,6 +15,18 @@ _STATUS_FOR_CHAT_OUTCOME = {
     "blocked": AgentRun.Status.BLOCKED,
 }
 
+# parse_final_result only checks that a required output key is present, not
+# that its content is non-empty/correct — an LLM returning `"disclaimer": ""`
+# would pass silently. This field exists for a liability/compliance reason
+# (informational digest, not personalized advice), so it isn't trusted to
+# the model: overwritten unconditionally after a successful parse, below.
+_FIXED_DISCLAIMERS = {
+    "finance-digest": (
+        "Материал носит информационный характер и не является "
+        "индивидуальной инвестиционной рекомендацией."
+    ),
+}
+
 _STEP_ERROR_MESSAGES = {
     "insufficient_credits": "Недостаточно кредитов для этого шага",
     "blocked": "Запрос заблокирован модерацией",
@@ -149,6 +161,8 @@ def run_agent(run_id: int) -> None:
         run.error_message = error
     else:
         run.status = AgentRun.Status.OK
+        if agent.slug in _FIXED_DISCLAIMERS:
+            parsed["disclaimer"] = _FIXED_DISCLAIMERS[agent.slug]
         run.result = parsed
     run.completed_at = timezone.now()
     run.save(

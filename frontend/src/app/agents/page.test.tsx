@@ -222,6 +222,31 @@ describe("AgentsPage", () => {
     expect(screen.queryByRole("link", { name: /Саммари документа/ })).toBeNull();
   });
 
+  it("shows a Финансы tab and filters to the finance agent", async () => {
+    mocks.agents.mockResolvedValue([
+      ...AGENTS,
+      {
+        slug: "finance-digest",
+        name: "Дайджест рынка",
+        description: "Ищет источники и собирает информационный дайджест.",
+        category: "finance",
+      },
+    ]);
+
+    render(<AgentsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /Дайджест рынка/ })).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Финансы" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
+    );
+    expect(screen.getByRole("link", { name: /Дайджест рынка/ })).toBeDefined();
+  });
+
   it('lists custom agents under "Мои агенты" tab', async () => {
     mocks.agents.mockResolvedValue(AGENTS);
     mocks.customAgents.mockResolvedValue([

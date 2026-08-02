@@ -937,3 +937,318 @@ def test_archive_custom_agent_rejects_other_payloads():
         format="json",
     )
     assert response.status_code == 400
+
+
+FINANCE_DIGEST_INPUT = {"topic": "рынок облигаций РФ"}
+
+VALID_FINANCE_DIGEST_RESULT_JSON = json.dumps(
+    {
+        "topic": "рынок облигаций РФ",
+        "summary": "Доходности стабилизировались на фоне решения ЦБ.",
+        "key_points": ["Ставка сохранена", "Спрос на ОФЗ вырос"],
+        # Пустая строка нарочно: parse_final_result проверяет только
+        # наличие ключа, а agents.tasks._FIXED_DISCLAIMERS должен
+        # перезаписать это значение фиксированным текстом независимо от
+        # того, что вернула модель.
+        "disclaimer": "",
+        "sources_note": "По данным открытых источников.",
+    }
+)
+
+
+def test_finance_digest_run_overrides_disclaimer_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        ["cited synthesis text", VALID_FINANCE_DIGEST_RESULT_JSON],
+    )
+
+    response = client.post(
+        "/api/agents/finance-digest/runs/",
+        {"input": FINANCE_DIGEST_INPUT, "idempotency_key": "finance-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["summary"] == "Доходности стабилизировались на фоне решения ЦБ."
+    # The model's own (empty) disclaimer must never survive — the fixed
+    # constant always wins, regardless of what the LLM returned.
+    assert run.result["disclaimer"] == (
+        "Материал носит информационный характер и не является "
+        "индивидуальной инвестиционной рекомендацией."
+    )
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_finance_digest_first_step_uses_search_task(monkeypatch):
+    seen_tasks = []
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        seen_tasks.append(task)
+        text = (
+            "cited synthesis text"
+            if len(seen_tasks) == 1
+            else VALID_FINANCE_DIGEST_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok",
+            text=text,
+            provider="search",
+            model="gpt-4o-mini",
+            task=task,
+            credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    client, _ = _authed_client()
+    response = client.post(
+        "/api/agents/finance-digest/runs/",
+        {"input": FINANCE_DIGEST_INPUT, "idempotency_key": "finance-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+    assert seen_tasks[0] == "search"
+    assert seen_tasks[1] == "content_plan"
+
+
+CONTENT_OPTIMIZER_INPUT = {
+    "post_text": "Сегодня мы запускаем новый продукт для малого бизнеса.",
+    "platform": "Threads",
+}
+
+VALID_CONTENT_OPTIMIZER_RESULT_JSON = json.dumps(
+    {
+        "variants": ["Короткая версия для Threads."],
+        "hooks": ["Мы наконец это сделали."],
+        "feedback": "Сильное открытие, добавьте призыв к действию.",
+    }
+)
+
+
+def test_content_optimizer_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        [
+            "repurposed draft text",
+            "alternative hook text",
+            VALID_CONTENT_OPTIMIZER_RESULT_JSON,
+        ],
+    )
+
+    response = client.post(
+        "/api/agents/content-optimizer/runs/",
+        {"input": CONTENT_OPTIMIZER_INPUT, "idempotency_key": "optimizer-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["feedback"] == (
+        "Сильное открытие, добавьте призыв к действию."
+    )
+    assert run.credits_charged == Decimal("4.5")
+
+
+def test_content_optimizer_missing_platform_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {"post_text": CONTENT_OPTIMIZER_INPUT["post_text"]}
+
+    response = client.post(
+        "/api/agents/content-optimizer/runs/",
+        {"input": incomplete_input, "idempotency_key": "optimizer-missing"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+WEEKLY_CONTENT_PLAN_INPUT = {
+    "topic": "запуск нового продукта",
+    "audience": "малый бизнес",
+    "platforms": "Threads, Instagram",
+}
+
+VALID_WEEKLY_CONTENT_PLAN_RESULT_JSON = json.dumps(
+    {
+        "days": [
+            {
+                "day_label": "Понедельник",
+                "platform": "Threads",
+                "post_text": "Сегодня мы запускаемся.",
+                "hashtags": ["#запуск"],
+            }
+        ]
+    }
+)
+
+
+def test_weekly_content_plan_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        [
+            "weekly outline text",
+            "hashtag suggestions text",
+            VALID_WEEKLY_CONTENT_PLAN_RESULT_JSON,
+        ],
+    )
+
+    response = client.post(
+        "/api/agents/weekly-content-plan/runs/",
+        {"input": WEEKLY_CONTENT_PLAN_INPUT, "idempotency_key": "weekly-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["days"][0]["platform"] == "Threads"
+    assert run.credits_charged == Decimal("4.5")
+
+
+def test_weekly_content_plan_missing_audience_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {
+        "topic": WEEKLY_CONTENT_PLAN_INPUT["topic"],
+        "platforms": WEEKLY_CONTENT_PLAN_INPUT["platforms"],
+    }
+
+    response = client.post(
+        "/api/agents/weekly-content-plan/runs/",
+        {"input": incomplete_input, "idempotency_key": "weekly-missing"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+COMPETITOR_ANALYSIS_INPUT = {
+    "competitor": "Acme Corp",
+    "niche": "SaaS для малого бизнеса",
+}
+
+VALID_COMPETITOR_ANALYSIS_RESULT_JSON = json.dumps(
+    {
+        "competitor": "Acme Corp",
+        "strengths": ["Известный бренд"],
+        "weaknesses": ["Высокая цена"],
+        "opportunities": ["Более простой онбординг"],
+        "sources_note": "По данным открытых источников.",
+    }
+)
+
+
+def test_competitor_analysis_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        ["cited synthesis text", VALID_COMPETITOR_ANALYSIS_RESULT_JSON],
+    )
+
+    response = client.post(
+        "/api/agents/competitor-analysis/runs/",
+        {"input": COMPETITOR_ANALYSIS_INPUT, "idempotency_key": "competitor-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["opportunities"] == ["Более простой онбординг"]
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_competitor_analysis_first_step_uses_search_task(monkeypatch):
+    seen_tasks = []
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        seen_tasks.append(task)
+        text = (
+            "cited synthesis text"
+            if len(seen_tasks) == 1
+            else VALID_COMPETITOR_ANALYSIS_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok",
+            text=text,
+            provider="search",
+            model="gpt-4o-mini",
+            task=task,
+            credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    client, _ = _authed_client()
+    response = client.post(
+        "/api/agents/competitor-analysis/runs/",
+        {"input": COMPETITOR_ANALYSIS_INPUT, "idempotency_key": "competitor-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+    assert seen_tasks[0] == "search"
+    assert seen_tasks[1] == "content_plan"
+
+
+DOCUMENT_TRANSLATION_INPUT = {
+    "document_text": "Договор аренды офиса на 12 месяцев, оплата ежемесячно.",
+    "target_language": "English",
+}
+
+VALID_DOCUMENT_TRANSLATION_RESULT_JSON = json.dumps(
+    {
+        "translated_text": "Office lease agreement for 12 months, paid monthly.",
+        "summary": "A 12-month office lease with monthly payments.",
+    }
+)
+
+
+def test_document_translation_run_is_a_single_step_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch, [VALID_DOCUMENT_TRANSLATION_RESULT_JSON]
+    )
+
+    response = client.post(
+        "/api/agents/document-translation/runs/",
+        {"input": DOCUMENT_TRANSLATION_INPUT, "idempotency_key": "translate-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    # Single-step agent: exactly one workflow step, ran once.
+    assert len(run.steps) == 1
+    assert run.steps[0]["key"] == "assemble"
+    assert run.result["translated_text"] == (
+        "Office lease agreement for 12 months, paid monthly."
+    )
+    assert run.credits_charged == Decimal("1.5")
+
+
+def test_document_translation_missing_target_language_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {
+        "document_text": DOCUMENT_TRANSLATION_INPUT["document_text"]
+    }
+
+    response = client.post(
+        "/api/agents/document-translation/runs/",
+        {"input": incomplete_input, "idempotency_key": "translate-missing"},
+        format="json",
+    )
+    assert response.status_code == 400

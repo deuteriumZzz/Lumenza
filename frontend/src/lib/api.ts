@@ -175,6 +175,7 @@ export interface UserContextData {
   content?: { niche?: string; audience?: string; products?: string; examples?: string };
   research?: { topics?: string; depth?: string };
   documents?: { typical_formats?: string };
+  finance?: { topics?: string; risk_profile?: string };
 }
 
 export interface UserContextEntry {
@@ -475,7 +476,7 @@ export interface CodeExecutionEntry {
   completed_at: string | null;
 }
 
-export type AgentCategory = "content" | "research" | "documents";
+export type AgentCategory = "content" | "research" | "documents" | "finance";
 
 export interface AgentField {
   key: string;
@@ -538,6 +539,37 @@ export interface DocumentSummaryResult {
   answer: string;
 }
 
+export interface FinanceDigestResult {
+  topic: string;
+  summary: string;
+  key_points: string[];
+  disclaimer: string;
+  sources_note: string;
+}
+
+export interface ContentOptimizerResult {
+  variants: string[];
+  hooks: string[];
+  feedback: string;
+}
+
+export interface WeeklyContentPlanResult {
+  days: { day_label: string; platform: string; post_text: string; hashtags: string[] }[];
+}
+
+export interface CompetitorAnalysisResult {
+  competitor: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  sources_note: string;
+}
+
+export interface DocumentTranslationResult {
+  translated_text: string;
+  summary: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -545,7 +577,16 @@ export interface AgentRun {
   status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
   preferred_model?: string;
   steps: AgentRunStep[];
-  result: ThreadsContentPlan | ResearchDigestResult | DocumentSummaryResult | null;
+  result:
+    | ThreadsContentPlan
+    | ResearchDigestResult
+    | DocumentSummaryResult
+    | FinanceDigestResult
+    | ContentOptimizerResult
+    | WeeklyContentPlanResult
+    | CompetitorAnalysisResult
+    | DocumentTranslationResult
+    | null;
   credits_charged: string;
   error_message: string;
   created_at: string;

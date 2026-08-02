@@ -6,6 +6,11 @@ import { useParams } from "next/navigation";
 import { AgentRunResult } from "@/components/agent-run-result";
 import { ResearchDigestResult } from "@/components/research-digest-result";
 import { DocumentSummaryResult } from "@/components/document-summary-result";
+import { FinanceDigestResult } from "@/components/finance-digest-result";
+import { ContentOptimizerResult } from "@/components/content-optimizer-result";
+import { WeeklyContentPlanResult } from "@/components/weekly-content-plan-result";
+import { CompetitorAnalysisResult } from "@/components/competitor-analysis-result";
+import { DocumentTranslationResult } from "@/components/document-translation-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -21,6 +26,11 @@ import {
   type ThreadsContentPlan,
   type ResearchDigestResult as ResearchDigestResultData,
   type DocumentSummaryResult as DocumentSummaryResultData,
+  type FinanceDigestResult as FinanceDigestResultData,
+  type ContentOptimizerResult as ContentOptimizerResultData,
+  type WeeklyContentPlanResult as WeeklyContentPlanResultData,
+  type CompetitorAnalysisResult as CompetitorAnalysisResultData,
+  type DocumentTranslationResult as DocumentTranslationResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -34,7 +44,7 @@ import { statusPillClass } from "@/lib/status-styles";
 function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   if (!result) return "";
   if (
-    (slug === "research-digest" || slug === "document-summary") &&
+    (slug === "research-digest" || slug === "document-summary" || slug === "finance-digest") &&
     "summary" in result &&
     result.summary
   ) {
@@ -42,6 +52,15 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   }
   if (slug === "threads-content-day" && "schedule" in result) {
     return result.schedule.map((item) => item.post_text).filter(Boolean).join("\n\n");
+  }
+  if (slug === "content-optimizer" && "variants" in result) {
+    return result.variants.filter(Boolean).join("\n\n");
+  }
+  if (slug === "weekly-content-plan" && "days" in result) {
+    return result.days.map((day) => day.post_text).filter(Boolean).join("\n\n");
+  }
+  if (slug === "document-translation" && "translated_text" in result) {
+    return result.translated_text;
   }
   return JSON.stringify(result);
 }
@@ -397,6 +416,16 @@ export default function AgentRunPage() {
               <ResearchDigestResult data={run.result as ResearchDigestResultData} />
             ) : resultSourceSlug === "document-summary" ? (
               <DocumentSummaryResult data={run.result as DocumentSummaryResultData} />
+            ) : resultSourceSlug === "finance-digest" ? (
+              <FinanceDigestResult data={run.result as FinanceDigestResultData} />
+            ) : resultSourceSlug === "content-optimizer" ? (
+              <ContentOptimizerResult data={run.result as ContentOptimizerResultData} />
+            ) : resultSourceSlug === "weekly-content-plan" ? (
+              <WeeklyContentPlanResult data={run.result as WeeklyContentPlanResultData} />
+            ) : resultSourceSlug === "competitor-analysis" ? (
+              <CompetitorAnalysisResult data={run.result as CompetitorAnalysisResultData} />
+            ) : resultSourceSlug === "document-translation" ? (
+              <DocumentTranslationResult data={run.result as DocumentTranslationResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}
