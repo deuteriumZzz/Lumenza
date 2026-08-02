@@ -570,6 +570,102 @@ export interface DocumentTranslationResult {
   summary: string;
 }
 
+export interface LinkedinOutreachResult {
+  opening_lines: string[];
+  message: string;
+  follow_up: string;
+}
+
+export interface TwitterContentEngineResult {
+  trending_topics: string[];
+  tweets: string[];
+  thread_idea: string;
+}
+
+export interface BlogPostGeneratorResult {
+  title: string;
+  sections: { heading: string; body: string }[];
+  summary: string;
+}
+
+export interface OfferLetterDrafterResult {
+  offer_letter_text: string;
+  key_terms: string[];
+}
+
+export interface RecipeCreatorResult {
+  title: string;
+  ingredients: string[];
+  steps: string[];
+  intro_text: string;
+}
+
+export interface SupportReplyDrafterResult {
+  reply_text: string;
+  tone_note: string;
+}
+
+export interface AudienceSentimentResult {
+  overall_sentiment: string;
+  themes: string[];
+  notable_mentions: string[];
+  sources_note: string;
+}
+
+export interface ResearchReportResult {
+  title: string;
+  sections: { heading: string; body: string }[];
+  key_takeaways: string[];
+}
+
+export interface InvoiceDataExtractorResult {
+  vendor: string;
+  amount: string;
+  due_date: string;
+  line_items: string[];
+}
+
+export interface RfpResponseDrafterResult {
+  responses: { question: string; answer: string }[];
+  summary: string;
+}
+
+export interface ResumeJobMatcherResult {
+  strengths: string[];
+  gaps: string[];
+  tailored_summary: string;
+}
+
+export interface ContractAnalyzerResult {
+  summary: string;
+  key_terms: string[];
+  risks: string[];
+  recommendations: string[];
+}
+
+export interface MarketResearchResult {
+  theme: string;
+  trends: string[];
+  key_players: string[];
+  disclaimer: string;
+  sources_note: string;
+}
+
+export interface FinancialReportAnalyzerResult {
+  summary: string;
+  key_metrics: string[];
+  red_flags: string[];
+  disclaimer: string;
+}
+
+export interface InvestmentResearchResult {
+  asset: string;
+  thesis: string;
+  risks: string[];
+  disclaimer: string;
+  sources_note: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -586,6 +682,21 @@ export interface AgentRun {
     | WeeklyContentPlanResult
     | CompetitorAnalysisResult
     | DocumentTranslationResult
+    | LinkedinOutreachResult
+    | TwitterContentEngineResult
+    | BlogPostGeneratorResult
+    | OfferLetterDrafterResult
+    | RecipeCreatorResult
+    | SupportReplyDrafterResult
+    | AudienceSentimentResult
+    | ResearchReportResult
+    | InvoiceDataExtractorResult
+    | RfpResponseDrafterResult
+    | ResumeJobMatcherResult
+    | ContractAnalyzerResult
+    | MarketResearchResult
+    | FinancialReportAnalyzerResult
+    | InvestmentResearchResult
     | null;
   credits_charged: string;
   error_message: string;

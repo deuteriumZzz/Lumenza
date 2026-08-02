@@ -11,6 +11,21 @@ import { ContentOptimizerResult } from "@/components/content-optimizer-result";
 import { WeeklyContentPlanResult } from "@/components/weekly-content-plan-result";
 import { CompetitorAnalysisResult } from "@/components/competitor-analysis-result";
 import { DocumentTranslationResult } from "@/components/document-translation-result";
+import { LinkedinOutreachResult } from "@/components/linkedin-outreach-result";
+import { TwitterContentEngineResult } from "@/components/twitter-content-engine-result";
+import { BlogPostGeneratorResult } from "@/components/blog-post-generator-result";
+import { OfferLetterDrafterResult } from "@/components/offer-letter-drafter-result";
+import { RecipeCreatorResult } from "@/components/recipe-creator-result";
+import { SupportReplyDrafterResult } from "@/components/support-reply-drafter-result";
+import { AudienceSentimentResult } from "@/components/audience-sentiment-result";
+import { ResearchReportResult } from "@/components/research-report-result";
+import { InvoiceDataExtractorResult } from "@/components/invoice-data-extractor-result";
+import { RfpResponseDrafterResult } from "@/components/rfp-response-drafter-result";
+import { ResumeJobMatcherResult } from "@/components/resume-job-matcher-result";
+import { ContractAnalyzerResult } from "@/components/contract-analyzer-result";
+import { MarketResearchResult } from "@/components/market-research-result";
+import { FinancialReportAnalyzerResult } from "@/components/financial-report-analyzer-result";
+import { InvestmentResearchResult } from "@/components/investment-research-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -31,6 +46,21 @@ import {
   type WeeklyContentPlanResult as WeeklyContentPlanResultData,
   type CompetitorAnalysisResult as CompetitorAnalysisResultData,
   type DocumentTranslationResult as DocumentTranslationResultData,
+  type LinkedinOutreachResult as LinkedinOutreachResultData,
+  type TwitterContentEngineResult as TwitterContentEngineResultData,
+  type BlogPostGeneratorResult as BlogPostGeneratorResultData,
+  type OfferLetterDrafterResult as OfferLetterDrafterResultData,
+  type RecipeCreatorResult as RecipeCreatorResultData,
+  type SupportReplyDrafterResult as SupportReplyDrafterResultData,
+  type AudienceSentimentResult as AudienceSentimentResultData,
+  type ResearchReportResult as ResearchReportResultData,
+  type InvoiceDataExtractorResult as InvoiceDataExtractorResultData,
+  type RfpResponseDrafterResult as RfpResponseDrafterResultData,
+  type ResumeJobMatcherResult as ResumeJobMatcherResultData,
+  type ContractAnalyzerResult as ContractAnalyzerResultData,
+  type MarketResearchResult as MarketResearchResultData,
+  type FinancialReportAnalyzerResult as FinancialReportAnalyzerResultData,
+  type InvestmentResearchResult as InvestmentResearchResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -61,6 +91,23 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   }
   if (slug === "document-translation" && "translated_text" in result) {
     return result.translated_text;
+  }
+  if (slug === "linkedin-outreach" && "message" in result) {
+    return result.message;
+  }
+  if (slug === "twitter-content-engine" && "tweets" in result) {
+    return result.tweets.filter(Boolean).join("\n\n");
+  }
+  if (slug === "blog-post-generator" && "sections" in result && "title" in result) {
+    return [result.title, ...result.sections.map((section) => section.body)]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  if (slug === "offer-letter-drafter" && "offer_letter_text" in result) {
+    return result.offer_letter_text;
+  }
+  if (slug === "support-reply-drafter" && "reply_text" in result) {
+    return result.reply_text;
   }
   return JSON.stringify(result);
 }
@@ -426,6 +473,36 @@ export default function AgentRunPage() {
               <CompetitorAnalysisResult data={run.result as CompetitorAnalysisResultData} />
             ) : resultSourceSlug === "document-translation" ? (
               <DocumentTranslationResult data={run.result as DocumentTranslationResultData} />
+            ) : resultSourceSlug === "linkedin-outreach" ? (
+              <LinkedinOutreachResult data={run.result as LinkedinOutreachResultData} />
+            ) : resultSourceSlug === "twitter-content-engine" ? (
+              <TwitterContentEngineResult data={run.result as TwitterContentEngineResultData} />
+            ) : resultSourceSlug === "blog-post-generator" ? (
+              <BlogPostGeneratorResult data={run.result as BlogPostGeneratorResultData} />
+            ) : resultSourceSlug === "offer-letter-drafter" ? (
+              <OfferLetterDrafterResult data={run.result as OfferLetterDrafterResultData} />
+            ) : resultSourceSlug === "recipe-creator" ? (
+              <RecipeCreatorResult data={run.result as RecipeCreatorResultData} />
+            ) : resultSourceSlug === "support-reply-drafter" ? (
+              <SupportReplyDrafterResult data={run.result as SupportReplyDrafterResultData} />
+            ) : resultSourceSlug === "audience-sentiment" ? (
+              <AudienceSentimentResult data={run.result as AudienceSentimentResultData} />
+            ) : resultSourceSlug === "research-report" ? (
+              <ResearchReportResult data={run.result as ResearchReportResultData} />
+            ) : resultSourceSlug === "invoice-data-extractor" ? (
+              <InvoiceDataExtractorResult data={run.result as InvoiceDataExtractorResultData} />
+            ) : resultSourceSlug === "rfp-response-drafter" ? (
+              <RfpResponseDrafterResult data={run.result as RfpResponseDrafterResultData} />
+            ) : resultSourceSlug === "resume-job-matcher" ? (
+              <ResumeJobMatcherResult data={run.result as ResumeJobMatcherResultData} />
+            ) : resultSourceSlug === "contract-analyzer" ? (
+              <ContractAnalyzerResult data={run.result as ContractAnalyzerResultData} />
+            ) : resultSourceSlug === "market-research" ? (
+              <MarketResearchResult data={run.result as MarketResearchResultData} />
+            ) : resultSourceSlug === "financial-report-analyzer" ? (
+              <FinancialReportAnalyzerResult data={run.result as FinancialReportAnalyzerResultData} />
+            ) : resultSourceSlug === "investment-research" ? (
+              <InvestmentResearchResult data={run.result as InvestmentResearchResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}

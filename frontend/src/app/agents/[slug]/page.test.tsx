@@ -103,6 +103,47 @@ function makeRun(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// Shared driver for document_upload-type fields: uploads a file, lets the
+// mocked OCR extraction (mocks.createDocumentExtraction/documentExtraction)
+// resolve on the polling interval, and fills the required text field.
+async function extractDocumentViaOcr(
+  container: HTMLElement,
+  extractedText: string,
+) {
+  mocks.createDocumentExtraction.mockResolvedValue({
+    id: 99,
+    text: "",
+    status: "processing",
+    credits_charged: "0.0000",
+    mocked: false,
+    created_at: "2026-01-01T00:00:00Z",
+    completed_at: null,
+  });
+  mocks.documentExtraction.mockResolvedValue({
+    id: 99,
+    text: extractedText,
+    status: "ok",
+    credits_charged: "1.0000",
+    mocked: false,
+    created_at: "2026-01-01T00:00:00Z",
+    completed_at: "2026-01-01T00:00:05Z",
+  });
+
+  const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+  const file = new File(["scan bytes"], "scan.png", { type: "image/png" });
+
+  vi.useFakeTimers();
+  await act(async () => {
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    await Promise.resolve();
+  });
+  await act(async () => {
+    vi.advanceTimersByTime(2000);
+    await Promise.resolve();
+  });
+  vi.useRealTimers();
+}
+
 describe("AgentRunPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -716,5 +757,605 @@ describe("AgentRunPage", () => {
     });
 
     expect(screen.getByText("Office lease agreement for 12 months.")).toBeDefined();
+  });
+
+  it("renders the linkedin-outreach result shape", async () => {
+    mocks.slug = "linkedin-outreach";
+    mocks.agent.mockResolvedValue({
+      slug: "linkedin-outreach",
+      name: "LinkedIn-аутрич",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "target", label: "Кому пишете (роль, компания)", type: "text", required: true, max_length: 200 },
+          { key: "context", label: "Повод для контакта", type: "text", required: true, max_length: 300 },
+          { key: "tone", label: "Тон", type: "select", required: true, options: ["дружелюбный", "формальный"] },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "linkedin-outreach",
+        status: "ok",
+        steps: [{ key: "assemble", label: "Собираем", status: "ok" }],
+        result: {
+          opening_lines: ["Заметил ваш пост —"],
+          message: "Добрый день!",
+          follow_up: "Через неделю: напоминание.",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Кому пишете (роль, компания)")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Кому пишете (роль, компания)"), { target: { value: "Acme" } });
+    fireEvent.change(screen.getByLabelText("Повод для контакта"), { target: { value: "нетворкинг" } });
+    fireEvent.change(screen.getByLabelText("Тон"), { target: { value: "дружелюбный" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Через неделю: напоминание.")).toBeDefined();
+  });
+
+  it("renders the twitter-content-engine result shape", async () => {
+    mocks.slug = "twitter-content-engine";
+    mocks.agent.mockResolvedValue({
+      slug: "twitter-content-engine",
+      name: "X/Twitter контент-движок",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "niche", label: "Ниша/тема аккаунта", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "twitter-content-engine",
+        status: "ok",
+        steps: [{ key: "research", label: "Ищем", status: "ok" }],
+        result: {
+          trending_topics: ["Тайм-блокинг"],
+          tweets: ["Секрет продуктивности."],
+          thread_idea: "5 привычек.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Ниша/тема аккаунта")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Ниша/тема аккаунта"), { target: { value: "продуктивность" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("5 привычек.")).toBeDefined();
+  });
+
+  it("renders the blog-post-generator result shape", async () => {
+    mocks.slug = "blog-post-generator";
+    mocks.agent.mockResolvedValue({
+      slug: "blog-post-generator",
+      name: "Генератор блог-поста",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+          { key: "audience", label: "Аудитория", type: "text", required: true, max_length: 200 },
+          { key: "tone", label: "Тон", type: "select", required: true, options: ["экспертный", "разговорный"] },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "blog-post-generator",
+        status: "ok",
+        steps: [{ key: "draft", label: "Пишем", status: "ok" }],
+        result: {
+          title: "Как управлять командой",
+          sections: [{ heading: "Введение", body: "Текст." }],
+          summary: "Резюме статьи.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), { target: { value: "удалённая работа" } });
+    fireEvent.change(screen.getByLabelText("Аудитория"), { target: { value: "менеджеры" } });
+    fireEvent.change(screen.getByLabelText("Тон"), { target: { value: "экспертный" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Как управлять командой")).toBeDefined();
+  });
+
+  it("renders the offer-letter-drafter result shape", async () => {
+    mocks.slug = "offer-letter-drafter";
+    mocks.agent.mockResolvedValue({
+      slug: "offer-letter-drafter",
+      name: "Оффер-письмо",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "candidate_name", label: "Имя кандидата", type: "text", required: true, max_length: 120 },
+          { key: "role", label: "Должность", type: "text", required: true, max_length: 150 },
+          { key: "key_terms", label: "Ключевые условия (оклад, дата начала, формат)", type: "text", required: true, max_length: 500 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "offer-letter-drafter",
+        status: "ok",
+        steps: [{ key: "assemble", label: "Собираем", status: "ok" }],
+        result: {
+          offer_letter_text: "Уважаемый Иван!",
+          key_terms: ["Оклад 250000"],
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Имя кандидата")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Имя кандидата"), { target: { value: "Иван" } });
+    fireEvent.change(screen.getByLabelText("Должность"), { target: { value: "Engineer" } });
+    fireEvent.change(screen.getByLabelText("Ключевые условия (оклад, дата начала, формат)"), {
+      target: { value: "250000" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Уважаемый Иван!")).toBeDefined();
+  });
+
+  it("renders the recipe-creator result shape", async () => {
+    mocks.slug = "recipe-creator";
+    mocks.agent.mockResolvedValue({
+      slug: "recipe-creator",
+      name: "Генератор рецептов",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "theme_or_ingredients", label: "Тема или ингредиенты", type: "text", required: true, max_length: 300 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "recipe-creator",
+        status: "ok",
+        steps: [{ key: "assemble", label: "Собираем", status: "ok" }],
+        result: {
+          title: "Летний салат",
+          ingredients: ["Курица"],
+          steps: ["Обжарить курицу"],
+          intro_text: "Лёгкий ужин.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема или ингредиенты")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема или ингредиенты"), { target: { value: "курица" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Летний салат")).toBeDefined();
+  });
+
+  it("renders the support-reply-drafter result shape", async () => {
+    mocks.slug = "support-reply-drafter";
+    mocks.agent.mockResolvedValue({
+      slug: "support-reply-drafter",
+      name: "Ответ в поддержку",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "customer_message", label: "Сообщение клиента", type: "text", required: true, max_length: 2000 },
+          { key: "context", label: "Контекст (что нужно знать для ответа)", type: "text", required: false, max_length: 1000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "support-reply-drafter",
+        status: "ok",
+        steps: [{ key: "assemble", label: "Собираем", status: "ok" }],
+        result: { reply_text: "Приносим извинения.", tone_note: "Извиняющийся тон." },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Сообщение клиента")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Сообщение клиента"), { target: { value: "Где заказ?" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Приносим извинения.")).toBeDefined();
+  });
+
+  it("renders the audience-sentiment result shape", async () => {
+    mocks.slug = "audience-sentiment";
+    mocks.agent.mockResolvedValue({
+      slug: "audience-sentiment",
+      name: "Анализ тона аудитории",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic_or_brand", label: "Тема или бренд", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "audience-sentiment",
+        status: "ok",
+        steps: [{ key: "research", label: "Ищем", status: "ok" }],
+        result: {
+          overall_sentiment: "Преимущественно позитивный",
+          themes: ["Камера хвалят"],
+          notable_mentions: ["YouTube-обзор"],
+          sources_note: "Источник: example.com",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема или бренд")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема или бренд"), { target: { value: "iPhone" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Преимущественно позитивный")).toBeDefined();
+  });
+
+  it("renders the research-report result shape", async () => {
+    mocks.slug = "research-report";
+    mocks.agent.mockResolvedValue({
+      slug: "research-report",
+      name: "Аналитический отчёт",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+          { key: "audience", label: "Для кого отчёт", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "research-report",
+        status: "ok",
+        steps: [{ key: "research", label: "Ищем", status: "ok" }],
+        result: {
+          title: "Будущее удалённой работы",
+          sections: [{ heading: "Текущее состояние", body: "Текст." }],
+          key_takeaways: ["Гибрид — норма."],
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема"), { target: { value: "удалённая работа" } });
+    fireEvent.change(screen.getByLabelText("Для кого отчёт"), { target: { value: "HR" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Гибрид — норма.")).toBeDefined();
+  });
+
+  it("renders the invoice-data-extractor result shape", async () => {
+    mocks.slug = "invoice-data-extractor";
+    mocks.agent.mockResolvedValue({
+      slug: "invoice-data-extractor",
+      name: "Извлечение данных из счёта",
+      description: "test",
+      category: "documents",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "document_text", label: "Текст счёта", type: "document_upload", required: true, max_length: 20000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "invoice-data-extractor",
+        status: "ok",
+        steps: [{ key: "extract", label: "Извлекаем", status: "ok" }],
+        result: {
+          vendor: "ООО Ромашка",
+          amount: "15000 руб.",
+          due_date: "10.09.2026",
+          line_items: ["Консультационные услуги"],
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+    await extractDocumentViaOcr(container, "Счёт №123 от ООО Ромашка.");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("ООО Ромашка")).toBeDefined();
+  });
+
+  it("renders the rfp-response-drafter result shape", async () => {
+    mocks.slug = "rfp-response-drafter";
+    mocks.agent.mockResolvedValue({
+      slug: "rfp-response-drafter",
+      name: "Ответ на RFP",
+      description: "test",
+      category: "documents",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "document_text", label: "Текст RFP", type: "document_upload", required: true, max_length: 20000 },
+          { key: "company_context", label: "О вашей компании (для ответа)", type: "text", required: true, max_length: 1000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "rfp-response-drafter",
+        status: "ok",
+        steps: [{ key: "draft", label: "Готовим", status: "ok" }],
+        result: {
+          responses: [{ question: "Опишите опыт.", answer: "5 лет опыта." }],
+          summary: "Готовая заявка.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+    await extractDocumentViaOcr(container, "1. Опишите ваш опыт.");
+
+    fireEvent.change(screen.getByLabelText("О вашей компании (для ответа)"), {
+      target: { value: "Команда из 10 разработчиков." },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Готовая заявка.")).toBeDefined();
+  });
+
+  it("renders the resume-job-matcher result shape", async () => {
+    mocks.slug = "resume-job-matcher";
+    mocks.agent.mockResolvedValue({
+      slug: "resume-job-matcher",
+      name: "Анализ резюме",
+      description: "test",
+      category: "documents",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "resume_text", label: "Текст резюме", type: "document_upload", required: true, max_length: 20000 },
+          { key: "job_description", label: "Описание вакансии (необязательно)", type: "text", required: false, max_length: 3000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "resume-job-matcher",
+        status: "ok",
+        steps: [{ key: "analyze", label: "Анализируем", status: "ok" }],
+        result: {
+          strengths: ["Сильный опыт в Python"],
+          gaps: ["Нет опыта с Kubernetes"],
+          tailored_summary: "Опытный разработчик.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+    await extractDocumentViaOcr(container, "5 лет опыта в Python.");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Нет опыта с Kubernetes")).toBeDefined();
+  });
+
+  it("renders the contract-analyzer result shape", async () => {
+    mocks.slug = "contract-analyzer";
+    mocks.agent.mockResolvedValue({
+      slug: "contract-analyzer",
+      name: "Анализ договора",
+      description: "test",
+      category: "documents",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "document_text", label: "Текст договора", type: "document_upload", required: true, max_length: 20000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "contract-analyzer",
+        status: "ok",
+        steps: [{ key: "analyze", label: "Анализируем", status: "ok" }],
+        result: {
+          summary: "Договор на 1 год.",
+          key_terms: ["Срок 1 год"],
+          risks: ["Нет пункта о расторжении"],
+          recommendations: ["Добавить пункт"],
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+    await extractDocumentViaOcr(container, "Договор оказания услуг.");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Нет пункта о расторжении")).toBeDefined();
+  });
+
+  it("renders the market-research result shape", async () => {
+    mocks.slug = "market-research";
+    mocks.agent.mockResolvedValue({
+      slug: "market-research",
+      name: "Исследование рынка",
+      description: "test",
+      category: "finance",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "sector_or_theme", label: "Сектор или тема", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "market-research",
+        status: "ok",
+        steps: [{ key: "research", label: "Ищем", status: "ok" }],
+        result: {
+          theme: "рынок электромобилей",
+          trends: ["Рост спроса"],
+          key_players: ["Tesla", "BYD"],
+          disclaimer: "Материал носит информационный характер и не является индивидуальной инвестиционной рекомендацией.",
+          sources_note: "Источник: example.com",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Сектор или тема")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Сектор или тема"), { target: { value: "электромобили" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Tesla")).toBeDefined();
+  });
+
+  it("renders the financial-report-analyzer result shape", async () => {
+    mocks.slug = "financial-report-analyzer";
+    mocks.agent.mockResolvedValue({
+      slug: "financial-report-analyzer",
+      name: "Анализ финансового отчёта",
+      description: "test",
+      category: "finance",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "document_text", label: "Текст финансового отчёта", type: "document_upload", required: true, max_length: 20000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "financial-report-analyzer",
+        status: "ok",
+        steps: [{ key: "analyze", label: "Анализируем", status: "ok" }],
+        result: {
+          summary: "Выручка растёт.",
+          key_metrics: ["Выручка +12%"],
+          red_flags: ["Снижение прибыли"],
+          disclaimer: "Материал носит информационный характер и не является индивидуальной инвестиционной рекомендацией.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByText("Загрузить документ")).toBeDefined());
+    await extractDocumentViaOcr(container, "Выручка выросла на 12%.");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Снижение прибыли")).toBeDefined();
+  });
+
+  it("renders the investment-research result shape", async () => {
+    mocks.slug = "investment-research";
+    mocks.agent.mockResolvedValue({
+      slug: "investment-research",
+      name: "Инвестиционное исследование",
+      description: "test",
+      category: "finance",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "asset", label: "Актив", type: "text", required: true, max_length: 200 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "investment-research",
+        status: "ok",
+        steps: [{ key: "research", label: "Ищем", status: "ok" }],
+        result: {
+          asset: "индекс S&P 500",
+          thesis: "Долгосрочный рост.",
+          risks: ["Волатильность ставок"],
+          disclaimer: "Материал носит информационный характер и не является индивидуальной инвестиционной рекомендацией.",
+          sources_note: "Источник: example.com",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Актив")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Актив"), { target: { value: "S&P 500" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Волатильность ставок")).toBeDefined();
   });
 });
