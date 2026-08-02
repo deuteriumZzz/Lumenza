@@ -16,6 +16,12 @@ IMAGE_PRICING = {
     # промпту) — цена чуть выше flux.1-dev до подтверждения реальным
     # счётом. TODO: сверить.
     "flux.1-kontext-dev": 0.015,
+    # real-esrgan (Replicate, community/hardware-time billed) — оценка на
+    # лёгкую GPU-модель, тарифицируется так же, как flux-schnell/
+    # flux.1-dev/flux.1-kontext-dev выше: фиксированная оценка вместо
+    # реального metrics.predict_time на вызов. TODO: сверить с реальным
+    # счётом Replicate.
+    "real-esrgan": 0.005,
 }
 
 

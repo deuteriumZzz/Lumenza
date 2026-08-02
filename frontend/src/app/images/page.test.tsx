@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   images: vi.fn(),
   createImage: vi.fn(),
   createImageEdit: vi.fn(),
+  createImageUpscale: vi.fn(),
   refreshBalance: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       images: mocks.images,
       createImage: mocks.createImage,
       createImageEdit: mocks.createImageEdit,
+      createImageUpscale: mocks.createImageUpscale,
     },
   };
 });
@@ -60,6 +62,7 @@ describe("Images Mini App layout", () => {
     mocks.refreshBalance.mockReset();
     mocks.createImage.mockReset();
     mocks.createImageEdit.mockReset();
+    mocks.createImageUpscale.mockReset();
   });
 
   it("uses a persistent bottom composer with real model routing", async () => {
@@ -92,4 +95,40 @@ describe("Images Mini App layout", () => {
     expect(within(composer).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
   });
 
+  it("submits an upload with the selected task in Upscale mode", async () => {
+    mocks.createImageUpscale.mockResolvedValue({
+      id: 9,
+      prompt: "Upscale ×4 + texture preserve",
+      provider: "replicate",
+      model: "real-esrgan",
+      status: "pending",
+      credits_charged: 1,
+      mocked: true,
+      image_url: null,
+      source_image_url: "http://example.test/source.png",
+      created_at: "2026-08-02T00:00:00Z",
+      completed_at: null,
+    });
+
+    render(<Images initialMode="upscale" />);
+    await waitFor(() => expect(mocks.images).toHaveBeenCalled());
+
+    expect(screen.getByRole("button", { name: "Загрузить изображение для увеличения" })).toBeDefined();
+    const composer = screen.getByRole("form", { name: "Upscale prompt composer" });
+    expect(within(composer).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
+
+    fireEvent.click(within(composer).getByRole("button", { name: /Модель Upscale:/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Texture preserve/ }));
+
+    const file = new File(["image"], "photo.png", { type: "image/png" });
+    const input = screen.getByLabelText("Изображение для увеличения") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(within(composer).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", false);
+    fireEvent.click(within(composer).getByRole("button", { name: "Создать" }));
+
+    await waitFor(() =>
+      expect(mocks.createImageUpscale).toHaveBeenCalledWith(file, "upscale_4x_face"),
+    );
+  });
 });

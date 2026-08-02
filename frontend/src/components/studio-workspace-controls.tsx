@@ -26,10 +26,17 @@ const TOOL_OPTIONS: Record<StudioControlMode, string[]> = {
 
 const MODEL_OPTIONS: Record<StudioControlMode, string[]> = {
   image: ["FLUX Schnell", "DALL·E 3", "FLUX.1 Dev"],
-  video: ["Veo 3.1", "Kling 3.0", "Seedance 2.0", "Sora 2"],
+  // Раньше здесь были вымышленные бренды (Veo/Kling/Sora), к которым не
+  // подключён ни один адаптер — теперь Text to video реально маршрутизирует
+  // на Wan 2.5, называть панель иначе было бы вводящим в заблуждение.
+  video: ["Wan 2.5 Fast"],
   audio: ["Whisper", "Eleven Multilingual", "Lumen Voice"],
   edit: ["FLUX.1 Kontext", "GPT Image Edit", "Recraft Edit"],
-  upscale: ["Topaz", "Magnific Precision V2", "Lumen Enhance"],
+  // Те же 4 строки, что и UPSCALE_LABELS в images/page.tsx — здесь это не
+  // просто декоративный список названий брендов (как было раньше с Topaz/
+  // Magnific), а реально работающий пикер: onModelChange у Images для
+  // initialMode="upscale" маршрутизирует именно по этим подписям.
+  upscale: ["2× clarity", "4× detail", "Face recovery", "Texture preserve"],
 };
 
 const DEFAULT_SETTINGS = {
@@ -358,11 +365,14 @@ function modelDetail(mode: StudioControlMode, option: string): string {
   if (mode === "image" && option === "DALL·E 3") return "OpenAI · photorealistic route";
   if (mode === "image" && option === "FLUX.1 Dev") return "NVIDIA · premium route";
   if (mode === "edit" && option === "FLUX.1 Kontext") return "NVIDIA · connected image edit route";
+  if (mode === "video" && option === "Wan 2.5 Fast") return "Replicate · connected text/image-to-video route";
+  if (mode === "upscale") return "Replicate · Real-ESRGAN route";
   return "Workspace preference · provider required";
 }
 
 function isPreviewTool(mode: StudioControlMode, tool: string): boolean {
-  if (mode === "video" || mode === "upscale") return true;
+  if (mode === "video") return !["Text to video", "Animate image"].includes(tool);
+  if (mode === "upscale") return false;
   if (mode === "audio") return tool === "Voice cloning" || tool === "Music";
   if (mode === "edit") return !["Edit image"].includes(tool);
   return !["Create image", "Inpaint"].includes(tool);

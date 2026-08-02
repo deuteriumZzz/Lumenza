@@ -27,14 +27,36 @@ vi.mock("@/components/require-auth", () => ({
   RequireAuth: ({ children }: { children: ReactNode }) => children,
 }));
 
+function imagesModeLabel(initialMode?: string): string {
+  if (initialMode === "edit") return "Edit";
+  if (initialMode === "upscale") return "Upscale";
+  return "Image";
+}
+
 vi.mock("@/app/images/page", () => ({
-  Images: ({ initialMode, initialPrompt }: { initialMode?: string; initialPrompt?: string }) => (
+  Images: ({ initialMode, initialPrompt }: { initialMode?: string; initialPrompt?: string }) => {
+    const label = imagesModeLabel(initialMode);
+    return (
+      <div>
+        <p>{initialMode === "edit" ? "Редактор изображений" : initialMode === "upscale" ? "Апскейл изображений" : "Генератор изображений"}</p>
+        {initialMode === "generate" || initialMode === undefined ? (
+          <input aria-label="Черновик изображения" readOnly value={initialPrompt ?? ""} />
+        ) : null}
+        <button aria-label={`Инструменты ${label}`} />
+        <button aria-label={`Модель ${label}: Автовыбор`} />
+        <button aria-label={`Настройки ${label}`} />
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/app/videos/page", () => ({
+  Videos: () => (
     <div>
-      <p>{initialMode === "edit" ? "Редактор изображений" : "Генератор изображений"}</p>
-      {initialMode !== "edit" && <input aria-label="Черновик изображения" readOnly value={initialPrompt ?? ""} />}
-      <button aria-label={`Инструменты ${initialMode === "edit" ? "Edit" : "Image"}`} />
-      <button aria-label={`Модель ${initialMode === "edit" ? "Edit" : "Image"}: Автовыбор`} />
-      <button aria-label={`Настройки ${initialMode === "edit" ? "Edit" : "Image"}`} />
+      <p>Видео-генератор</p>
+      <button aria-label="Инструменты Video" />
+      <button aria-label="Модель Video: Автовыбор" />
+      <button aria-label="Настройки Video" />
     </div>
   ),
 }));
@@ -281,14 +303,28 @@ describe("StudioPage motion", () => {
     expect(form.closest("section")?.classList.contains("has-prompt-dock")).toBe(true);
   });
 
-  it.each(["video", "upscale"])("allows preparing %s projects while honestly disabling generation", (mode) => {
-    mocks.query = `mode=${mode}`;
+  it("renders the real Video workspace instead of the old disconnected stub", () => {
+    mocks.query = "mode=video";
     renderStudioPage();
 
-    const form = screen.getByRole("form", { name: new RegExp(`${mode}`, "i") });
-    expect(within(form).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
-    expect(within(form).getByRole("button", { name: "Добавить референс" })).toHaveProperty("disabled", false);
-    expect(screen.getByLabelText(mode === "video" ? "Загрузить медиа для видео" : "Загрузить изображение для upscale")).toBeDefined();
-    expect(screen.getByRole("status").textContent).toContain("Провайдер пока не подключён");
+    expect(screen.getByText("Видео-генератор")).toBeDefined();
+    expect(screen.getByText("Video workspace")).toBeDefined();
+  });
+
+  it("marks the still-deferred Video sub-modes as Soon in the mode library", () => {
+    mocks.query = "mode=video";
+    renderStudioPage();
+
+    const extendCard = screen.getByRole("button", { name: /Extend/ });
+    expect(within(extendCard).getByText("Soon")).toBeDefined();
+    const textToVideoCard = screen.getByRole("button", { name: /Text to video/ });
+    expect(within(textToVideoCard).queryByText("Soon")).toBeNull();
+  });
+
+  it("renders the real Upscale workspace instead of the old disconnected stub", () => {
+    mocks.query = "mode=upscale";
+    renderStudioPage();
+
+    expect(screen.getByText("Апскейл изображений")).toBeDefined();
   });
 });

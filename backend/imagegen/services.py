@@ -11,10 +11,33 @@ from billing.services import (
     usd_to_credits,
 )
 from core.enqueue import try_enqueue_or_refund
+from imagegen.flux_adapter import UPSCALE_MODEL
 from imagegen.models import GeneratedImage
 from imagegen.pricing import estimate_image_cost_usd
-from imagegen.tasks import edit_image_task, generate_image_task
+from imagegen.tasks import (
+    UPSCALE_TASK_FUNCS,
+    edit_image_task,
+    generate_image_task,
+)
 from progression.services import get_unlocked_keys
+
+# Публичная категория задачи апскейла -> (scale, face_enhance),
+# передаваемые в FluxAdapter.upscale(). real-esrgan реально выставляет
+# только эти 2 параметра, а у Studio ровно 4 карточки режима — биекция
+# без остатка (см. план в docs/, комментарии у карточек ниже).
+UPSCALE_TASK_ROUTES = {
+    "upscale_2x": (2, False),  # "2× clarity"
+    "upscale_4x": (4, False),  # "4× detail"
+    "upscale_2x_face": (2, True),  # "Face recovery"
+    "upscale_4x_face": (4, True),  # "Texture preserve"
+}
+
+UPSCALE_TASK_LABELS = {
+    "upscale_2x": "Upscale ×2",
+    "upscale_4x": "Upscale ×4",
+    "upscale_2x_face": "Upscale ×2 + face recovery",
+    "upscale_4x_face": "Upscale ×4 + texture preserve",
+}
 
 # Публичная категория задачи (из ImageRequestSerializer, и собственного
 # выбора Telegram-бота) -> (ключ реестра адаптеров, модель).
@@ -143,6 +166,61 @@ def start_image_edit(
         user,
         hold_credits,
         "Failed to enqueue image edit",
+    ):
+        return StartImageOutcome(status="enqueue_failed", record=record)
+
+    return StartImageOutcome(status="accepted", record=record)
+
+
+def start_image_upscale(
+    user, source_image_file, task: str
+) -> StartImageOutcome:
+    """Апскейл (Studio: режим Upscale) — так же, как start_image_edit,
+    принимает изображение, но без промпта: scale/face_enhance выбираются
+    самой карточкой режима (см. UPSCALE_TASK_ROUTES), а не свободным
+    текстом, поэтому модерация текста здесь не нужна (нет пользовательского
+    текста для проверки — тот же пробел, что и у start_image_edit, которая
+    тоже никогда не проверяет содержимое загруженного фото)."""
+    if task not in get_unlocked_keys(user):
+        return StartImageOutcome(status="task_locked")
+
+    scale, face_enhance = UPSCALE_TASK_ROUTES[task]
+
+    get_or_create_account(user)
+    hold_credits = usd_to_credits(estimate_image_cost_usd(UPSCALE_MODEL))
+
+    try:
+        with transaction.atomic():
+            charge_credits(
+                user, hold_credits, reason=LedgerEntry.Reason.UPSCALE_REQUEST
+            )
+            record = GeneratedImage.objects.create(
+                user=user,
+                # DB-уровень допускает пустую/произвольную строку —
+                # blank=False на TextField влияет только на валидацию
+                # сериализатора/формы, не на прямой .objects.create().
+                prompt=UPSCALE_TASK_LABELS[task],
+                provider="replicate",
+                model=UPSCALE_MODEL,
+                status=GeneratedImage.Status.PENDING,
+                credits_charged=hold_credits,
+                source_image=source_image_file,
+            )
+    except InsufficientCreditsError:
+        return StartImageOutcome(status="insufficient_credits")
+
+    # GeneratedImage не хранит task-ключ и не имеет полей под scale/
+    # face_enhance, а try_enqueue_or_refund всегда зовёт task.delay(record.id)
+    # — без места передать эти два параметра в общую задачу. Решение то же,
+    # что уже используют generate_image/edit_image: один Celery-таск на
+    # конкретный маршрут (здесь их 4, с зафиксированными scale/face_enhance
+    # внутри), а не одна параметризуемая задача.
+    if not try_enqueue_or_refund(
+        UPSCALE_TASK_FUNCS[task],
+        record,
+        user,
+        hold_credits,
+        "Failed to enqueue image upscale",
     ):
         return StartImageOutcome(status="enqueue_failed", record=record)
 

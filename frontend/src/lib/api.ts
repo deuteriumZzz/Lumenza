@@ -358,11 +358,24 @@ export interface ModelProgress {
 
 export type ImageTask = "realistic" | "illustration" | "premium";
 
+export type UpscaleTask =
+  | "upscale_2x"
+  | "upscale_4x"
+  | "upscale_2x_face"
+  | "upscale_4x_face";
+
 // "edit" не входит в ImageTask/поле task у createImage — это отдельный
 // поток (createImageEdit, multipart с входным фото) — но он всё равно
 // должен появляться здесь, чтобы типизация прогресса/разблокировки его
-// покрывала.
-export type TaskOrImageTask = Task | ImageTask | "edit";
+// покрывала. То же для "video"/"video_i2v" (videogen) и UpscaleTask
+// (imagegen upscale) — ни один не входит в ImageTask/Task напрямую.
+export type TaskOrImageTask =
+  | Task
+  | ImageTask
+  | UpscaleTask
+  | "edit"
+  | "video"
+  | "video_i2v";
 
 export interface ResourceProgress {
   key: TaskOrImageTask;
@@ -387,6 +400,20 @@ export interface GeneratedImageEntry {
   credits_charged: string;
   mocked: boolean;
   image_url: string | null;
+  source_image_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface GeneratedVideoEntry {
+  id: number;
+  prompt: string;
+  provider: string;
+  model: string;
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits" | "blocked";
+  credits_charged: string;
+  mocked: boolean;
+  video_url: string | null;
   source_image_url: string | null;
   created_at: string;
   completed_at: string | null;
@@ -732,6 +759,25 @@ export const api = {
     }),
   images: (page = 1) => request<Paginated<GeneratedImageEntry>>(`/images/?page=${page}`),
   image: (id: number) => request<GeneratedImageEntry>(`/images/${id}/`),
+  createImageUpscale: (imageFile: File, task: UpscaleTask) => {
+    const formData = new FormData();
+    formData.append("image", imageFile, imageFile.name);
+    formData.append("task", task);
+    return requestMultipart<GeneratedImageEntry>("/images/upscale/", formData);
+  },
+  createVideo: (prompt: string) =>
+    request<GeneratedVideoEntry>("/videos/", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
+  createVideoAnimation: (prompt: string, imageFile: File) => {
+    const formData = new FormData();
+    formData.append("prompt", prompt);
+    formData.append("image", imageFile, imageFile.name);
+    return requestMultipart<GeneratedVideoEntry>("/videos/animate/", formData);
+  },
+  videos: (page = 1) => request<Paginated<GeneratedVideoEntry>>(`/videos/?page=${page}`),
+  video: (id: number) => request<GeneratedVideoEntry>(`/videos/${id}/`),
   agents: () => request<AgentSummary[]>("/agents/"),
   agent: (slug: string) => request<AgentDetail>(`/agents/${slug}/`),
   createAgentRun: (

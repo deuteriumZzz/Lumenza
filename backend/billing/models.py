@@ -44,6 +44,8 @@ class LedgerEntry(models.Model):
             "code_execution_request",
             "Code execution request",
         )
+        VIDEO_REQUEST = "video_request", "Video generation request"
+        UPSCALE_REQUEST = "upscale_request", "Image upscale request"
         REFUND = "refund", "Refund"
         REFERRAL_BONUS = "referral_bonus", "Referral bonus"
 

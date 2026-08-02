@@ -31,6 +31,24 @@ class ImageEditRequestSerializer(serializers.Serializer):
     )
 
 
+UPSCALE_TASK_CHOICES = [
+    "upscale_2x",
+    "upscale_4x",
+    "upscale_2x_face",
+    "upscale_4x_face",
+]
+
+
+# Апскейл принимает только изображение + пресет — без промпта, в отличие
+# от ImageEditRequestSerializer (multipart, свой эндпоинт, та же логика
+# разделения, что и у edit).
+class ImageUpscaleRequestSerializer(serializers.Serializer):
+    image = serializers.ImageField(
+        validators=[max_upload_size(MAX_IMAGE_UPLOAD_BYTES)]
+    )
+    task = serializers.ChoiceField(choices=UPSCALE_TASK_CHOICES)
+
+
 class GeneratedImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     source_image_url = serializers.SerializerMethodField()

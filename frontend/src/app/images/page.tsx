@@ -11,6 +11,7 @@ import {
   type GeneratedImageEntry,
   type ImageTask,
   type Paginated,
+  type UpscaleTask,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 import { redirect } from "next/navigation";
@@ -25,6 +26,22 @@ const TASK_BY_MODEL = Object.fromEntries(
   Object.entries(MODEL_BY_TASK).map(([task, model]) => [model, task]),
 ) as Record<string, ImageTask>;
 
+// Те же 4 строки, что и у карточек режима Upscale в studio/page.tsx и у
+// MODEL_OPTIONS.upscale в studio-workspace-controls.tsx — единственный
+// реально работающий пикер варианта апскейла (через selectedModel/
+// onModelChange, тот же механизм, что уже реально маршрутизирует Image
+// mode выше), поэтому именование должно совпадать в трёх местах.
+const UPSCALE_LABELS: Record<UpscaleTask, string> = {
+  upscale_2x: "2× clarity",
+  upscale_4x: "4× detail",
+  upscale_2x_face: "Face recovery",
+  upscale_4x_face: "Texture preserve",
+};
+
+const TASK_BY_UPSCALE_LABEL = Object.fromEntries(
+  Object.entries(UPSCALE_LABELS).map(([task, label]) => [label, task]),
+) as Record<string, UpscaleTask>;
+
 const IN_PROGRESS = new Set<GeneratedImageEntry["status"]>(["pending", "processing"]);
 const POLL_INTERVAL_MS = 2000;
 
@@ -38,7 +55,7 @@ export function Images({
   initialMode = "generate",
   initialPrompt = "",
 }: {
-  initialMode?: "generate" | "edit";
+  initialMode?: "generate" | "edit" | "upscale";
   initialPrompt?: string;
 }) {
   const { refreshBalance } = useAuth();
@@ -61,6 +78,16 @@ export function Images({
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [upscaleTask, setUpscaleTask] = useState<UpscaleTask>("upscale_2x");
+  // Апскейл не принимает промпт на бэкенде (start_image_upscale сам
+  // синтезирует подпись) — это поле чисто декоративное, никогда не
+  // отправляется, но StudioPromptDock блокирует "Создать" при пустой
+  // строке, так что держим его синхронизированным с выбранным вариантом.
+  const [upscalePrompt, setUpscalePrompt] = useState(UPSCALE_LABELS.upscale_2x);
+  const [upscaleFile, setUpscaleFile] = useState<File | null>(null);
+  const [upscaleSubmitting, setUpscaleSubmitting] = useState(false);
+  const [upscaleSubmitError, setUpscaleSubmitError] = useState<string | null>(null);
+  const upscaleFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +216,36 @@ export function Images({
     }
   }
 
+  async function submitUpscale() {
+    if (!upscaleFile || upscaleSubmitting) return;
+    setUpscaleSubmitError(null);
+    setUpscaleSubmitting(true);
+    try {
+      const created = await api.createImageUpscale(upscaleFile, upscaleTask);
+      setUpscaleFile(null);
+      void refreshBalance();
+      if (page === 1) {
+        setResult((prev) =>
+          prev
+            ? { ...prev, data: { ...prev.data, count: prev.data.count + 1, results: [created, ...prev.data.results] } }
+            : prev
+        );
+      } else {
+        setPage(1);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) {
+        setUpscaleSubmitError("Недостаточно кредитов для этого запроса.");
+      } else if (err instanceof ApiError && err.status === 403) {
+        setUpscaleSubmitError(apiErrorMessage(err));
+      } else {
+        setUpscaleSubmitError(apiErrorMessage(err));
+      }
+    } finally {
+      setUpscaleSubmitting(false);
+    }
+  }
+
   return (
     <div
       data-testid="images-content"
@@ -196,9 +253,15 @@ export function Images({
     >
       <div className="studio-gallery-heading">
         <div>
-          <p className="studio-kicker">{mode === "edit" ? "Transform" : "Inspirations"}</p>
-          <h2>{mode === "edit" ? "Edit mode" : "Your visual workspace"}</h2>
-          <p>{mode === "edit" ? "Добавьте исходник и опишите точную правку." : "Создавайте визуалы внизу — новые результаты появляются здесь."}</p>
+          <p className="studio-kicker">{mode === "edit" ? "Transform" : mode === "upscale" ? "Enhance" : "Inspirations"}</p>
+          <h2>{mode === "edit" ? "Edit mode" : mode === "upscale" ? "Upscale mode" : "Your visual workspace"}</h2>
+          <p>
+            {mode === "edit"
+              ? "Добавьте исходник и опишите точную правку."
+              : mode === "upscale"
+                ? "Загрузите изображение и выберите вариант увеличения."
+                : "Создавайте визуалы внизу — новые результаты появляются здесь."}
+          </p>
         </div>
         <span>{data?.count ?? 0} creations</span>
       </div>
@@ -210,6 +273,17 @@ export function Images({
           accept="image/*"
           aria-label="Исходное фото"
           onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
+          className="sr-only"
+        />
+      )}
+
+      {mode === "upscale" && (
+        <input
+          ref={upscaleFileInputRef}
+          type="file"
+          accept="image/*"
+          aria-label="Изображение для увеличения"
+          onChange={(event) => setUpscaleFile(event.target.files?.[0] ?? null)}
           className="sr-only"
         />
       )}
@@ -233,6 +307,17 @@ export function Images({
             <span aria-hidden="true">＋</span>
             <h3>Загрузите первый исходник</h3>
             <p>PNG, JPG или WEBP · затем опишите правку в нижней панели.</p>
+          </button>
+        ) : mode === "upscale" ? (
+          <button
+            type="button"
+            aria-label="Загрузить изображение для увеличения"
+            onClick={() => upscaleFileInputRef.current?.click()}
+            className="studio-gallery-empty studio-gallery-upload"
+          >
+            <span aria-hidden="true">＋</span>
+            <h3>Загрузите первое изображение</h3>
+            <p>PNG, JPG или WEBP · затем выберите вариант ниже.</p>
           </button>
         ) : (
           <div className="studio-gallery-empty">
@@ -273,20 +358,52 @@ export function Images({
       )}
 
       <StudioPromptDock
-        mode={mode === "edit" ? "edit" : "image"}
-        prompt={mode === "edit" ? editPrompt : prompt}
-        onPromptChange={mode === "edit" ? setEditPrompt : setPrompt}
-        onSubmit={() => void (mode === "edit" ? submitEdit() : generate())}
-        onAddReference={mode === "edit" ? () => editFileInputRef.current?.click() : undefined}
-        submitDisabled={mode === "edit" && !editFile}
-        busy={mode === "edit" ? editSubmitting : submitting}
-        selectedModel={mode === "edit" ? "FLUX.1 Kontext" : MODEL_BY_TASK[task]}
-        onModelChange={mode === "edit" ? undefined : (model) => {
-          const nextTask = TASK_BY_MODEL[model];
-          if (nextTask) setTask(nextTask);
-        }}
-        referenceLabel={editFile?.name}
-        status={mode === "edit" ? editSubmitError ?? undefined : submitError ?? undefined}
+        mode={mode === "edit" ? "edit" : mode === "upscale" ? "upscale" : "image"}
+        prompt={mode === "edit" ? editPrompt : mode === "upscale" ? upscalePrompt : prompt}
+        onPromptChange={mode === "edit" ? setEditPrompt : mode === "upscale" ? setUpscalePrompt : setPrompt}
+        onSubmit={() =>
+          void (mode === "edit" ? submitEdit() : mode === "upscale" ? submitUpscale() : generate())
+        }
+        onAddReference={
+          mode === "edit"
+            ? () => editFileInputRef.current?.click()
+            : mode === "upscale"
+              ? () => upscaleFileInputRef.current?.click()
+              : undefined
+        }
+        submitDisabled={(mode === "edit" && !editFile) || (mode === "upscale" && !upscaleFile)}
+        busy={mode === "edit" ? editSubmitting : mode === "upscale" ? upscaleSubmitting : submitting}
+        selectedModel={
+          mode === "edit"
+            ? "FLUX.1 Kontext"
+            : mode === "upscale"
+              ? UPSCALE_LABELS[upscaleTask]
+              : MODEL_BY_TASK[task]
+        }
+        onModelChange={
+          mode === "edit"
+            ? undefined
+            : mode === "upscale"
+              ? (label) => {
+                  const nextTask = TASK_BY_UPSCALE_LABEL[label];
+                  if (nextTask) {
+                    setUpscaleTask(nextTask);
+                    setUpscalePrompt(UPSCALE_LABELS[nextTask]);
+                  }
+                }
+              : (model) => {
+                  const nextTask = TASK_BY_MODEL[model];
+                  if (nextTask) setTask(nextTask);
+                }
+        }
+        referenceLabel={mode === "edit" ? editFile?.name : mode === "upscale" ? upscaleFile?.name : undefined}
+        status={
+          mode === "edit"
+            ? editSubmitError ?? undefined
+            : mode === "upscale"
+              ? upscaleSubmitError ?? undefined
+              : submitError ?? undefined
+        }
       />
     </div>
   );
@@ -320,7 +437,7 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
               alt="Исходное фото"
               className="h-8 w-8 rounded object-cover"
             />
-            <span className="text-[11px] text-muted">Отредактированное фото</span>
+            <span className="text-[11px] text-muted">Исходное фото</span>
           </div>
         )}
         <p className="line-clamp-2 text-xs text-muted">{entry.prompt}</p>

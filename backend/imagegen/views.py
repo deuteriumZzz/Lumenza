@@ -10,8 +10,13 @@ from imagegen.serializers import (
     GeneratedImageSerializer,
     ImageEditRequestSerializer,
     ImageRequestSerializer,
+    ImageUpscaleRequestSerializer,
 )
-from imagegen.services import start_image_edit, start_image_generation
+from imagegen.services import (
+    start_image_edit,
+    start_image_generation,
+    start_image_upscale,
+)
 from imagegen.throttling import ImageGenerationRateThrottle
 
 
@@ -101,6 +106,39 @@ class ImageEditView(generics.CreateAPIView):
             outcome,
             ok,
             enqueue_failed_detail="Image editing is temporarily unavailable",
+        )
+
+
+class ImageUpscaleView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
+    serializer_class = ImageUpscaleRequestSerializer
+    throttle_classes = [ImageGenerationRateThrottle]
+
+    def get_serializer_context(self):
+        return {"request": self.request}
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        outcome = start_image_upscale(
+            request.user,
+            serializer.validated_data["image"],
+            serializer.validated_data["task"],
+        )
+
+        output = GeneratedImageSerializer(
+            outcome.record, context=self.get_serializer_context()
+        )
+        ok = (
+            Response(output.data, status=status.HTTP_202_ACCEPTED)
+            if outcome.record
+            else None
+        )
+        return locked_or(
+            outcome,
+            ok,
+            enqueue_failed_detail="Image upscaling is temporarily unavailable",
         )
 
 

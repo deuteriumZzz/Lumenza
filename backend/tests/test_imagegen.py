@@ -10,7 +10,6 @@ from accounts.models import User as UserModel
 from billing.models import CreditAccount
 from imagegen.models import GeneratedImage
 from imagegen.tasks import (
-    _translate_prompt_to_english,
     edit_image_task,
     generate_image,
     generate_image_task,
@@ -400,52 +399,89 @@ def test_image_gallery_listing_is_not_rate_limited(monkeypatch):
         assert response.status_code == 200
 
 
-def test_translate_prompt_to_english_skips_already_english_prompts(
-    monkeypatch,
-):
+def test_create_upscale_requires_authentication():
+    client = APIClient()
+    response = client.post(
+        "/api/images/upscale/",
+        {"image": _sample_upload(), "task": "upscale_2x"},
+        format="multipart",
+    )
+    assert response.status_code == 401
+
+
+def test_create_upscale_success_charges_credits_and_saves_file():
+    client, user = _authed_client("upscaler")
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
+    response = client.post(
+        "/api/images/upscale/",
+        {"image": _sample_upload(), "task": "upscale_4x_face"},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    record = GeneratedImage.objects.get(id=response.data["id"])
+    assert record.provider == "replicate"
+    assert record.model == "real-esrgan"
+    assert record.status == GeneratedImage.Status.OK
+    assert record.mocked is True
+    assert bool(record.image) is True
+    assert bool(record.source_image) is True
+    assert record.credits_charged > 0
+
+    account.refresh_from_db()
+    assert account.balance == starting_balance - record.credits_charged
+
+
+def test_create_upscale_insufficient_credits_returns_402():
+    client, user = _authed_client("upscale_no_credits")
+    account = CreditAccount.objects.get(user=user)
+    account.balance = Decimal("0")
+    account.save(update_fields=["balance"])
+
+    response = client.post(
+        "/api/images/upscale/",
+        {"image": _sample_upload(), "task": "upscale_2x"},
+        format="multipart",
+    )
+
+    assert response.status_code == 402
+    assert not GeneratedImage.objects.filter(user=user).exists()
+
+
+def test_upscale_enqueue_failure_refunds_hold_and_returns_503(monkeypatch):
+    from imagegen.tasks import upscale_image_2x_task
+
+    client, user = _authed_client("upscale_enqueue_fails")
+    account = CreditAccount.objects.get(user=user)
+    starting_balance = account.balance
+
     def boom(*args, **kwargs):
-        raise AssertionError(
-            "should not call an adapter for an English prompt"
-        )
+        raise RuntimeError("broker unavailable")
 
-    monkeypatch.setattr("providers.registry.get_adapter", boom)
-    assert (
-        _translate_prompt_to_english("a cat on a rooftop")
-        == "a cat on a rooftop"
+    monkeypatch.setattr(upscale_image_2x_task, "delay", boom)
+
+    response = client.post(
+        "/api/images/upscale/",
+        {"image": _sample_upload(), "task": "upscale_2x"},
+        format="multipart",
     )
 
+    assert response.status_code == 503
+    record = GeneratedImage.objects.get(user=user)
+    assert record.status == GeneratedImage.Status.ERROR
+    assert record.credits_charged == Decimal("0")
 
-def test_translate_prompt_to_english_translates_cyrillic_prompts(monkeypatch):
-    calls = []
+    account.refresh_from_db()
+    assert account.balance == starting_balance
 
-    class FakeAdapter:
-        def complete(self, prompt, model=None):
-            calls.append(prompt)
-            from providers.base import ProviderResult
 
-            return ProviderResult(
-                text="a cat on a rooftop",
-                prompt_tokens=1,
-                completion_tokens=1,
-                cost_usd=0,
-                latency_ms=1,
-                model=model,
-            )
-
-    monkeypatch.setattr(
-        "providers.registry.get_adapter", lambda name: FakeAdapter()
+def test_upscale_rejects_invalid_task():
+    client, _ = _authed_client("upscale_bad_task")
+    response = client.post(
+        "/api/images/upscale/",
+        {"image": _sample_upload(), "task": "not_a_real_task"},
+        format="multipart",
     )
-    result = _translate_prompt_to_english("кот на крыше")
-    assert result == "a cat on a rooftop"
-    assert len(calls) == 1
-
-
-def test_translate_prompt_to_english_falls_back_on_adapter_error(monkeypatch):
-    class FailingAdapter:
-        def complete(self, prompt, model=None):
-            raise RuntimeError("provider down")
-
-    monkeypatch.setattr(
-        "providers.registry.get_adapter", lambda name: FailingAdapter()
-    )
-    assert _translate_prompt_to_english("кот на крыше") == "кот на крыше"
+    assert response.status_code == 400

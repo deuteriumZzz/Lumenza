@@ -29,6 +29,12 @@ ALL_KEYS = frozenset(
         "document_to_text",
         "photo_to_caption",
         "code_execution",
+        "video",
+        "video_i2v",
+        "upscale_2x",
+        "upscale_4x",
+        "upscale_2x_face",
+        "upscale_4x_face",
     }
 )
 BASE_FREE_KEYS = ALL_KEYS

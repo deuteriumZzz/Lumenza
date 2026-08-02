@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { Images } from "@/app/images/page";
+import { Videos } from "@/app/videos/page";
 import { Voice } from "@/app/voice/page";
 import { Documents } from "@/app/documents/page";
 import { Analyze } from "@/app/analyze/page";
@@ -218,7 +219,8 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
       )}
       {mode === "audio" && <WorkspaceSurface mode="audio"><AudioWorkspace autoStart={autoStart} /></WorkspaceSurface>}
       {mode === "edit" && <WorkspaceSurface mode="edit"><EditWorkspace /></WorkspaceSurface>}
-      {(mode === "video" || mode === "upscale") && <WorkspaceSurface mode={mode}><CapabilityWorkspace mode={mode} /></WorkspaceSurface>}
+      {mode === "upscale" && <WorkspaceSurface mode="upscale"><UpscaleWorkspace /></WorkspaceSurface>}
+      {mode === "video" && <WorkspaceSurface mode="video"><VideoWorkspace /></WorkspaceSurface>}
       {mode === "documents" && <Documents />}
       {mode === "analyze" && <Analyze />}
       {mode === "code" && <Code />}
@@ -311,73 +313,43 @@ function EditWorkspace() {
   );
 }
 
-function CapabilityWorkspace({ mode }: { mode: "video" | "upscale" }) {
-  const isVideo = mode === "video";
-  const title = isVideo ? "Video workspace" : "Upscale workspace";
-  const cards = isVideo
-    ? ["Text to video", "Starting frame", "Extend", "Reference video", "Edit video"]
-    : ["2× clarity", "4× detail", "Face recovery", "Texture preserve"];
-
+function UpscaleWorkspace() {
+  const cards = ["2× clarity", "4× detail", "Face recovery", "Texture preserve"];
   const [selectedCard, setSelectedCard] = useState(cards[0]);
-  const [prompt, setPrompt] = useState("");
-  const [referenceFile, setReferenceFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const referenceInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  function selectReference(file: File | null) {
-    setReferenceFile(file);
-    setPreviewUrl(file?.type.startsWith("image/") ? URL.createObjectURL(file) : null);
-  }
 
   return (
     <div className="studio-capability-layout">
-      <ModeLibrary title={title} cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
-      <div className="studio-capability-canvas">
-        <input
-          ref={referenceInputRef}
-          className="sr-only"
-          type="file"
-          accept={isVideo ? "image/*,video/*" : "image/*"}
-          aria-label={isVideo ? "Загрузить медиа для видео" : "Загрузить изображение для upscale"}
-          onChange={(event) => selectReference(event.target.files?.[0] ?? null)}
-        />
-        {previewUrl ? (
-          <button type="button" className="studio-upload-preview group" onClick={() => referenceInputRef.current?.click()}>
-            {/* The object URL is local user input, never remote untrusted markup. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Загруженный референс" />
-            <span>Заменить медиа</span>
-          </button>
-        ) : (
-          <button type="button" className="studio-upload-card" onClick={() => referenceInputRef.current?.click()}>
-            <span className="studio-empty-orbit" aria-hidden="true"><StudioMark active className="size-10" /></span>
-            <strong>{isVideo ? "Добавьте стартовый кадр или видео" : "Загрузите изображение для улучшения"}</strong>
-            <small>{isVideo ? "PNG, JPG, WEBP или MP4" : "PNG, JPG или WEBP · до 20 МБ"}</small>
-          </button>
-        )}
-        <h2>{isVideo ? "Build motion from a clear idea" : "Recover detail without losing character"}</h2>
-        <p>
-          {isVideo
-            ? "Video generation появится после подключения проверенного провайдера. Интерфейс и сценарии уже готовы."
-            : "Upscale появится после подключения и тарификации модели улучшения. Сейчас можно подготовить проект и референсы."}
-        </p>
-        <StudioPromptDock
-          mode={mode}
-          prompt={prompt}
-          onPromptChange={setPrompt}
-          onSubmit={() => undefined}
-          submitDisabled
-          onAddReference={() => referenceInputRef.current?.click()}
-          referenceLabel={referenceFile?.name}
-          status="Провайдер пока не подключён · параметры можно подготовить заранее."
-          placeholder={isVideo ? "Опишите сцену и движение" : "Добавьте изображение и задайте приоритет деталей"}
-        />
+      <ModeLibrary title="Upscale workspace" cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
+      <div className="studio-capability-canvas studio-embedded-workspace">
+        <Images initialMode="upscale" />
+      </div>
+    </div>
+  );
+}
+
+function VideoWorkspace() {
+  // Только "Text to video"/"Starting frame" реально работают (Videos сама
+  // переключает между ними своим внутренним тумблером — тот же реально
+  // подключённый механизм selectedModel/onModelChange, что и у Image/
+  // Upscale). Остальные 3 карточки здесь — то же декоративное каталожное
+  // расположение, что уже есть у EditWorkspace/UpscaleWorkspace (выбор
+  // карточки никогда не передаётся во встроенный виджет), плюс видимая
+  // пометка "Soon" через disabledCards, так как для этих 3 ещё нет
+  // реального провайдера.
+  const cards = ["Text to video", "Starting frame", "Extend", "Reference video", "Edit video"];
+  const [selectedCard, setSelectedCard] = useState(cards[0]);
+
+  return (
+    <div className="studio-capability-layout">
+      <ModeLibrary
+        title="Video workspace"
+        cards={cards}
+        selectedCard={selectedCard}
+        onSelect={setSelectedCard}
+        disabledCards={["Extend", "Reference video", "Edit video"]}
+      />
+      <div className="studio-capability-canvas studio-embedded-workspace">
+        <Videos />
       </div>
     </div>
   );
@@ -388,29 +360,35 @@ function ModeLibrary({
   cards,
   selectedCard,
   onSelect,
+  disabledCards,
 }: {
   title: string;
   cards: string[];
   selectedCard: string;
   onSelect: (card: string) => void;
+  disabledCards?: string[];
 }) {
   return (
     <aside className="studio-mode-library">
       <p className="studio-kicker">Choose a mode</p>
       <h2>{title}</h2>
       <div className="studio-mode-card-grid">
-        {cards.map((card, index) => (
-          <button
-            key={card}
-            type="button"
-            aria-pressed={selectedCard === card}
-            onClick={() => onSelect(card)}
-            className={`studio-mode-card tone-${index % 4}`}
-          >
-            <span className="studio-mode-card-art" aria-hidden="true" />
-            <span>{card}</span>
-          </button>
-        ))}
+        {cards.map((card, index) => {
+          const soon = disabledCards?.includes(card) ?? false;
+          return (
+            <button
+              key={card}
+              type="button"
+              aria-pressed={selectedCard === card}
+              onClick={() => onSelect(card)}
+              className={`studio-mode-card tone-${index % 4}`}
+            >
+              <span className="studio-mode-card-art" aria-hidden="true" />
+              <span>{card}</span>
+              {soon && <em>Soon</em>}
+            </button>
+          );
+        })}
       </div>
     </aside>
   );
