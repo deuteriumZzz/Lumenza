@@ -23,10 +23,16 @@ describe("local preview login route", () => {
       },
     ));
     vi.stubGlobal("fetch", fetchMock);
+    // Строка, а не сам объект URLSearchParams: конструктор Request под
+    // vitest environment=jsdom видит другой класс URLSearchParams (из
+    // jsdom), чем нативный Node/undici Request ожидает через instanceof —
+    // передача уже сериализованной строки с тем же content-type обходит
+    // это несовпадение между реалмами, сам route.ts всё равно парсит тело
+    // через FormData одинаково для обоих представлений.
     const body = new URLSearchParams({
       username: "lumenza_test",
       password: "local-test-password",
-    });
+    }).toString();
 
     const response = await POST(new Request("http://127.0.0.1:3000/auth/preview-login", {
       method: "POST",
@@ -59,7 +65,7 @@ describe("local preview login route", () => {
     const response = await POST(new Request("http://127.0.0.1:3000/auth/preview-login", {
       method: "POST",
       headers: { host: "127.0.0.1:3000" },
-      body: new URLSearchParams({ username: "test", password: "secret" }),
+      body: new URLSearchParams({ username: "test", password: "secret" }).toString(),
     }));
 
     expect(response.status).toBe(404);
