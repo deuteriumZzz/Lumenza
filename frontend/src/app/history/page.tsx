@@ -66,17 +66,40 @@ function History() {
   const filtersActive = Object.keys(filters).length > 0;
 
   return (
-    <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">История</h1>
-      <p className="mt-1 text-sm text-muted">Каждый запрос вместе со списанными кредитами.</p>
+    <section className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+      <header
+        data-testid="workspace-page-header"
+        className="flex flex-col gap-6 border-b border-border/70 pb-8 md:flex-row md:items-end md:justify-between"
+      >
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">
+            Активность пространства
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">
+            История
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+            Все запросы, модели и списания кредитов в одном журнале. Фильтры помогают
+            быстро восстановить контекст прошлой работы.
+          </p>
+        </div>
+        <div className="min-w-36 border-l border-primary/40 pl-4 md:text-right">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Записей найдено</p>
+          <p className="mt-1 font-mono text-2xl tabular-nums text-ink">
+            {data ? data.count : "—"}
+          </p>
+        </div>
+      </header>
 
-      <HistoryFilters
-        onApply={(nextFilters) => {
-          setFilters(nextFilters);
-          setPage(1);
-          setError(null);
-        }}
-      />
+      <div className="mt-7">
+        <HistoryFilters
+          onApply={(nextFilters) => {
+            setFilters(nextFilters);
+            setPage(1);
+            setError(null);
+          }}
+        />
+      </div>
 
       {error && (
         <p role="alert" className="mt-6 text-sm text-danger">
@@ -84,43 +107,80 @@ function History() {
         </p>
       )}
 
-      {!error && loading && <p role="status" className="mt-10 text-sm text-muted">Загрузка…</p>}
+      {!error && loading && (
+        <div role="status" className="mt-7 overflow-hidden rounded-2xl border border-border/70 bg-surface/65">
+          <div className="h-11 border-b border-border/70 bg-surface-raised/30" />
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="grid grid-cols-[1fr_7rem_6rem] gap-4 border-b border-border/50 px-5 py-5 last:border-0">
+              <span className="h-4 animate-pulse rounded bg-surface-raised" />
+              <span className="h-4 animate-pulse rounded bg-surface-raised" />
+              <span className="h-4 animate-pulse rounded bg-surface-raised" />
+            </div>
+          ))}
+          <span className="sr-only">Загрузка…</span>
+        </div>
+      )}
 
       {!error && !loading && data && data.results.length === 0 && (
-        <p className="mt-10 text-sm text-muted">
-          {filtersActive
-            ? "Нет запросов, подходящих под эти фильтры."
-            : "Пока нет запросов — начните чат, чтобы увидеть их здесь."}
-        </p>
+        <div className="mt-7 rounded-2xl border border-border/70 bg-surface/60 px-6 py-12 text-center">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/8 text-primary">
+            <span aria-hidden="true" className="font-mono text-base">↗</span>
+          </div>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted">
+            {filtersActive
+              ? "Нет запросов, подходящих под эти фильтры."
+              : "Пока нет запросов — начните чат, чтобы увидеть их здесь."}
+          </p>
+        </div>
       )}
 
       {!error && !loading && data && data.results.length > 0 && (
-        <div className="mt-6 divide-y divide-border border-t border-border">
-          {data.results.map((entry) => (
-            <div
-              key={entry.id}
-              className="grid items-center gap-2 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:gap-4"
-            >
-              <div>
-                <div className="text-ink">
-                  {entry.provider}/{entry.model}
-                  <span className="ml-2 text-xs text-muted">{entry.task}</span>
-                </div>
-                <div className="mt-0.5 text-xs text-muted">
-                  {new Date(entry.created_at).toLocaleString()}
-                  {entry.used_fallback && <span className="ml-2">· использован резерв</span>}
-                  {entry.mocked && <span className="ml-2">· мок</span>}
-                </div>
-              </div>
-              <span className={`status-pill ${statusPillClass(entry.status)}`}>{STATUS_LABEL[entry.status]}</span>
-              <span className="w-20 text-right font-mono tabular-nums text-ink">{entry.credits_charged}</span>
-            </div>
-          ))}
+        <div className="mt-7 overflow-hidden rounded-2xl border border-border/70 bg-surface/60 shadow-[0_20px_60px_color-mix(in_oklch,var(--color-bg)_72%,transparent)]">
+          <div className="overflow-x-auto">
+            <table aria-label="История запросов" className="w-full min-w-[44rem] border-collapse text-left">
+              <thead className="border-b border-border/70 bg-surface-raised/25 text-[11px] uppercase tracking-[0.12em] text-muted">
+                <tr>
+                  <th scope="col" className="px-5 py-3.5 font-medium">Модель и задача</th>
+                  <th scope="col" className="px-5 py-3.5 font-medium">Время</th>
+                  <th scope="col" className="px-5 py-3.5 font-medium">Статус</th>
+                  <th scope="col" className="px-5 py-3.5 text-right font-medium">Кредиты</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {data.results.map((entry) => (
+                  <tr key={entry.id} className="transition-colors duration-200 hover:bg-primary/[0.035]">
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-medium text-ink">{entry.model}</p>
+                      <p className="mt-1 text-xs text-muted">{entry.provider} · {entry.task}</p>
+                    </td>
+                    <td className="px-5 py-4 text-xs text-muted">
+                      <p>{new Date(entry.created_at).toLocaleString()}</p>
+                      {(entry.used_fallback || entry.mocked) && (
+                        <p className="mt-1">
+                          {entry.used_fallback && "резервный маршрут"}
+                          {entry.used_fallback && entry.mocked && " · "}
+                          {entry.mocked && "тестовый ответ"}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`status-pill ${statusPillClass(entry.status)}`}>
+                        {STATUS_LABEL[entry.status]}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right font-mono text-sm tabular-nums text-ink">
+                      {entry.credits_charged}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {data && (data.next || data.previous) && (
-        <div className="mt-6 flex items-center justify-between text-sm">
+        <nav aria-label="Страницы истории" className="mt-6 flex items-center justify-between text-sm">
           <button
             type="button"
             disabled={!data.previous}
@@ -137,8 +197,8 @@ function History() {
           >
             Далее
           </button>
-        </div>
+        </nav>
       )}
-    </div>
+    </section>
   );
 }

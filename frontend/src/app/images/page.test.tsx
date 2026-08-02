@@ -91,4 +91,5 @@ describe("Images Mini App layout", () => {
     expect(within(composer).getByRole("button", { name: "Добавить референс" })).toHaveProperty("disabled", false);
     expect(within(composer).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
   });
+
 });

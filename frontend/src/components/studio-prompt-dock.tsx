@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   StudioWorkspaceControls,
@@ -60,7 +61,17 @@ export function StudioPromptDock({
 }: StudioPromptDockProps) {
   const reduceMotion = useReducedMotion();
   const label = MODE_LABELS[mode];
-  const canSubmit = !disabled && !submitDisabled && !busy && prompt.trim().length > 0;
+  const localReferenceInputRef = useRef<HTMLInputElement>(null);
+  const [localReference, setLocalReference] = useState<File | null>(null);
+  const supportsLocalReference = !onAddReference && (mode === "image" || mode === "edit");
+  const effectiveReferenceLabel = referenceLabel ?? localReference?.name;
+  const unsupportedReferenceAttached = supportsLocalReference && Boolean(localReference);
+  const canSubmit = !disabled && !submitDisabled && !busy && !unsupportedReferenceAttached && prompt.trim().length > 0;
+
+  function clearLocalReference() {
+    setLocalReference(null);
+    if (localReferenceInputRef.current) localReferenceInputRef.current.value = "";
+  }
 
   return (
     <motion.form
@@ -75,13 +86,23 @@ export function StudioPromptDock({
         if (canSubmit) onSubmit();
       }}
     >
+      {supportsLocalReference && (
+        <input
+          ref={localReferenceInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          aria-label={`Локальный референс ${label}`}
+          className="sr-only"
+          onChange={(event) => setLocalReference(event.target.files?.[0] ?? null)}
+        />
+      )}
       <div className="studio-prompt-editor">
         <button
           type="button"
           className="studio-prompt-add"
           aria-label="Добавить референс"
-          disabled={disabled || !onAddReference}
-          onClick={onAddReference}
+          disabled={disabled || (!onAddReference && !supportsLocalReference)}
+          onClick={onAddReference ?? (() => localReferenceInputRef.current?.click())}
         >
           <span aria-hidden="true">＋</span>
         </button>
@@ -96,11 +117,22 @@ export function StudioPromptDock({
         />
       </div>
 
-      {referenceLabel && (
+      {effectiveReferenceLabel && (
         <div className="studio-reference-chip">
           <span aria-hidden="true">◇</span>
-          <span>{referenceLabel}</span>
+          <span>{effectiveReferenceLabel}</span>
+          {localReference && (
+            <button type="button" aria-label="Удалить локальный референс" onClick={clearLocalReference}>
+              ×
+            </button>
+          )}
         </div>
+      )}
+
+      {localReference && (
+        <p className="studio-settings-note" role="note">
+          Референс прикреплён локально к черновику. Текущий image API пока не передаёт референс в генерацию, поэтому создание временно недоступно.
+        </p>
       )}
 
       <div className="studio-prompt-footer">

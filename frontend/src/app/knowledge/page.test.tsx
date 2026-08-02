@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   deleteWorkspace: vi.fn(),
   workspaceSources: vi.fn(),
   addTextSource: vi.fn(),
+  addImageSource: vi.fn(),
   searchWorkspace: vi.fn(),
 }));
 
@@ -26,6 +27,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       deleteWorkspace: mocks.deleteWorkspace,
       workspaceSources: mocks.workspaceSources,
       addTextSource: mocks.addTextSource,
+      addImageSource: mocks.addImageSource,
       searchWorkspace: mocks.searchWorkspace,
     },
   };
@@ -40,6 +42,12 @@ const WORKSPACE = {
   updated_at: "2026-01-01T00:00:00Z",
 };
 
+const SECOND_WORKSPACE = {
+  ...WORKSPACE,
+  id: 2,
+  name: "Проекты",
+};
+
 describe("KnowledgePage", () => {
   afterEach(() => {
     cleanup();
@@ -48,7 +56,112 @@ describe("KnowledgePage", () => {
     mocks.deleteWorkspace.mockReset();
     mocks.workspaceSources.mockReset();
     mocks.addTextSource.mockReset();
+    mocks.addImageSource.mockReset();
     mocks.searchWorkspace.mockReset();
+  });
+
+  it("renders the knowledge library as a unified source workspace", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([
+      {
+        id: 5,
+        kind: "text",
+        status: "ok",
+        raw_text: "Lumenza product principles and launch notes.",
+        credits_charged: "1.0000",
+        error_message: "",
+        mocked: false,
+        created_at: "2026-01-02T10:00:00Z",
+        completed_at: "2026-01-02T10:00:05Z",
+      },
+    ]);
+
+    render(<KnowledgePage />);
+
+    expect(await screen.findByRole("heading", { name: "Knowledge" })).toBeDefined();
+    expect(screen.getByRole("navigation", { name: "Рабочие пространства" })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Импорт источника" })).toBeDefined();
+    expect(await screen.findByRole("table", { name: "Источники знаний" })).toBeDefined();
+    expect(screen.getByRole("complementary", { name: "Детали источника" })).toBeDefined();
+    expect(screen.getByRole("columnheader", { name: "Источник" })).toBeDefined();
+    expect(screen.getByRole("columnheader", { name: "Статус" })).toBeDefined();
+    expect(screen.getByRole("textbox", { name: "Текст нового источника" })).toBeDefined();
+    expect(screen.getByRole("searchbox", { name: "Семантический поиск по пространству" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Фильтр источников: все" }));
+    expect(screen.getByRole("button", { name: "Фильтр источников: текст" })).toBeDefined();
+    expect(screen.getByRole("row", { name: /Lumenza product principles/i })).toBeDefined();
+  });
+
+  it("selects the next workspace after deleting the active one", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE, SECOND_WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([]);
+    mocks.deleteWorkspace.mockResolvedValue(undefined);
+
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "Заметки" });
+    fireEvent.click(screen.getByRole("button", { name: "Удалить «Заметки»" }));
+
+    await waitFor(() => expect(mocks.deleteWorkspace).toHaveBeenCalledWith(WORKSPACE.id));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Проекты" }).getAttribute("aria-pressed")).toBe("true"),
+    );
+    expect(mocks.workspaceSources).toHaveBeenCalledWith(SECOND_WORKSPACE.id);
+  });
+
+  it("opens a source in the integrated detail panel", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([
+      {
+        id: 7,
+        kind: "image",
+        status: "ok",
+        raw_text: "Архитектурная схема платформы",
+        credits_charged: "2.5000",
+        error_message: "",
+        mocked: false,
+        created_at: "2026-01-03T10:00:00Z",
+        completed_at: "2026-01-03T10:00:05Z",
+      },
+    ]);
+
+    render(<KnowledgePage />);
+
+    const sourceButton = await screen.findByRole("button", { name: "Открыть источник 7" });
+    fireEvent.click(sourceButton);
+
+    const detail = screen.getByRole("complementary", { name: "Детали источника" });
+    expect(detail.textContent).toContain("Архитектурная схема платформы");
+    expect(detail.textContent).toContain("Изображение");
+    expect(detail.textContent).toContain("2.5000");
+  });
+
+  it("imports an image through the real workspace API", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([]);
+    mocks.addImageSource.mockResolvedValue({
+      id: 8,
+      kind: "image",
+      status: "processing",
+      raw_text: "",
+      credits_charged: "0.0000",
+      error_message: "",
+      mocked: false,
+      created_at: "2026-01-03T10:00:00Z",
+      completed_at: null,
+    });
+
+    const { container } = render(<KnowledgePage />);
+    await screen.findByRole("region", { name: "Импорт источника" });
+
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    const file = new File(["image"], "diagram.png", { type: "image/png" });
+    fireEvent.change(input!, { target: { files: [file] } });
+
+    await waitFor(() => expect(mocks.addImageSource).toHaveBeenCalledWith(WORKSPACE.id, file));
+    expect(await screen.findByRole("button", { name: "Открыть источник 8" })).toBeDefined();
   });
 
   it("creates a new workspace and makes it active", async () => {
@@ -109,7 +222,9 @@ describe("KnowledgePage", () => {
       "Lumenza is a multimodal AI aggregator.",
     );
     expect(
-      await screen.findByText("Lumenza is a multimodal AI aggregator."),
+      await within(screen.getByRole("table", { name: "Источники знаний" })).findByText(
+        "Lumenza is a multimodal AI aggregator.",
+      ),
     ).toBeDefined();
   });
 

@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
     email: string;
     telegram_linked: boolean;
     tier: "free" | "paid";
+    pet_name?: string;
+    pet_image?: string | null;
+    show_pet?: boolean;
   } | null,
   balance: null as { balance: string; updated_at: string } | null,
 }));
@@ -63,6 +66,31 @@ describe("AccountMenu", () => {
     expect(screen.getByText("alice")).toBeDefined();
     expect(screen.getByText(/Базовый/)).toBeDefined();
     expect(screen.getByText(/1250 кредитов/)).toBeDefined();
+  });
+
+  it("uses the visible pet as the account avatar", () => {
+    mocks.user = {
+      ...mocks.user!,
+      pet_name: "Люми",
+      pet_image: "/media/pets/lumi.webp",
+      show_pet: true,
+    };
+    renderAccountMenu();
+
+    expect(screen.getByAltText("Люми").getAttribute("src")).toBe("/media/pets/lumi.webp");
+  });
+
+  it("keeps the initial avatar while a pet is hidden", () => {
+    mocks.user = {
+      ...mocks.user!,
+      pet_name: "Люми",
+      pet_image: "/media/pets/lumi.webp",
+      show_pet: false,
+    };
+    renderAccountMenu();
+
+    expect(screen.queryByAltText("Люми")).toBeNull();
+    expect(screen.getByText("A")).toBeDefined();
   });
 
   it("opens a menu with plan/credits and sign-out, then closes on outside click", () => {

@@ -126,193 +126,177 @@ function Pricing() {
     }
   }
 
+  const presetClass = (selected: boolean) =>
+    `min-w-16 rounded-lg border px-3 py-2 font-mono text-sm tabular-nums transition-[border-color,background-color,color,transform] duration-200 active:translate-y-px ${
+      selected
+        ? "border-primary/60 bg-primary/12 text-ink"
+        : "border-border/80 bg-bg/30 text-muted hover:border-primary/35 hover:text-ink"
+    }`;
+
   return (
-    <div className="mx-auto w-full max-w-md flex-1 px-6 py-10">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Оплата</h1>
-      <p className="mt-1 text-sm text-muted">Текущий баланс и пополнение.</p>
-
-      <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-xs uppercase tracking-wide text-muted">Баланс</div>
-        <div className="mt-1 font-mono text-3xl tabular-nums text-ink">
-          {balance ? Number(balance.balance).toFixed(2) : "—"}
-          <span className="ml-2 text-base font-sans text-muted">кредитов</span>
-        </div>
-        <p className="mt-3 text-xs text-muted">
-          Кредиты работают во всём пространстве: чат, поиск, изображения, голос и документы.
-          Итоговая стоимость видна рядом с каждым результатом.
-        </p>
-      </div>
-
-      <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-sm font-medium text-ink">Подписка Pro</div>
-        <p className="mt-1 text-xs text-muted">
-          Все возможности доступны сразу. Pro открывает premium-модели и
-          приоритетные маршруты. 990₽/месяц, отмена в любой момент.
-        </p>
-
-        {subscription === undefined ? (
-          <p className="mt-4 text-xs text-muted">Загрузка…</p>
-        ) : subscription && (subscription.status === "active" || subscription.status === "non_renewing") ? (
-          <div className="mt-4">
-            <p className="text-sm text-ink">
-              {subscription.status === "active"
-                ? `Активна — продлится ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                : `Активна до ${new Date(subscription.current_period_end).toLocaleDateString()} — автопродление отключено`}
-            </p>
-            <button
-              type="button"
-              onClick={() => void cancel()}
-              disabled={subActionPending}
-              className="btn-secondary mt-3"
-            >
-              {subActionPending ? "Отменяем…" : "Отменить подписку"}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void subscribe()}
-            disabled={subActionPending}
-            className="btn-primary mt-4 w-full"
-          >
-            {subActionPending ? "Переходим…" : "Оформить Pro"}
-          </button>
-        )}
-
-        {subNotice && (
-          <p role="status" className={`mt-3 text-sm ${subNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
-            {subNotice.message}
+    <section className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+      <header
+        data-testid="workspace-page-header"
+        className="flex flex-col gap-6 border-b border-border/70 pb-8 md:flex-row md:items-end md:justify-between"
+      >
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">Аккаунт и план</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">Оплата</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+            Управляйте планом, пополняйте общий баланс и следите за тем, как кредиты
+            работают во всём пространстве Lumenza.
           </p>
-        )}
-      </div>
+        </div>
+        <p className="max-w-56 text-xs leading-5 text-muted md:text-right">
+          Итоговая стоимость всегда отображается рядом с результатом.
+        </p>
+      </header>
 
-      <div className="mt-8 rounded-md border border-border bg-surface p-6">
-        <div className="text-sm font-medium text-ink">Аккаунт Telegram</div>
-        {user?.telegram_linked ? (
-          <p className="mt-3 text-sm text-success">✓ Привязан — баланс и история общие с ботом.</p>
-        ) : (
-          <>
-            <p className="mt-1 text-xs text-muted">
-              Привяжите Telegram, чтобы использовать тот же баланс и историю в боте, что и на сайте.
-            </p>
-            <div className="mt-4">
-              <TelegramAuthSection label="Привязать Telegram" />
+      <div className="mt-8 grid items-start gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(19rem,0.75fr)]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <section
+            aria-label="Подписка Pro"
+            className="relative overflow-hidden rounded-2xl border border-primary/25 bg-surface/70 p-6 sm:p-8"
+          >
+            <div aria-hidden="true" className="absolute -right-16 -top-20 size-56 rounded-full bg-primary/10 blur-3xl" />
+            <div className="relative grid gap-7 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div className="max-w-xl">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">План Lumenza</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Подписка Pro</h2>
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  Premium-модели, приоритетные маршруты и полный набор возможностей.
+                  990₽ в месяц, отменить можно в любой момент.
+                </p>
+              </div>
+              <div className="min-w-48 md:text-right">
+                <p className="font-mono text-2xl tabular-nums text-ink">990 ₽</p>
+                <p className="mt-1 text-xs text-muted">за месяц</p>
+              </div>
             </div>
-          </>
-        )}
-      </div>
 
-      {referralStats && (
-        <div className="mt-8 rounded-md border border-border bg-surface p-6">
-          <div className="text-sm font-medium text-ink">Пригласить друзей</div>
-          <p className="mt-1 text-xs text-muted">
-            Вы оба получите {Number(referralStats.reward_credits).toFixed(0)} кредитов, как только они попробуют Lumenza.
-          </p>
-          <div className="mt-4 flex items-center gap-2">
-            <input
-              readOnly
-              value={referralStats.referral_link}
-              aria-label="Реферальная ссылка"
-              className="input flex-1 text-xs"
-              onFocus={(event) => event.target.select()}
-            />
-            <button type="button" onClick={() => void copyReferralLink()} className="btn-secondary">
-              {copied ? "Скопировано!" : "Копировать"}
-            </button>
-          </div>
-          <p className="mt-3 text-xs text-muted">
-            Приглашено: {referralStats.referred_count} · Награждено: {referralStats.rewarded_count}
-          </p>
-        </div>
-      )}
+            <div className="relative mt-7 border-t border-border/60 pt-5">
+              {subscription === undefined ? (
+                <p role="status" className="text-xs text-muted">Загрузка статуса…</p>
+              ) : subscription && (subscription.status === "active" || subscription.status === "non_renewing") ? (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-ink">
+                    {subscription.status === "active"
+                      ? `Активна — продлится ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                      : `Активна до ${new Date(subscription.current_period_end).toLocaleDateString()} — автопродление отключено`}
+                  </p>
+                  <button type="button" onClick={() => void cancel()} disabled={subActionPending} className="btn-secondary shrink-0">
+                    {subActionPending ? "Отменяем…" : "Отменить подписку"}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => void subscribe()} disabled={subActionPending} className="btn-primary">
+                  {subActionPending ? "Переходим…" : "Оформить Pro"}
+                </button>
+              )}
+              {subNotice && (
+                <p role="status" className={`mt-3 text-sm ${subNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
+                  {subNotice.message}
+                </p>
+              )}
+            </div>
+          </section>
 
-      <div className="mt-8">
-        <div className="text-sm font-medium text-ink">Пополнение (тест)</div>
-        <p className="mt-1 text-xs text-muted">Тестовое пополнение для проверки — без реального платежа.</p>
+          <section aria-label="Способы пополнения" className="overflow-hidden rounded-2xl border border-border/70 bg-surface/60">
+            <div className="border-b border-border/70 px-5 py-5 sm:px-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Баланс</p>
+              <h2 className="mt-2 text-lg font-semibold tracking-tight text-ink">Способы пополнения</h2>
+            </div>
 
-        <div role="group" aria-label="Сумма пополнения" className="mt-4 flex items-center gap-2">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              aria-pressed={amount === preset}
-              onClick={() => setAmount(preset)}
-              className={`rounded-md border px-3 py-1.5 text-sm transition-colors duration-150 ${
-                amount === preset
-                  ? "border-primary bg-primary/10 text-ink"
-                  : "border-border bg-surface text-muted hover:text-ink"
-              }`}
-            >
-              +{preset}
-            </button>
-          ))}
-        </div>
+            <div className="grid divide-y divide-border/60 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+              <div className="p-5 sm:p-6">
+                <h3 className="text-sm font-medium text-ink">Тестовые кредиты</h3>
+                <p className="mt-2 text-xs leading-5 text-muted">Для проверки продукта без реального платежа.</p>
+                <div role="group" aria-label="Сумма пополнения" className="mt-5 flex flex-wrap items-center gap-2">
+                  {PRESETS.map((preset) => (
+                    <button key={preset} type="button" aria-pressed={amount === preset} onClick={() => setAmount(preset)} className={presetClass(amount === preset)}>
+                      +{preset}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => void topUp()} disabled={submitting} className="btn-primary mt-5 w-full sm:w-auto">
+                  {submitting ? "Начисляем…" : `Начислить ${amount} кредитов`}
+                </button>
+                {notice && (
+                  <p role="status" className={`mt-3 text-sm ${notice.kind === "success" ? "text-success" : notice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
+                    {notice.message}
+                  </p>
+                )}
+              </div>
 
-        <button
-          type="button"
-          onClick={() => void topUp()}
-          disabled={submitting}
-          className="btn-primary mt-4 w-full"
-        >
-          {submitting ? "Начисляем…" : `Начислить ${amount} кредитов (тест)`}
-        </button>
-
-        {notice && (
-          <p
-            role="status"
-            className={`mt-3 text-sm ${
-              notice.kind === "success"
-                ? "text-success"
-                : notice.kind === "unavailable"
-                  ? "text-muted"
-                  : "text-danger"
-            }`}
-          >
-            {notice.message}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-8 border-t border-border pt-8">
-        <div className="text-sm font-medium text-ink">Оплата картой</div>
-        <p className="mt-1 text-xs text-muted">Реальный платёж через ЮKassa — переход на их страницу оплаты.</p>
-
-        <div role="group" aria-label="Сумма пополнения (₽)" className="mt-4 flex items-center gap-2">
-          {RUB_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              aria-pressed={rubAmount === preset}
-              onClick={() => setRubAmount(preset)}
-              className={`rounded-md border px-3 py-1.5 text-sm transition-colors duration-150 ${
-                rubAmount === preset
-                  ? "border-primary bg-primary/10 text-ink"
-                  : "border-border bg-surface text-muted hover:text-ink"
-              }`}
-            >
-              {preset}₽
-            </button>
-          ))}
+              <div className="p-5 sm:p-6">
+                <h3 className="text-sm font-medium text-ink">Оплата картой</h3>
+                <p className="mt-2 text-xs leading-5 text-muted">Безопасный переход на страницу оплаты ЮKassa.</p>
+                <div role="group" aria-label="Сумма пополнения (₽)" className="mt-5 flex flex-wrap items-center gap-2">
+                  {RUB_PRESETS.map((preset) => (
+                    <button key={preset} type="button" aria-pressed={rubAmount === preset} onClick={() => setRubAmount(preset)} className={presetClass(rubAmount === preset)}>
+                      {preset}₽
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => void payWithCard()} disabled={payingWithCard} className="btn-primary mt-5 w-full sm:w-auto">
+                  {payingWithCard ? "Переходим…" : `Оплатить ${rubAmount}₽`}
+                </button>
+                {cardNotice && (
+                  <p role="status" className={`mt-3 text-sm ${cardNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}>
+                    {cardNotice.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void payWithCard()}
-          disabled={payingWithCard}
-          className="btn-primary mt-4 w-full"
-        >
-          {payingWithCard ? "Переходим…" : `Оплатить ${rubAmount}₽`}
-        </button>
+        <aside className="flex min-w-0 flex-col gap-6">
+          <section aria-label="Обзор баланса" className="rounded-2xl border border-primary/30 bg-primary/[0.065] p-6">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Доступно сейчас</p>
+            <p className="mt-4 font-mono text-4xl tabular-nums tracking-tight text-ink">
+              {balance ? Number(balance.balance).toFixed(2) : "—"}
+            </p>
+            <p className="mt-1 text-sm text-muted">кредитов</p>
+            <div className="mt-6 h-px bg-gradient-to-r from-primary/50 to-transparent" />
+            <p className="mt-5 text-xs leading-5 text-muted">
+              Один баланс для чата, агентов, поиска, изображений, голоса и документов.
+            </p>
+          </section>
 
-        {cardNotice && (
-          <p
-            role="status"
-            className={`mt-3 text-sm ${cardNotice.kind === "unavailable" ? "text-muted" : "text-danger"}`}
-          >
-            {cardNotice.message}
-          </p>
-        )}
+          <section aria-label="Аккаунт Telegram" className="rounded-2xl border border-border/70 bg-surface/60 p-6">
+            <h2 className="text-sm font-medium text-ink">Аккаунт Telegram</h2>
+            {user?.telegram_linked ? (
+              <p className="mt-3 text-sm leading-6 text-success">Привязан — баланс и история общие с ботом.</p>
+            ) : (
+              <>
+                <p className="mt-2 text-xs leading-5 text-muted">
+                  Привяжите Telegram, чтобы использовать тот же баланс и историю в боте.
+                </p>
+                <div className="mt-4"><TelegramAuthSection label="Привязать Telegram" /></div>
+              </>
+            )}
+          </section>
+
+          {referralStats && (
+            <section aria-label="Пригласить друзей" className="rounded-2xl border border-border/70 bg-surface/60 p-6">
+              <h2 className="text-sm font-medium text-ink">Пригласить друзей</h2>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Вы оба получите {Number(referralStats.reward_credits).toFixed(0)} кредитов после первого запроса друга.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input readOnly value={referralStats.referral_link} aria-label="Реферальная ссылка" className="input min-w-0 flex-1 text-xs" onFocus={(event) => event.target.select()} />
+                <button type="button" onClick={() => void copyReferralLink()} className="btn-secondary shrink-0">
+                  {copied ? "Скопировано" : "Копировать"}
+                </button>
+              </div>
+              <p className="mt-4 font-mono text-xs tabular-nums text-muted">
+                Приглашено {referralStats.referred_count} · Награждено {referralStats.rewarded_count}
+              </p>
+            </section>
+          )}
+        </aside>
       </div>
-    </div>
+    </section>
   );
 }

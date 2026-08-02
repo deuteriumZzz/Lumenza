@@ -24,6 +24,7 @@ import {
   api,
   apiErrorMessage,
   ApiError,
+  type ChatThread,
   type ChatThreadMessage,
   type ModelProgress,
   type StreamChatEvent,
@@ -125,6 +126,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   // ре-рендер — иначе текст "мигал" бы при любом обновлении состояния.
   const [greeting] = useState(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
   const [lastModel, setLastModel] = useState<string | null>(null);
+  const [recentThreads, setRecentThreads] = useState<ChatThread[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const modelsRequestRef = useRef(0);
 
   const refreshModelsCatalog = useCallback(async () => {
@@ -155,6 +158,21 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       modelsRequestRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.threads().then(
+      (page) => {
+        if (!cancelled) setRecentThreads(page.results.slice(0, 8));
+      },
+      () => {
+        if (!cancelled) setRecentThreads([]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId]);
 
   // Смена треда (переход по сайдбару на другой /chat/[threadId]) должна
   // сбросить список сообщений сразу — иначе на миг видно сообщения
@@ -448,8 +466,52 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 sm:px-6">
+    <section aria-label="Чат Lumenza" className="chat-workspace mx-auto flex w-full max-w-[80rem] flex-1 flex-col px-4 sm:px-6">
       <h1 className="sr-only">Чат</h1>
+      <header aria-label="Chat workspace" className="chat-workspace-header">
+        <div><p className="workspace-eyebrow">Lumenza workspace</p><strong>Chat</strong></div>
+        <div role="toolbar" aria-label="Контекст чата" className="chat-context-toolbar">
+          <span className="chat-context-display-pill"><i aria-hidden="true">✦</i> {routing.kind === "model" ? modelLabel(routing.model) : "Автовыбор"}</span>
+          <span className="chat-context-display-pill"><i aria-hidden="true">◯</i> Chat</span>
+          {routing.kind === "task" && (
+            <button
+              type="button"
+              onClick={() => setRouting({ kind: "auto" })}
+              aria-label={`Убрать фокус: ${TASK_LABELS[routing.task]}`}
+              className="chat-context-capability-pill"
+            >
+              <i aria-hidden="true">▥</i> {TASK_LABELS[routing.task]}
+              <span aria-hidden="true">✕</span>
+            </button>
+          )}
+          <span className="chat-workspace-status-dot" aria-label="Маршрутизация активна" />
+          <div className="chat-history-control">
+            <button
+              type="button"
+              aria-label="Открыть историю чатов"
+              aria-expanded={historyOpen}
+              onClick={() => setHistoryOpen((open) => !open)}
+            >
+              <span aria-hidden="true">◷</span>
+            </button>
+            {historyOpen ? (
+              <div role="dialog" aria-label="Недавние чаты" className="chat-history-popover">
+                <div><strong>Недавние чаты</strong><Link href="/chat">Новый чат</Link></div>
+                {recentThreads.length > 0 ? (
+                  <nav aria-label="Сохранённые чаты">
+                    {recentThreads.map((thread) => (
+                      <Link key={thread.id} href={`/chat/${thread.id}`} aria-current={thread.id === threadId ? "page" : undefined}>
+                        <span>{thread.title || "Без названия"}</span>
+                        <small>{new Date(thread.updated_at).toLocaleDateString("ru-RU")}</small>
+                      </Link>
+                    ))}
+                  </nav>
+                ) : <p>Сохранённых чатов пока нет.</p>}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
       <div ref={listRef} className="flex-1 overflow-y-auto py-8">
         {loadingThread ? (
           <ResponseSkeleton />
@@ -577,7 +639,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           />
         </div>
 
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="chat-composer-controls flex min-w-0 items-center gap-2">
           <ModelPicker
             models={models}
             selectedModel={routing.kind === "model" ? routing.model : null}
@@ -590,6 +652,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
               setRouting({ kind: "model", model, task: task as Task });
             }}
           />
+          <ChatModeMenu />
           <PresetPicker
             activePresetId={routing.kind === "preset" ? routing.presetId : null}
             onSelect={(preset) => {
@@ -629,7 +692,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             </span>
           </button>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="chat-composer-actions ml-auto flex items-center gap-1.5">
             <span className="hidden max-w-44 truncate text-xs text-muted lg:block">
               {modelsError
                 ? "Каталог недоступен"
@@ -694,7 +757,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         )}
       </motion.form>
 
-      <div className="mb-5 flex flex-wrap items-center justify-center gap-1.5" aria-label="Быстрые действия">
+      <p className="chat-disclaimer">✦ Lumenza может ошибаться. Проверяйте важную информацию.</p>
+
+      <div role="toolbar" className="chat-capability-toolbar mb-5 flex flex-wrap items-center justify-center gap-1.5" aria-label="Инструменты чата">
         <button
           type="button"
           onClick={() => chooseTask("search")}
@@ -716,6 +781,91 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         </button>
         <span className="hidden text-[11px] text-muted sm:inline">Введите / для всех режимов</span>
       </div>
+
+      {messages.length === 0 && (
+        <>
+          <nav aria-label="Категории инструментов" className="chat-tool-categories">
+            {[
+              ["Featured", "/chat"],
+              ["Data Analysis", "/tools?category=data"],
+              ["Research", "/tools?category=research"],
+              ["Writing", "/agents?category=content"],
+              ["Code", "/tools?category=code"],
+              ["AI Workflows", "/agents"],
+              ["Images", "/studio?mode=image"],
+              ["Presentations", "/tools?category=presentations"],
+              ["Audio", "/studio?mode=audio"],
+            ].map(([label, href], index) => (
+              <Link key={label} href={href} aria-current={index === 0 ? "page" : undefined}>{label}</Link>
+            ))}
+          </nav>
+          <div className="chat-action-grid">
+            {[
+              ["Market Research Report", "Исследовать рынок, тренды и конкурентов", "/agents?category=research", "↗"],
+              ["Content Strategy", "Собрать темы, каналы и план публикаций", "/agents?category=content", "✎"],
+              ["Data Visualization", "Превратить данные в понятный визуальный вывод", "/tools?category=data", "⌁"],
+              ["Pitch Deck Builder", "Собрать структуру и историю презентации", "/tools?category=presentations", "▣"],
+            ].map(([title, description, href, glyph]) => (
+              <Link key={title} href={href} aria-label={`Открыть: ${title}`} className="chat-action-card">
+                <span aria-hidden="true">{glyph}</span>
+                <strong>{title}</strong>
+                <p>{description}</p>
+                <em>Открыть <b aria-hidden="true">→</b></em>
+              </Link>
+            ))}
+          </div>
+          <p className="chat-tour-line">✦ Впервые в Lumenza? <Link href="/knowledge">Короткий обзор <span aria-hidden="true">→</span></Link></p>
+        </>
+      )}
+    </section>
+  );
+}
+
+// Mirrors agents/page.tsx's AgentModeMenu — Chat and Agents stay separate
+// workspaces (see workspace-sections.ts), this is only a quick-nav switcher
+// so the two feel like modes of one product instead of unrelated pages.
+function ChatModeMenu() {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutside(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("mousedown", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="agent-mode-picker">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Режим: Chat"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        Chat <span aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div role="menu" aria-label="Режим Lumenza" className="agent-mode-menu">
+          <Link href="/chat" aria-label="Chat" aria-current="page"><strong>Chat</strong><span>Обычный диалог с AI</span></Link>
+          <Link href="/agents" aria-label="AI Agent"><strong>AI Agent</strong><span>Многошаговые workflow</span></Link>
+          <Link href="/knowledge" aria-label="Knowledge"><strong>Knowledge</strong><span>Ответы по вашим источникам</span></Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -159,6 +159,9 @@ describe("AgentsPage", () => {
     render(<AgentsPage />);
 
     expect(screen.getByRole("region", { name: "Чат агентов" })).toBeDefined();
+    expect(screen.getByRole("banner", { name: "Agents workspace" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Мои агенты" }).getAttribute("href")).toBe("/agents?category=mine");
+    expect(screen.getByTestId("agents-network").querySelectorAll("[data-agent-node]").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText("Агентный режим")).toBeDefined();
 
     fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));

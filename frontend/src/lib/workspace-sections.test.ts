@@ -11,13 +11,19 @@ describe("getWorkspaceSection", () => {
     ["/knowledge/42", "knowledge"],
     ["/studio", "studio"],
     ["/studio/images", "studio"],
+    ["/tools", "tools"],
     ["/home", "home"],
+    ["/profile", "profile"],
+    ["/history", "history"],
+    ["/pricing", "pricing"],
+    ["/usage", "usage"],
+    ["/automations", "automations"],
   ] as const)("maps %s to the %s section", (pathname, key) => {
     expect(getWorkspaceSection(pathname)?.key).toBe(key);
   });
 
   it("returns null for a non-workspace pathname", () => {
-    expect(getWorkspaceSection("/pricing")).toBeNull();
+    expect(getWorkspaceSection("/login")).toBeNull();
     expect(getWorkspaceSection("/")).toBeNull();
     expect(getWorkspaceSection("/chatty")).toBeNull();
     expect(getWorkspaceSection("/agents-old")).toBeNull();
@@ -31,11 +37,16 @@ describe("isWorkspaceRoute", () => {
     expect(isWorkspaceRoute("/agents")).toBe(true);
     expect(isWorkspaceRoute("/knowledge")).toBe(true);
     expect(isWorkspaceRoute("/studio")).toBe(true);
+    expect(isWorkspaceRoute("/tools")).toBe(true);
     expect(isWorkspaceRoute("/home")).toBe(true);
+    expect(isWorkspaceRoute("/profile")).toBe(true);
+    expect(isWorkspaceRoute("/history")).toBe(true);
+    expect(isWorkspaceRoute("/pricing")).toBe(true);
+    expect(isWorkspaceRoute("/usage")).toBe(true);
+    expect(isWorkspaceRoute("/automations")).toBe(true);
   });
 
   it("is false for non-workspace pathnames", () => {
-    expect(isWorkspaceRoute("/history")).toBe(false);
-    expect(isWorkspaceRoute("/pricing")).toBe(false);
+    expect(isWorkspaceRoute("/login")).toBe(false);
   });
 });

@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RequireAuth } from "@/components/require-auth";
+import { useEffect, useMemo, useState } from "react";
 import { FileUploadButton } from "@/components/file-upload-button";
-import { usePolledStatus } from "@/lib/use-polled-status";
-import { statusPillClass } from "@/lib/status-styles";
+import { RequireAuth } from "@/components/require-auth";
 import {
   api,
   apiErrorMessage,
@@ -13,8 +11,24 @@ import {
   type KnowledgeSource,
   type Workspace,
 } from "@/lib/api";
+import { statusPillClass } from "@/lib/status-styles";
+import { usePolledStatus } from "@/lib/use-polled-status";
 
 const SOURCE_IN_PROGRESS = new Set(["pending", "processing"]);
+type SourceFilter = "all" | "text" | "image";
+const SOURCE_FILTER_LABELS: Record<SourceFilter, string> = {
+  all: "все",
+  text: "текст",
+  image: "изображения",
+};
+
+const SOURCE_STATUS_LABELS: Record<KnowledgeSource["status"], string> = {
+  pending: "В очереди",
+  processing: "Обработка",
+  ok: "Готов",
+  error: "Ошибка",
+  insufficient_credits: "Недостаточно кредитов",
+};
 
 export default function KnowledgePage() {
   return (
@@ -30,6 +44,7 @@ function Knowledge() {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -37,13 +52,13 @@ function Knowledge() {
       (data) => {
         if (cancelled) return;
         setWorkspaces(data);
-        if (data.length > 0) setActiveId((prev) => prev ?? data[0].id);
+        if (data.length > 0) setActiveId((previous) => previous ?? data[0].id);
       },
-      (err) => {
+      (requestError) => {
         if (!cancelled) {
-          setError(apiErrorMessage(err, "Не удалось загрузить рабочие пространства."));
+          setError(apiErrorMessage(requestError, "Не удалось загрузить рабочие пространства."));
         }
-      }
+      },
     );
     return () => {
       cancelled = true;
@@ -57,11 +72,11 @@ function Knowledge() {
     setError(null);
     try {
       const created = await api.createWorkspace(name);
-      setWorkspaces((prev) => [created, ...(prev ?? [])]);
+      setWorkspaces((previous) => [created, ...(previous ?? [])]);
       setActiveId(created.id);
       setNewName("");
-    } catch (err) {
-      setError(apiErrorMessage(err, "Не удалось создать рабочее пространство."));
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось создать рабочее пространство."));
     } finally {
       setCreating(false);
     }
@@ -72,86 +87,174 @@ function Knowledge() {
     event.stopPropagation();
     try {
       await api.deleteWorkspace(id);
-      setWorkspaces((prev) => prev?.filter((workspace) => workspace.id !== id) ?? prev);
-      setActiveId((prev) => (prev === id ? null : prev));
-    } catch (err) {
-      setError(apiErrorMessage(err, "Не удалось удалить рабочее пространство."));
+      const remainingWorkspaces = (workspaces ?? []).filter((workspace) => workspace.id !== id);
+      setWorkspaces(remainingWorkspaces);
+      setActiveId((previous) =>
+        previous === id ? (remainingWorkspaces[0]?.id ?? null) : previous,
+      );
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось удалить рабочее пространство."));
     }
   }
 
+  const activeWorkspace = workspaces?.find((workspace) => workspace.id === activeId) ?? null;
+
   return (
-    <div className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 min-[380px]:px-4 sm:px-6 sm:py-12">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Знания</h1>
-      <p className="mt-1 text-sm text-muted">
-        Личные источники знаний — вставьте текст или загрузите изображение, чтобы находить
-        его по смыслу.
-      </p>
+    <section aria-label="Библиотека знаний" className="relative w-full flex-1 overflow-hidden px-3 pb-16 pt-6 min-[380px]:px-4 sm:px-6 sm:pt-9 xl:px-10">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_32%_10%,color-mix(in_srgb,var(--color-primary)_9%,transparent),transparent_58%)]"
+      />
+      <div className="relative mx-auto w-full max-w-[1540px]">
+        <header className="flex flex-col gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+              <span className="inline-block size-1.5 rounded-full bg-primary shadow-[0_0_14px_color-mix(in_srgb,var(--color-primary)_75%,transparent)]" />
+              Lumenza workspace
+            </div>
+            <h1 className="text-3xl font-semibold tracking-[-0.045em] text-ink sm:text-4xl">
+              Knowledge
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+              Организуйте, находите и используйте информацию, которая действительно важна.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <a href="#knowledge-import" className="workspace-outline-button"><span aria-hidden="true">＋</span> Импорт</a>
+            <a href="#knowledge-search" aria-label="Перейти к поиску" className="workspace-icon-button">⌕</a>
+            <button
+              type="button"
+              aria-label={`Фильтр источников: ${SOURCE_FILTER_LABELS[sourceFilter]}`}
+              title={`Показаны: ${SOURCE_FILTER_LABELS[sourceFilter]}`}
+              onClick={() => setSourceFilter((current) => current === "all" ? "text" : current === "text" ? "image" : "all")}
+              className={`workspace-icon-button ${sourceFilter !== "all" ? "border-primary/45 text-primary" : ""}`}
+            >▽</button>
+            <button
+              type="button"
+              aria-label="Создать рабочее пространство"
+              onClick={() => document.getElementById("knowledge-new-workspace")?.focus()}
+              className="workspace-icon-button"
+            >•••</button>
+          </div>
+        </header>
 
-      {error && (
-        <p role="alert" className="mt-4 text-sm text-danger">
-          {error}
-        </p>
-      )}
-
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        {workspaces === null && (
-          <p role="status" className="text-sm text-muted">
-            Загрузка…
+        {error && (
+          <p role="alert" className="mt-4 rounded-xl border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">
+            {error}
           </p>
         )}
-        {workspaces?.map((workspace) => (
-          <div key={workspace.id} className="group relative">
-            <button
-              type="button"
-              aria-pressed={activeId === workspace.id}
-              onClick={() => setActiveId(workspace.id)}
-              className={`rounded-full border px-3.5 py-1.5 pr-7 text-sm transition-colors duration-150 ${
-                activeId === workspace.id
-                  ? "border-primary/50 text-ink"
-                  : "border-border bg-surface/75 text-muted hover:border-primary/25 hover:text-ink"
-              }`}
+
+        <section className="mt-6 rounded-2xl border border-border/75 bg-surface/45 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <nav aria-label="Рабочие пространства" className="min-w-0 overflow-x-auto">
+              <div className="flex min-w-max items-center gap-1">
+                {workspaces === null && (
+                  <p role="status" className="px-3 py-2 text-sm text-muted">
+                    Загрузка…
+                  </p>
+                )}
+                {workspaces?.map((workspace) => {
+                  const active = activeId === workspace.id;
+                  return (
+                    <div key={workspace.id} className="group relative">
+                      <button
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setActiveId(workspace.id)}
+                        className={`min-h-10 rounded-xl border px-3.5 pr-9 text-sm transition duration-200 active:scale-[0.98] ${
+                          active
+                            ? "border-primary/35 bg-primary/10 text-ink shadow-[inset_3px_0_0_color-mix(in_srgb,var(--color-primary)_75%,transparent)]"
+                            : "border-transparent text-muted hover:border-border hover:bg-bg/55 hover:text-ink"
+                        }`}
+                      >
+                        {workspace.name}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Удалить «${workspace.name}»`}
+                        onClick={(event) => void deleteWorkspace(workspace.id, event)}
+                        className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-lg text-muted/70 opacity-0 transition hover:bg-bg hover:text-danger focus:opacity-100 group-hover:opacity-100"
+                      >
+                        <KnowledgeIcon name="close" className="size-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </nav>
+
+            <form
+              className="flex min-w-0 items-center gap-2 border-t border-border/60 pt-2 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void createWorkspace();
+              }}
             >
-              {workspace.name}
-            </button>
-            <button
-              type="button"
-              aria-label={`Удалить «${workspace.name}»`}
-              onClick={(event) => void deleteWorkspace(workspace.id, event)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted opacity-0 transition hover:text-danger group-hover:opacity-100"
-            >
-              <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M4 4l8 8m0-8-8 8" strokeLinecap="round" />
-              </svg>
-            </button>
+              <input
+                id="knowledge-new-workspace"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                placeholder="Новое рабочее пространство"
+                aria-label="Название нового рабочего пространства"
+                maxLength={120}
+                className="min-h-10 min-w-0 flex-1 rounded-xl border border-transparent bg-bg/50 px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-primary/40 lg:w-56"
+              />
+              <button
+                type="submit"
+                disabled={creating || !newName.trim()}
+                className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-bg/45 px-3.5 text-sm font-medium text-ink transition hover:border-primary/35 hover:bg-surface-raised active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <KnowledgeIcon name="plus" className="size-3.5" />
+                {creating ? "Создаём…" : "Создать"}
+              </button>
+            </form>
           </div>
-        ))}
-      </div>
+        </section>
 
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-          placeholder="Новое рабочее пространство"
-          maxLength={120}
-          className="input max-w-xs"
-        />
-        <button
-          type="button"
-          onClick={() => void createWorkspace()}
-          disabled={creating || !newName.trim()}
-          className="btn-secondary"
-        >
-          {creating ? "Создаём…" : "Создать"}
-        </button>
+        {activeId && activeWorkspace ? (
+          <WorkspaceDetail
+            key={activeId}
+            workspaceId={activeId}
+            workspaceName={activeWorkspace.name}
+            sourceFilter={sourceFilter}
+            onFilterChange={setSourceFilter}
+          />
+        ) : workspaces && workspaces.length === 0 ? (
+          <EmptyWorkspace />
+        ) : null}
       </div>
-
-      {activeId && <WorkspaceDetail workspaceId={activeId} />}
-    </div>
+    </section>
   );
 }
 
-function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
+function EmptyWorkspace() {
+  return (
+    <section className="mt-8 flex min-h-80 flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-surface/25 px-6 text-center">
+      <span className="inline-flex size-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+        <KnowledgeIcon name="library" className="size-5" />
+      </span>
+      <h2 className="mt-5 text-lg font-semibold text-ink">Создайте первое пространство</h2>
+      <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+        Разделяйте знания по проектам, продуктам или командам — каждый набор источников будет
+        искать независимо.
+      </p>
+    </section>
+  );
+}
+
+function WorkspaceDetail({
+  workspaceId,
+  workspaceName,
+  sourceFilter,
+  onFilterChange,
+}: {
+  workspaceId: number;
+  workspaceName: string;
+  sourceFilter: SourceFilter;
+  onFilterChange: (next: SourceFilter) => void;
+}) {
   const [sources, setSources] = useState<KnowledgeSource[] | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [submittingText, setSubmittingText] = useState(false);
@@ -161,26 +264,23 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
   const [results, setResults] = useState<ChunkMatch[] | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Сброс во время рендера при смене workspaceId (не внутри эффекта) — тот
-  // же паттерн, что и в chat-thread-view.tsx для смены треда: иначе на миг
-  // видны источники/результаты предыдущего workspace, пока не подгрузятся
-  // новые.
-  const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspaceId);
-  if (workspaceId !== prevWorkspaceId) {
-    setPrevWorkspaceId(workspaceId);
-    setSources(null);
-    setResults(null);
-  }
-
   useEffect(() => {
     let cancelled = false;
     api.workspaceSources(workspaceId).then(
       (data) => {
-        if (!cancelled) setSources(data);
+        if (cancelled) return;
+        setSources((previous) => {
+          if (!previous) return data;
+          const returnedIds = new Set(data.map((source) => source.id));
+          const sourcesCreatedDuringLoad = previous.filter(
+            (source) => !returnedIds.has(source.id),
+          );
+          return [...sourcesCreatedDuringLoad, ...data];
+        });
       },
-      (err) => {
-        if (!cancelled) setError(apiErrorMessage(err, "Не удалось загрузить источники."));
-      }
+      (requestError) => {
+        if (!cancelled) setError(apiErrorMessage(requestError, "Не удалось загрузить источники."));
+      },
     );
     return () => {
       cancelled = true;
@@ -188,19 +288,19 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
   }, [workspaceId]);
 
   function upsertSource(updated: KnowledgeSource) {
-    setSources((prev) => {
-      if (!prev) return [updated];
-      const exists = prev.some((source) => source.id === updated.id);
+    setSources((previous) => {
+      if (!previous) return [updated];
+      const exists = previous.some((source) => source.id === updated.id);
       return exists
-        ? prev.map((source) => (source.id === updated.id ? updated : source))
-        : [updated, ...prev];
+        ? previous.map((source) => (source.id === updated.id ? updated : source))
+        : [updated, ...previous];
     });
   }
 
-  function creditsErrorMessage(err: unknown): string {
-    return err instanceof ApiError && err.status === 402
+  function creditsErrorMessage(requestError: unknown): string {
+    return requestError instanceof ApiError && requestError.status === 402
       ? "Недостаточно кредитов для добавления источника."
-      : apiErrorMessage(err);
+      : apiErrorMessage(requestError);
   }
 
   async function submitText() {
@@ -212,8 +312,8 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
       const created = await api.addTextSource(workspaceId, trimmed);
       upsertSource(created);
       setText("");
-    } catch (err) {
-      setError(creditsErrorMessage(err));
+    } catch (requestError) {
+      setError(creditsErrorMessage(requestError));
     } finally {
       setSubmittingText(false);
     }
@@ -225,8 +325,8 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
     try {
       const created = await api.addImageSource(workspaceId, file);
       upsertSource(created);
-    } catch (err) {
-      setError(creditsErrorMessage(err));
+    } catch (requestError) {
+      setError(creditsErrorMessage(requestError));
     } finally {
       setUploadingImage(false);
     }
@@ -238,145 +338,422 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: number }) {
     setSearching(true);
     setSearchError(null);
     try {
-      const found = await api.searchWorkspace(workspaceId, trimmed);
-      setResults(found);
-    } catch (err) {
-      setSearchError(apiErrorMessage(err, "Поиск не удался."));
+      setResults(await api.searchWorkspace(workspaceId, trimmed));
+    } catch (requestError) {
+      setSearchError(apiErrorMessage(requestError, "Поиск не удался."));
     } finally {
       setSearching(false);
     }
   }
 
+  const selectedSource = useMemo(
+    () => sources?.find((source) => source.id === selectedSourceId) ?? null,
+    [selectedSourceId, sources],
+  );
+  const visibleSources = useMemo(
+    () => sources?.filter((source) => sourceFilter === "all" || source.kind === sourceFilter) ?? null,
+    [sourceFilter, sources],
+  );
+  const recentSources = useMemo(
+    () =>
+      [...(sources ?? [])]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5),
+    [sources],
+  );
+  const sourceCounts = useMemo(() => {
+    const counts: Record<KnowledgeSource["kind"], number> = { text: 0, image: 0 };
+    for (const source of sources ?? []) counts[source.kind] += 1;
+    return counts;
+  }, [sources]);
+
   return (
-    <div className="mt-8 flex flex-col gap-6">
-      <div className="rounded-md border border-border bg-surface p-4">
-        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
-          Добавить текст
-        </h2>
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          rows={4}
-          maxLength={20000}
-          className="input mt-2 w-full"
-          placeholder="Вставьте текст, который нужно проиндексировать"
-        />
-        <button
-          type="button"
-          onClick={() => void submitText()}
-          disabled={submittingText || !text.trim()}
-          className="btn-primary mt-2"
-        >
-          {submittingText ? "Добавляем…" : "Добавить"}
-        </button>
-      </div>
+    <div className="mt-7">
+      <section
+        id="knowledge-import"
+        aria-label="Импорт источника"
+        className="overflow-hidden rounded-3xl border border-primary/25 bg-bg/70 shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
+      >
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="p-4 sm:p-5 lg:p-6">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+                <KnowledgeIcon name="plus" className="size-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Добавить контекст</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Вставьте заметку, документ или любой фрагмент до 20 000 символов.
+                </p>
+              </div>
+            </div>
+            <textarea
+              aria-label="Текст нового источника"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              rows={4}
+              maxLength={20000}
+              className="mt-5 min-h-28 w-full resize-y border-0 bg-transparent text-[15px] leading-7 text-ink outline-none placeholder:text-muted"
+              placeholder="Вставьте текст, который нужно проиндексировать"
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/65 pt-4">
+              <span className="text-[11px] tabular-nums text-muted">{text.length.toLocaleString("ru-RU")} / 20 000</span>
+              <button
+                type="button"
+                onClick={() => void submitText()}
+                disabled={submittingText || !text.trim()}
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-contrast shadow-[0_10px_30px_color-mix(in_srgb,var(--color-primary)_16%,transparent)] transition hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <KnowledgeIcon name="arrow" className="size-3.5" />
+                {submittingText ? "Добавляем…" : "Добавить"}
+              </button>
+            </div>
+          </div>
 
-      <div className="rounded-md border border-border bg-surface p-4">
-        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
-          Добавить изображение
-        </h2>
-        <div className="mt-2">
-          <FileUploadButton
-            accept="image/*"
-            label={uploadingImage ? "Загружаем…" : "Загрузить изображение"}
-            onFile={(file) => void submitImage(file)}
-            disabled={uploadingImage}
-          />
+          <div className="flex flex-col justify-between border-t border-border/70 bg-surface/45 p-4 sm:p-5 lg:border-l lg:border-t-0">
+            <div>
+              <span className="inline-flex size-9 items-center justify-center rounded-xl border border-border bg-bg/55 text-primary">
+                <KnowledgeIcon name="image" className="size-4" />
+              </span>
+              <h3 className="mt-4 text-sm font-semibold text-ink">Распознать изображение</h3>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Загрузите схему, скриншот или скан. Текст попадёт в тот же смысловой индекс.
+              </p>
+            </div>
+            <FileUploadButton
+              accept="image/*"
+              label={uploadingImage ? "Загружаем…" : "Загрузить изображение"}
+              onFile={(file) => void submitImage(file)}
+              disabled={uploadingImage}
+              className="mt-6 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-border bg-bg/55 px-4 text-sm font-medium text-ink transition hover:border-primary/35 hover:bg-surface-raised active:scale-[0.98] disabled:opacity-50"
+            />
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
-
-      <div>
-        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Источники</h2>
-        {sources === null ? (
-          <p role="status" className="mt-3 text-sm text-muted">
-            Загрузка…
-          </p>
-        ) : sources.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">Пока нет источников.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-2">
-            {sources.map((source) => (
-              <SourceRow key={source.id} source={source} onUpdate={upsertSource} />
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="rounded-md border border-border bg-surface p-4">
-        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Поиск</h2>
-        <div className="mt-2 flex gap-2">
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="О чём спросить это рабочее пространство?"
-            className="input flex-1"
-          />
+        <form
+          className="flex flex-col gap-3 border-t border-border/70 bg-surface/25 p-3 sm:flex-row sm:items-center sm:p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runSearch();
+          }}
+        >
+          <div className="relative min-w-0 flex-1">
+            <KnowledgeIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <input
+              id="knowledge-search"
+              type="search"
+              aria-label="Семантический поиск по пространству"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="О чём спросить это рабочее пространство?"
+              className="min-h-11 w-full rounded-xl border border-border/70 bg-bg/55 pl-10 pr-4 text-sm text-ink outline-none transition placeholder:text-muted focus:border-primary/40"
+            />
+          </div>
           <button
-            type="button"
-            onClick={() => void runSearch()}
+            type="submit"
             disabled={searching || !query.trim()}
-            className="btn-secondary"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-bg/55 px-5 text-sm font-medium text-ink transition hover:border-primary/35 hover:bg-surface-raised active:scale-[0.98] disabled:opacity-40"
           >
             {searching ? "Ищем…" : "Найти"}
           </button>
-        </div>
-        {searchError && (
-          <p role="alert" className="mt-2 text-sm text-danger">
-            {searchError}
-          </p>
-        )}
-        {results &&
-          (results.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">Ничего не найдено.</p>
+        </form>
+      </section>
+
+      {error && (
+        <p role="alert" className="mt-4 rounded-xl border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">
+          {error}
+        </p>
+      )}
+      {searchError && (
+        <p role="alert" className="mt-4 rounded-xl border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">
+          {searchError}
+        </p>
+      )}
+      {results && <SearchResults results={results} />}
+
+      <div className="mt-7 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-border/75 bg-surface/35">
+          <div className="flex items-center justify-between gap-4 border-b border-border/70 px-4 py-4 sm:px-5">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-primary">{workspaceName}</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight text-ink">Источники</h2>
+            </div>
+            <span className="rounded-lg border border-border/70 bg-bg/45 px-2.5 py-1 text-xs tabular-nums text-muted">
+              {visibleSources?.length ?? 0}
+            </span>
+          </div>
+
+          {sources === null ? (
+            <p role="status" className="px-5 py-10 text-sm text-muted">
+              Загрузка…
+            </p>
+          ) : visibleSources?.length === 0 ? (
+            <div className="flex min-h-48 flex-col items-center justify-center px-5 text-center">
+              <KnowledgeIcon name="library" className="size-5 text-muted" />
+              <p className="mt-3 text-sm font-medium text-ink">{sources.length === 0 ? "Здесь появятся ваши источники" : "Нет источников этого типа"}</p>
+              <p className="mt-1 text-xs text-muted">{sources.length === 0 ? "Добавьте текст или изображение выше." : "Переключите фильтр в верхней панели."}</p>
+            </div>
           ) : (
-            <ul className="mt-3 flex flex-col gap-2">
-              {results.map((match) => (
-                <li key={match.id} className="rounded-md border border-border bg-bg p-3 text-sm">
-                  <p className="text-ink">{match.text}</p>
-                  <p className="mt-1 font-mono text-xs text-muted">
-                    score {match.score.toFixed(3)}
-                  </p>
+            <div className="overflow-x-auto">
+              <table aria-label="Источники знаний" className="w-full min-w-[680px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-border/65 text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+                    <th scope="col" className="px-5 py-3.5">Источник</th>
+                    <th scope="col" className="w-28 px-4 py-3.5">Тип</th>
+                    <th scope="col" className="w-36 px-4 py-3.5">Статус</th>
+                    <th scope="col" className="w-32 px-4 py-3.5">Добавлен</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(visibleSources ?? []).map((source) => (
+                    <SourceRow
+                      key={source.id}
+                      source={source}
+                      active={source.id === selectedSourceId}
+                      onSelect={() => setSelectedSourceId(source.id)}
+                      onUpdate={upsertSource}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <SourceDetail source={selectedSource} />
+      </div>
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <section aria-label="Недавние источники" className="rounded-2xl border border-border/75 bg-surface/35 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-ink">Недавние источники</h2>
+            {sources && sources.length > recentSources.length && (
+              <button
+                type="button"
+                onClick={() => onFilterChange("all")}
+                className="text-xs font-medium text-primary transition hover:underline"
+              >
+                Показать все
+              </button>
+            )}
+          </div>
+          {recentSources.length === 0 ? (
+            <p className="mt-4 text-xs text-muted">Пока нет источников.</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-0.5">
+              {recentSources.map((source) => (
+                <li key={source.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSourceId(source.id)}
+                    aria-current={source.id === selectedSourceId ? "true" : undefined}
+                    className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 text-left transition duration-150 hover:bg-surface-raised aria-[current=true]:bg-primary/8"
+                  >
+                    <KnowledgeIcon name={source.kind === "image" ? "image" : "document"} className="size-4 shrink-0 text-muted" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink">{sourceTitle(source)}</span>
+                    <span className="shrink-0 text-[11px] text-muted">{formatSourceDate(source.created_at)}</span>
+                  </button>
                 </li>
               ))}
             </ul>
-          ))}
+          )}
+        </section>
+
+        <section aria-label="Коллекции" className="rounded-2xl border border-border/75 bg-surface/35 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-ink">Коллекции</h2>
+          <div className="mt-2 flex flex-col gap-0.5">
+            {(
+              [
+                ["text", "Текстовые заметки"],
+                ["image", "Изображения"],
+              ] as const
+            ).map(([kind, label]) => (
+              <button
+                key={kind}
+                type="button"
+                aria-pressed={sourceFilter === kind}
+                onClick={() => onFilterChange(sourceFilter === kind ? "all" : kind)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-2 text-left transition duration-150 hover:bg-surface-raised aria-pressed:bg-primary/8 aria-pressed:text-ink"
+              >
+                <span className="flex min-w-0 items-center gap-2.5 text-sm text-ink">
+                  <KnowledgeIcon name={kind === "image" ? "image" : "document"} className="size-4 shrink-0 text-muted" />
+                  {label}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted">{sourceCounts[kind]}</span>
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
+    </div>
+  );
+}
+
+function SearchResults({ results }: { results: ChunkMatch[] }) {
+  return (
+    <section className="mt-5 rounded-2xl border border-border/70 bg-surface/30 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-sm font-semibold text-ink">Результаты смыслового поиска</h2>
+        <span className="text-xs tabular-nums text-muted">{results.length}</span>
+      </div>
+      {results.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">Ничего не найдено.</p>
+      ) : (
+        <ul className="mt-4 grid gap-3 lg:grid-cols-2">
+          {results.map((match) => (
+            <li key={match.id} className="rounded-xl border border-border/65 bg-bg/50 p-4">
+              <p className="line-clamp-4 text-sm leading-6 text-ink">{match.text}</p>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-border/60">
+                <span
+                  className="block h-full rounded-full bg-primary"
+                  style={{ width: `${Math.max(4, Math.min(100, match.score * 100))}%` }}
+                />
+              </div>
+              <p className="mt-2 font-mono text-[10px] text-muted">score {match.score.toFixed(3)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SourceDetail({ source }: { source: KnowledgeSource | null }) {
+  return (
+    <aside
+      aria-label="Детали источника"
+      className="overflow-hidden rounded-2xl border border-border/75 bg-surface/40 xl:sticky xl:top-6"
+    >
+      <div className="border-b border-border/70 px-5 py-4">
+        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-primary">Инспектор</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-ink">Детали источника</h2>
+      </div>
+      {source ? (
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <span className="inline-flex size-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <KnowledgeIcon name={source.kind === "image" ? "image" : "document"} className="size-4.5" />
+            </span>
+            <span className={`status-pill ${statusPillClass(source.status)}`}>
+              {SOURCE_STATUS_LABELS[source.status]}
+            </span>
+          </div>
+          <p className="mt-5 text-xs font-medium text-muted">
+            {source.kind === "image" ? "Изображение" : "Текст"}
+          </p>
+          <p className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-ink">
+            {source.raw_text || source.error_message || "Источник ещё обрабатывается."}
+          </p>
+          <dl className="mt-6 divide-y divide-border/60 border-y border-border/60 text-xs">
+            <DetailLine label="Добавлен" value={formatSourceDate(source.created_at)} />
+            <DetailLine label="Кредиты" value={source.credits_charged || "0"} />
+            <DetailLine label="Идентификатор" value={`#${source.id}`} />
+            <DetailLine label="Режим" value={source.mocked ? "Тестовый" : "Рабочий"} />
+          </dl>
+          {source.status === "error" && (
+            <p className="mt-4 rounded-xl border border-danger/25 bg-danger/5 p-3 text-xs leading-5 text-danger">
+              {source.error_message || "Не удалось обработать источник."}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
+          <span className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-bg/45 text-muted">
+            <KnowledgeIcon name="cursor" className="size-4" />
+          </span>
+          <p className="mt-4 text-sm font-medium text-ink">Выберите источник</p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Здесь появятся содержимое, статус обработки и расход кредитов.
+          </p>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className="max-w-[60%] truncate text-right tabular-nums text-ink">{value}</dd>
     </div>
   );
 }
 
 function SourceRow({
   source,
+  active,
+  onSelect,
   onUpdate,
 }: {
   source: KnowledgeSource;
+  active: boolean;
+  onSelect: () => void;
   onUpdate: (source: KnowledgeSource) => void;
 }) {
-  // usePolledStatus рассчитан на одну запись — здесь по одному экземпляру
-  // хука на строку, каждый опрашивает свой источник независимо; хук сам
-  // не делает ничего, пока status не в SOURCE_IN_PROGRESS.
   usePolledStatus(source, SOURCE_IN_PROGRESS, api.sourceStatus, onUpdate, () => undefined);
 
   return (
-    <li className="rounded-md border border-border bg-surface p-3 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-ink">{source.kind === "image" ? "Изображение" : "Текст"}</span>
-        <span className={`status-pill ${statusPillClass(source.status)}`}>{source.status}</span>
-      </div>
-      {source.status === "ok" && (
-        <p className="mt-1 truncate text-xs text-muted">{source.raw_text}</p>
-      )}
-      {source.status === "error" && (
-        <p className="mt-1 text-xs text-danger">
-          {source.error_message || "Не удалось обработать источник."}
-        </p>
-      )}
-    </li>
+    <tr className={`border-b border-border/55 last:border-b-0 ${active ? "bg-primary/5" : "hover:bg-bg/40"}`}>
+      <td className="p-0">
+        <button
+          type="button"
+          aria-label={`Открыть источник ${source.id}`}
+          aria-pressed={active}
+          onClick={onSelect}
+          className="group flex min-h-16 w-full items-center gap-3 px-5 py-3 text-left transition"
+        >
+          <span className={`inline-flex size-9 shrink-0 items-center justify-center rounded-xl border transition ${active ? "border-primary/25 bg-primary/10 text-primary" : "border-border bg-bg/50 text-muted group-hover:text-ink"}`}>
+            <KnowledgeIcon name={source.kind === "image" ? "image" : "document"} className="size-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-ink">{sourceTitle(source)}</span>
+            <span className="mt-1 block truncate text-[11px] text-muted">Источник #{source.id}</span>
+          </span>
+        </button>
+      </td>
+      <td className="px-4 py-3 text-xs text-muted">{source.kind === "image" ? "Изображение" : "Текст"}</td>
+      <td className="px-4 py-3">
+        <span className={`status-pill ${statusPillClass(source.status)}`}>
+          {SOURCE_STATUS_LABELS[source.status]}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-xs tabular-nums text-muted">{formatSourceDate(source.created_at)}</td>
+    </tr>
+  );
+}
+
+function sourceTitle(source: KnowledgeSource): string {
+  const normalized = source.raw_text.replace(/\s+/g, " ").trim();
+  if (normalized) return normalized;
+  if (source.status === "error") return source.error_message || "Ошибка обработки";
+  return source.kind === "image" ? "Новое изображение" : "Новый текст";
+}
+
+function formatSourceDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short" }).format(date);
+}
+
+type KnowledgeIconName = "arrow" | "close" | "cursor" | "document" | "image" | "library" | "plus" | "search" | "spark";
+
+function KnowledgeIcon({ name, className }: { name: KnowledgeIconName; className?: string }) {
+  const paths: Record<KnowledgeIconName, React.ReactNode> = {
+    arrow: <path d="m6 12 6-6 6 6M12 6v12" />,
+    close: <path d="m7 7 10 10M17 7 7 17" />,
+    cursor: <path d="m6 4 12 8-6 2-2 6-4-16Z" />,
+    document: <path d="M7 3h7l4 4v14H7V3Zm7 0v5h5M10 12h5M10 16h5" />,
+    image: <path d="M4 5h16v14H4V5Zm3 11 4-4 3 3 2-2 4 4M16 9h.01" />,
+    library: <path d="M5 4h4v16H5V4Zm5 0h4v16h-4V4Zm5 2 4-1 2 14-4 1-2-14Z" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    search: <path d="m20 20-4.4-4.4M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
+    spark: <path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" />,
+  };
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {paths[name]}
+    </svg>
   );
 }

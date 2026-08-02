@@ -7,7 +7,13 @@ export type WorkspaceSectionKey =
   | "agents"
   | "knowledge"
   | "studio"
-  | "home";
+  | "tools"
+  | "home"
+  | "profile"
+  | "history"
+  | "pricing"
+  | "usage"
+  | "automations";
 
 export interface WorkspaceSection {
   key: WorkspaceSectionKey;
@@ -19,7 +25,13 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
   { key: "agents", prefix: "/agents" },
   { key: "knowledge", prefix: "/knowledge" },
   { key: "studio", prefix: "/studio" },
+  { key: "tools", prefix: "/tools" },
   { key: "home", prefix: "/home" },
+  { key: "profile", prefix: "/profile" },
+  { key: "history", prefix: "/history" },
+  { key: "pricing", prefix: "/pricing" },
+  { key: "usage", prefix: "/usage" },
+  { key: "automations", prefix: "/automations" },
 ];
 
 export function getWorkspaceSection(pathname: string): WorkspaceSection | null {

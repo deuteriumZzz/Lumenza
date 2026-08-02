@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  pathname: "/history",
+  pathname: "/about",
   replace: vi.fn(),
   logout: vi.fn(async () => undefined),
   auth: {
@@ -65,7 +65,7 @@ import { Nav } from "@/components/nav";
 
 describe("Nav", () => {
   beforeEach(() => {
-    mocks.pathname = "/history";
+    mocks.pathname = "/about";
     mocks.auth.user = {
       id: 1,
       username: "tester",
@@ -109,13 +109,14 @@ describe("Nav", () => {
     expect(screen.queryByRole("banner")).toBeNull();
   });
 
-  it("marks the current page in desktop and mobile navigation", () => {
+  it("keeps workspace destinations reachable from desktop and mobile navigation", () => {
     render(<Nav />);
 
     fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
 
-    const currentLinks = screen.getAllByRole("link", { name: "История", current: "page" });
-    expect(currentLinks).toHaveLength(2);
+    const historyLinks = screen.getAllByRole("link", { name: "История" });
+    expect(historyLinks).toHaveLength(2);
+    expect(historyLinks.every((link) => link.getAttribute("href") === "/history")).toBe(true);
   });
 
   it("closes the mobile menu with Escape", () => {
@@ -227,4 +228,13 @@ describe("Nav", () => {
 
     expect(screen.queryByRole("banner")).toBeNull();
   });
+
+  it.each(["/profile", "/history", "/pricing", "/usage", "/automations"])(
+    "defers to the unified sidebar shell on %s",
+    (pathname) => {
+      mocks.pathname = pathname;
+      render(<Nav />);
+      expect(screen.queryByRole("banner")).toBeNull();
+    },
+  );
 });

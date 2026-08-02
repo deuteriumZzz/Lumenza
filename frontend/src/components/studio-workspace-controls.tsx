@@ -97,7 +97,6 @@ export function StudioWorkspaceControls({
   function chooseModel(option: string) {
     if (onModelChange) onModelChange(option);
     else setLocalModel(option);
-    setOpenPanel(null);
   }
 
   return (
@@ -163,126 +162,134 @@ export function StudioWorkspaceControls({
           </ControlPanel>
         )}
 
-        {openPanel === "models" && (
-          <ControlPanel label={`${label}: выбор модели`} reduced={Boolean(shouldReduceMotion)} onClose={() => setOpenPanel(null)}>
-            <PanelHeading title="Select model" detail="Модель применяется там, где это поддерживает API" />
-            <label className="studio-model-search">
-              <span className="sr-only">{`Поиск моделей ${label}`}</span>
-              <input
-                type="search"
-                aria-label={`Поиск моделей ${label}`}
-                value={modelQuery}
-                onChange={(event) => setModelQuery(event.target.value)}
-                placeholder="Search models"
-              />
-            </label>
-            <div className="studio-model-list">
-              {["Автовыбор", ...MODEL_OPTIONS[mode]]
-                .filter((option) => option.toLocaleLowerCase().includes(modelQuery.trim().toLocaleLowerCase()))
-                .map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={model === option}
-                  onClick={() => chooseModel(option)}
-                  className="studio-control-option"
-                >
-                  <span className="studio-control-glyph" aria-hidden="true">{option === "Автовыбор" ? "A" : option.slice(0, 1)}</span>
-                  <span><strong>{option}</strong><small>{modelDetail(mode, option)}</small></span>
-                  {model === option && <em>✓</em>}
-                </button>
-              ))}
-            </div>
-          </ControlPanel>
-        )}
+        {(openPanel === "models" || openPanel === "settings") && (
+          <ControlPanel
+            label={openPanel === "models" ? `${label}: выбор модели` : `${label}: настройки`}
+            reduced={Boolean(shouldReduceMotion)}
+            wide
+            dataLayout="model-settings"
+            onClose={() => setOpenPanel(null)}
+          >
+            <div className="grid min-h-0 gap-5 md:grid-cols-[minmax(15rem,0.82fr)_minmax(22rem,1.4fr)]">
+              <section aria-label={`${label}: модели`} className="min-w-0 border-b border-border/50 pb-5 md:border-b-0 md:border-r md:pb-0 md:pr-5">
+                <PanelHeading title="Select model" detail="Модель применяется там, где это поддерживает API" />
+                <label className="studio-model-search">
+                  <span className="sr-only">{`Поиск моделей ${label}`}</span>
+                  <input
+                    type="search"
+                    aria-label={`Поиск моделей ${label}`}
+                    value={modelQuery}
+                    onChange={(event) => setModelQuery(event.target.value)}
+                    placeholder="Search models"
+                  />
+                </label>
+                <div className="studio-model-list">
+                  {["Автовыбор", ...MODEL_OPTIONS[mode]]
+                    .filter((option) => option.toLocaleLowerCase().includes(modelQuery.trim().toLocaleLowerCase()))
+                    .map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={model === option}
+                      onClick={() => chooseModel(option)}
+                      className="studio-control-option"
+                    >
+                      <span className="studio-control-glyph" aria-hidden="true">{option === "Автовыбор" ? "A" : option.slice(0, 1)}</span>
+                      <span><strong>{option}</strong><small>{modelDetail(mode, option)}</small></span>
+                      {model === option && <em>✓</em>}
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-        {openPanel === "settings" && (
-          <ControlPanel label={`${label}: настройки`} reduced={Boolean(shouldReduceMotion)} wide onClose={() => setOpenPanel(null)}>
-            <div className="studio-settings-heading">
-              <PanelHeading title={`${label} settings`} detail="Параметры проекта сохраняются в текущей сессии" />
-              <button type="button" onClick={() => setSettings(DEFAULT_SETTINGS)}>Reset</button>
-            </div>
-            <div className="studio-settings-grid">
-              <SettingsGroup
-                label="Aspect ratio"
-                name={`${mode}-aspect`}
-                value={settings.aspect}
-                options={["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"]}
-                onChange={(aspect) => setSettings((current) => ({ ...current, aspect }))}
-              />
-              <SettingsGroup
-                label="Resolution"
-                name={`${mode}-resolution`}
-                value={settings.resolution}
-                options={["1K", "2K", "4K"]}
-                onChange={(resolution) => setSettings((current) => ({ ...current, resolution }))}
-              />
-              <SettingsGroup
-                label="Quality"
-                name={`${mode}-quality`}
-                value={settings.quality}
-                options={["Low", "Medium", "High"]}
-                onChange={(quality) => setSettings((current) => ({ ...current, quality }))}
-              />
-              <SettingsGroup
-                label="Visibility"
-                name={`${mode}-visibility`}
-                value={settings.visibility}
-                options={["Private", "Public"]}
-                onChange={(visibility) => setSettings((current) => ({ ...current, visibility }))}
-              />
-              <SettingsGroup
-                label="Variations"
-                name={`${mode}-variations`}
-                value={settings.variations}
-                options={["1", "2", "3", "4"]}
-                optionLabel={(option) => `${option} ${option === "1" ? "variation" : "variations"}`}
-                onChange={(variations) => setSettings((current) => ({ ...current, variations }))}
-              />
-              {mode === "video" && (
-                <SettingsGroup
-                  label="Duration"
-                  name={`${mode}-duration`}
-                  value={settings.duration}
-                  options={["5", "10", "15"]}
-                  optionLabel={(option) => `${option} seconds`}
-                  onChange={(duration) => setSettings((current) => ({ ...current, duration }))}
-                />
-              )}
-              {mode === "upscale" && (
-                <>
+              <section aria-label={`${label}: параметры`} className="min-w-0">
+                <div className="studio-settings-heading">
+                  <PanelHeading title={`${label} settings`} detail="Параметры проекта сохраняются в текущей сессии" />
+                  <button type="button" onClick={() => setSettings(DEFAULT_SETTINGS)}>Reset</button>
+                </div>
+                <div className="studio-settings-grid">
                   <SettingsGroup
-                    label="Scale"
-                    name={`${mode}-scale`}
-                    value={settings.scale}
-                    options={["2×", "4×"]}
-                    onChange={(scale) => setSettings((current) => ({ ...current, scale }))}
+                    label="Aspect ratio"
+                    name={`${mode}-aspect`}
+                    value={settings.aspect}
+                    options={["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"]}
+                    onChange={(aspect) => setSettings((current) => ({ ...current, aspect }))}
                   />
-                  <RangeSetting
-                    label="Face enhancement strength"
-                    value={settings.faceStrength}
-                    onChange={(faceStrength) => setSettings((current) => ({ ...current, faceStrength }))}
+                  <SettingsGroup
+                    label="Resolution"
+                    name={`${mode}-resolution`}
+                    value={settings.resolution}
+                    options={["1K", "2K", "4K"]}
+                    onChange={(resolution) => setSettings((current) => ({ ...current, resolution }))}
                   />
-                  <RangeSetting
-                    label="Texture preservation"
-                    value={settings.texturePreservation}
-                    onChange={(texturePreservation) => setSettings((current) => ({ ...current, texturePreservation }))}
+                  <SettingsGroup
+                    label="Quality"
+                    name={`${mode}-quality`}
+                    value={settings.quality}
+                    options={["Low", "Medium", "High"]}
+                    onChange={(quality) => setSettings((current) => ({ ...current, quality }))}
                   />
-                </>
-              )}
-              <label className="studio-settings-toggle">
-                <span><strong>Prompt enhancer</strong><small>Расширить короткий промпт перед генерацией</small></span>
-                <input
-                  aria-label="Prompt enhancer"
-                  type="checkbox"
-                  checked={settings.promptEnhancer}
-                  onChange={(event) => setSettings((current) => ({ ...current, promptEnhancer: event.target.checked }))}
-                />
-              </label>
+                  <SettingsGroup
+                    label="Visibility"
+                    name={`${mode}-visibility`}
+                    value={settings.visibility}
+                    options={["Private", "Public"]}
+                    onChange={(visibility) => setSettings((current) => ({ ...current, visibility }))}
+                  />
+                  <SettingsGroup
+                    label="Variations"
+                    name={`${mode}-variations`}
+                    value={settings.variations}
+                    options={["1", "2", "3", "4"]}
+                    optionLabel={(option) => `${option} ${option === "1" ? "variation" : "variations"}`}
+                    onChange={(variations) => setSettings((current) => ({ ...current, variations }))}
+                  />
+                  {mode === "video" && (
+                    <SettingsGroup
+                      label="Duration"
+                      name={`${mode}-duration`}
+                      value={settings.duration}
+                      options={["5", "10", "15"]}
+                      optionLabel={(option) => `${option} seconds`}
+                      onChange={(duration) => setSettings((current) => ({ ...current, duration }))}
+                    />
+                  )}
+                  {mode === "upscale" && (
+                    <>
+                      <SettingsGroup
+                        label="Scale"
+                        name={`${mode}-scale`}
+                        value={settings.scale}
+                        options={["2×", "4×"]}
+                        onChange={(scale) => setSettings((current) => ({ ...current, scale }))}
+                      />
+                      <RangeSetting
+                        label="Face enhancement strength"
+                        value={settings.faceStrength}
+                        onChange={(faceStrength) => setSettings((current) => ({ ...current, faceStrength }))}
+                      />
+                      <RangeSetting
+                        label="Texture preservation"
+                        value={settings.texturePreservation}
+                        onChange={(texturePreservation) => setSettings((current) => ({ ...current, texturePreservation }))}
+                      />
+                    </>
+                  )}
+                  <label className="studio-settings-toggle">
+                    <span><strong>Prompt enhancer</strong><small>Расширить короткий промпт перед генерацией</small></span>
+                    <input
+                      aria-label="Prompt enhancer"
+                      type="checkbox"
+                      checked={settings.promptEnhancer}
+                      onChange={(event) => setSettings((current) => ({ ...current, promptEnhancer: event.target.checked }))}
+                    />
+                  </label>
+                </div>
+                <p className="studio-settings-note" role="note">
+                  Недоступные серверу параметры сохраняются как настройки проекта и не отправляются в generation API.
+                </p>
+              </section>
             </div>
-            <p className="studio-settings-note" role="note">
-              Недоступные серверу параметры сохраняются как настройки проекта и не отправляются в generation API.
-            </p>
           </ControlPanel>
         )}
       </AnimatePresence>
@@ -290,11 +297,12 @@ export function StudioWorkspaceControls({
   );
 }
 
-function ControlPanel({ label, reduced, wide = false, onClose, children }: { label: string; reduced: boolean; wide?: boolean; onClose: () => void; children: ReactNode }) {
+function ControlPanel({ label, reduced, wide = false, dataLayout, onClose, children }: { label: string; reduced: boolean; wide?: boolean; dataLayout?: string; onClose: () => void; children: ReactNode }) {
   return (
     <motion.div
       role="dialog"
       aria-label={label}
+      data-layout={dataLayout}
       initial={reduced ? false : { opacity: 0, y: 8, scale: 0.985 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={reduced ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.99 }}

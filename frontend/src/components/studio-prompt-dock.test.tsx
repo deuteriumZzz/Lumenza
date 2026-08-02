@@ -53,4 +53,31 @@ describe("StudioPromptDock", () => {
     expect(screen.getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("status").textContent).toContain("Провайдер пока не подключён");
   });
+
+  it("lets Image projects attach a local reference even before the generation route consumes it", () => {
+    render(
+      <StudioPromptDock
+        mode="image"
+        prompt="editorial portrait"
+        onPromptChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    const addButton = screen.getByRole("button", { name: "Добавить референс" });
+    expect(addButton).toHaveProperty("disabled", false);
+    fireEvent.click(addButton);
+
+    const input = screen.getByLabelText("Локальный референс Image");
+    const file = new File(["pixels"], "moodboard.webp", { type: "image/webp" });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByText("moodboard.webp")).toBeDefined();
+    expect(screen.getByRole("note").textContent).toContain("не передаёт референс");
+    expect(screen.getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить локальный референс" }));
+    expect(screen.queryByText("moodboard.webp")).toBeNull();
+    expect(screen.getByRole("button", { name: "Создать" })).toHaveProperty("disabled", false);
+  });
 });

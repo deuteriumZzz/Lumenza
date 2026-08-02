@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   telegramAuth: vi.fn(),
   me: vi.fn(),
   balance: vi.fn(),
+  updatePet: vi.fn(),
+  removePet: vi.fn(),
 }));
 
 vi.mock("@/components/telegram-webapp-provider", () => ({
@@ -24,6 +26,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
       telegramAuth: mocks.telegramAuth,
       me: mocks.me,
       balance: mocks.balance,
+      updatePet: mocks.updatePet,
+      removePet: mocks.removePet,
     },
   };
 });
@@ -31,8 +35,16 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 function AuthProbe() {
-  const { loading, user } = useAuth();
-  return <output>{loading ? "loading" : user?.username ?? "anonymous"}</output>;
+  const { loading, user, updatePet, removePet } = useAuth();
+  return (
+    <>
+      <output>{loading ? "loading" : user?.pet_name || user?.username || "anonymous"}</output>
+      <button type="button" onClick={() => void updatePet({ name: "Люми", show: true })}>
+        update pet
+      </button>
+      <button type="button" onClick={() => void removePet()}>remove pet</button>
+    </>
+  );
 }
 
 describe("AuthProvider Telegram bootstrap", () => {
@@ -44,6 +56,8 @@ describe("AuthProvider Telegram bootstrap", () => {
     mocks.telegramAuth.mockReset();
     mocks.me.mockReset();
     mocks.balance.mockReset();
+    mocks.updatePet.mockReset();
+    mocks.removePet.mockReset();
   });
 
   it("waits for Telegram initialization before checking the session", () => {
@@ -97,5 +111,75 @@ describe("AuthProvider Telegram bootstrap", () => {
     );
     expect(order[0]).toBe("telegram");
     expect(order.slice(1).sort()).toEqual(["balance", "me"]);
+  });
+
+  it("applies pet updates to the shared user immediately", async () => {
+    mocks.telegram.ready = true;
+    mocks.me.mockResolvedValue({
+      id: 1,
+      username: "alice",
+      email: "alice@example.com",
+      telegram_linked: false,
+      tier: "free",
+      pet_name: "",
+      pet_image: null,
+      show_pet: false,
+    });
+    mocks.balance.mockResolvedValue({ balance: "100", updated_at: "" });
+    mocks.updatePet.mockResolvedValue({
+      id: 1,
+      username: "alice",
+      email: "alice@example.com",
+      telegram_linked: false,
+      tier: "free",
+      pet_name: "Люми",
+      pet_image: "/media/pets/lumi.webp",
+      show_pet: true,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("alice")).toBeDefined());
+    screen.getByRole("button", { name: "update pet" }).click();
+
+    await waitFor(() => expect(screen.getByText("Люми")).toBeDefined());
+  });
+
+  it("applies pet removal to the shared user immediately", async () => {
+    mocks.telegram.ready = true;
+    mocks.me.mockResolvedValue({
+      id: 1,
+      username: "alice",
+      email: "alice@example.com",
+      telegram_linked: false,
+      tier: "free",
+      pet_name: "Люми",
+      pet_image: "/media/pets/lumi.webp",
+      show_pet: true,
+    });
+    mocks.balance.mockResolvedValue({ balance: "100", updated_at: "" });
+    mocks.removePet.mockResolvedValue({
+      id: 1,
+      username: "alice",
+      email: "alice@example.com",
+      telegram_linked: false,
+      tier: "free",
+      pet_name: "",
+      pet_image: null,
+      show_pet: false,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Люми")).toBeDefined());
+    screen.getByRole("button", { name: "remove pet" }).click();
+
+    await waitFor(() => expect(screen.getByText("alice")).toBeDefined());
   });
 });

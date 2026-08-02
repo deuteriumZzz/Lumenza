@@ -23,19 +23,37 @@ export default function AutomationsPage() {
 
 function Automations() {
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-3 py-8 min-[380px]:px-4 sm:px-6 sm:py-12">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Автоматизации</h1>
-        <p className="mt-1 text-sm text-muted">
-          Запускайте агентов по расписанию и публикуйте результат в Telegram — публикация
-          никогда не уходит без вашего явного подтверждения.
-        </p>
-      </div>
+    <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-16 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+      <header
+        data-testid="workspace-page-header"
+        className="flex flex-col gap-6 border-b border-border/70 pb-8 md:flex-row md:items-end md:justify-between"
+      >
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">
+            Агентные процессы
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">
+            Автоматизации
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+            Запускайте агентов по расписанию и публикуйте результат в Telegram — публикация
+            никогда не уходит без вашего явного подтверждения.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted">
+          <span className="size-2 rounded-full bg-primary shadow-[0_0_14px_var(--color-primary)]" />
+          Расписание работает по UTC
+        </div>
+      </header>
 
-      <TelegramChannels />
-      <Schedules />
-      <PendingActions />
-    </div>
+      <div className="mt-8 grid items-start gap-6 xl:grid-cols-[minmax(17rem,0.78fr)_minmax(0,1.55fr)]">
+        <TelegramChannels />
+        <Schedules />
+      </div>
+      <div className="mt-6">
+        <PendingActions />
+      </div>
+    </section>
   );
 }
 
@@ -77,20 +95,32 @@ function TelegramChannels() {
   }
 
   return (
-    <section>
-      <h2 className="text-base font-semibold text-ink">Каналы Telegram</h2>
-      <p className="mt-1 text-sm text-muted">
+    <section
+      aria-label="Каналы Telegram"
+      className="rounded-2xl border border-border/70 bg-surface/60 p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Доставка</p>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-ink">Каналы Telegram</h2>
+        </div>
+        <span className="font-mono text-xs tabular-nums text-muted">
+          {channels === null ? "—" : channels.length}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted">
         Бот должен быть добавлен администратором в канал/чат. Chat ID можно узнать,
         переслав сообщение из канала боту вроде @userinfobot.
       </p>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           value={chatId}
           onChange={(event) => setChatId(event.target.value)}
           placeholder="-1001234567890"
           inputMode="numeric"
-          className="input max-w-56"
+          aria-label="Chat ID Telegram"
+          className="input min-w-0 flex-1"
         />
         <button
           type="button"
@@ -109,17 +139,17 @@ function TelegramChannels() {
       )}
 
       {channels && channels.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-1.5">
+        <ul className="mt-5 flex flex-col divide-y divide-border/60 border-y border-border/60">
           {channels.map((channel) => (
             <li
               key={channel.id}
-              className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              className="flex items-center justify-between gap-3 py-3 text-sm"
             >
               <span className="text-ink">{channel.title}</span>
               <button
                 type="button"
                 onClick={() => void disconnect(channel.id)}
-                className="text-xs text-muted underline hover:text-danger"
+                className="rounded px-1 py-1 text-xs text-muted transition-colors duration-200 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Отключить
               </button>
@@ -212,14 +242,25 @@ function Schedules() {
     );
 
   return (
-    <section>
-      <h2 className="text-base font-semibold text-ink">Расписания</h2>
-      <p className="mt-1 text-sm text-muted">
+    <section
+      aria-label="Расписания"
+      className="rounded-2xl border border-border/70 bg-surface/60 p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Оркестрация</p>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-ink">Расписания</h2>
+        </div>
+        <span className="font-mono text-xs tabular-nums text-muted">
+          {schedules === null ? "—" : schedules.length}
+        </span>
+      </div>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
         Ежедневный запуск агента в указанное время (UTC). Публикация — только с
         подтверждением, ниже в разделе «Ожидают подтверждения».
       </p>
 
-      <div className="mt-3 flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
+      <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border/70 bg-bg/35 p-4 sm:p-5">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-muted">Агент</span>
           <select
@@ -268,7 +309,7 @@ function Schedules() {
               </label>
             ))}
 
-            <div className="flex items-center gap-2">
+            <div className="grid max-w-sm grid-cols-2 gap-3">
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="text-muted">Час (UTC)</span>
                 <input
@@ -277,7 +318,7 @@ function Schedules() {
                   max={23}
                   value={hour}
                   onChange={(event) => setHour(Number(event.target.value))}
-                  className="input w-20"
+                  className="input w-full"
                 />
               </label>
               <label className="flex flex-col gap-1.5 text-sm">
@@ -288,7 +329,7 @@ function Schedules() {
                   max={59}
                   value={minute}
                   onChange={(event) => setMinute(Number(event.target.value))}
-                  className="input w-20"
+                  className="input w-full"
                 />
               </label>
             </div>
@@ -328,11 +369,11 @@ function Schedules() {
       )}
 
       {schedules && schedules.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-1.5">
+        <ul className="mt-5 flex flex-col divide-y divide-border/60 border-y border-border/60">
           {schedules.map((schedule) => (
             <li
               key={schedule.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              className="flex flex-col gap-3 py-3.5 text-sm sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
                 <p className="truncate text-ink">
@@ -354,7 +395,7 @@ function Schedules() {
                 <button
                   type="button"
                   onClick={() => void deleteSchedule(schedule.id)}
-                  className="text-xs text-muted underline hover:text-danger"
+                  className="rounded px-1 py-1 text-xs text-muted transition-colors duration-200 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   Удалить
                 </button>
@@ -429,9 +470,18 @@ function PendingActions() {
   const resolved = (actions ?? []).filter((action) => action.status !== "pending_confirmation");
 
   return (
-    <section>
-      <h2 className="text-base font-semibold text-ink">Ожидают подтверждения</h2>
-      <p className="mt-1 text-sm text-muted">
+    <section
+      aria-label="Ожидают подтверждения"
+      className="rounded-2xl border border-border/70 bg-surface/60 p-5 sm:p-6"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Контроль публикаций</p>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-ink">Ожидают подтверждения</h2>
+        </div>
+        <p className="font-mono text-xs tabular-nums text-muted">{pending.length} в очереди</p>
+      </div>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
         Ничего не публикуется без вашего явного подтверждения — отредактируйте текст при
         необходимости перед отправкой.
       </p>
@@ -443,12 +493,14 @@ function PendingActions() {
       )}
 
       {pending.length === 0 && actions !== null && (
-        <p className="mt-3 text-sm text-muted">Пока нечего подтверждать.</p>
+        <div className="mt-5 rounded-xl border border-dashed border-border/80 bg-bg/25 px-5 py-8 text-center text-sm text-muted">
+          Пока нечего подтверждать.
+        </div>
       )}
 
-      <ul className="mt-3 flex flex-col gap-3">
+      <ul className="mt-5 flex flex-col gap-3">
         {pending.map((action) => (
-          <li key={action.id} className="rounded-md border border-border bg-surface p-3">
+          <li key={action.id} className="rounded-xl border border-primary/20 bg-bg/35 p-4">
             <textarea
               value={drafts[action.id] ?? ""}
               onChange={(event) =>
@@ -459,7 +511,7 @@ function PendingActions() {
               maxLength={8000}
               className="input w-full"
             />
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => void confirm(action)}
@@ -482,11 +534,11 @@ function PendingActions() {
       </ul>
 
       {resolved.length > 0 && (
-        <ul className="mt-4 flex flex-col gap-1.5">
+        <ul className="mt-5 flex flex-col divide-y divide-border/60 border-y border-border/60">
           {resolved.map((action) => (
             <li
               key={action.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              className="flex items-center justify-between gap-3 py-3 text-sm"
             >
               <span className="min-w-0 truncate text-muted">{action.text}</span>
               <span

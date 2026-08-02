@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     `/api/threads/${threadId}/messages/stream/${generationId}/`,
   ),
   createThread: vi.fn(),
+  threads: vi.fn(),
   presets: vi.fn(),
   deletePreset: vi.fn(),
 }));
@@ -72,6 +73,7 @@ vi.mock("@/lib/api", () => {
       streamThreadMessage: mocks.streamThreadMessage,
       chatStreamUrl: mocks.chatStreamUrl,
       createThread: mocks.createThread,
+      threads: mocks.threads,
       presets: mocks.presets,
       deletePreset: mocks.deletePreset,
     },
@@ -134,6 +136,21 @@ const DONE_EVENT = {
 };
 
 describe("ChatThreadView model routing", () => {
+  it("renders the reference Chat hierarchy as one workspace", async () => {
+    renderChat();
+
+    const workspace = screen.getByRole("region", { name: "Чат Lumenza" });
+    expect(within(workspace).getByRole("banner", { name: "Chat workspace" })).toBeDefined();
+    expect(within(workspace).getByRole("toolbar", { name: "Контекст чата" })).toBeDefined();
+    expect(within(workspace).getByRole("form", { name: "Написать сообщение" })).toBeDefined();
+    expect(within(workspace).getByRole("toolbar", { name: "Инструменты чата" })).toBeDefined();
+    expect(within(workspace).getByRole("navigation", { name: "Категории инструментов" })).toBeDefined();
+    expect(within(workspace).getAllByRole("link", { name: /Открыть:/ })).toHaveLength(4);
+    expect(within(workspace).getByText(/Lumenza может ошибаться/i)).toBeDefined();
+    fireEvent.click(within(workspace).getByRole("button", { name: "Открыть историю чатов" }));
+    const savedChats = await within(workspace).findByRole("navigation", { name: "Сохранённые чаты" });
+    expect(within(savedChats).getByRole("link", { name: /Запуск продукта/i }).getAttribute("href")).toBe("/chat/7");
+  });
   const originalEventSource = globalThis.EventSource;
 
   beforeEach(() => {
@@ -147,6 +164,12 @@ describe("ChatThreadView model routing", () => {
     mocks.streamThreadMessage.mockReset().mockResolvedValue({ generation_id: "gen-1" });
     mocks.chatStreamUrl.mockClear();
     mocks.createThread.mockReset().mockResolvedValue({ id: 9 });
+    mocks.threads.mockReset().mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{ id: 7, title: "Запуск продукта", created_at: "2026-01-01", updated_at: "2026-01-02", active_generation_id: null }],
+    });
     mocks.presets.mockReset().mockResolvedValue([]);
     mocks.deletePreset.mockReset();
   });

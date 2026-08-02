@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -83,17 +83,20 @@ describe("RouteTransition", () => {
     ).toBe("home");
   });
 
-  it("adds a visual transition veil but removes it for reduced motion", () => {
+  it("never adds a generic veil or fullscreen transition overlay", () => {
     render(
       <RouteTransition>
         <p>Обычное движение</p>
       </RouteTransition>,
     );
 
-    expect(screen.getByTestId("route-transition-veil")).toBeDefined();
+    expect(screen.queryByTestId("route-transition-veil")).toBeNull();
+    expect(document.querySelector("[data-route-transition-overlay]")).toBeNull();
+  });
 
-    cleanup();
+  it("disables route motion correctly when reduced motion is requested", () => {
     mocks.reduceMotion = true;
+
     render(
       <RouteTransition>
         <p>Без движения</p>
@@ -101,6 +104,7 @@ describe("RouteTransition", () => {
     );
 
     expect(screen.queryByTestId("route-transition-veil")).toBeNull();
+    expect(screen.queryByTestId("workspace-mode-morph")).toBeNull();
     expect(
       screen
         .getByText("Без движения")
@@ -109,19 +113,20 @@ describe("RouteTransition", () => {
     ).toBe("true");
   });
 
-  it("clips the decorative veil so route animation cannot widen a Mini App viewport", () => {
+  it("keeps route content inside a stable non-overlay stage", () => {
     render(
       <RouteTransition>
         <p>Узкий экран</p>
       </RouteTransition>,
     );
 
-    expect(
-      screen.getByText("Узкий экран").parentElement?.parentElement?.className,
-    ).toContain("overflow-x-clip");
+    const frame = screen.getByText("Узкий экран").closest("[data-route-transition]");
+    expect(frame).toBeDefined();
+    expect(frame?.parentElement?.querySelector("[data-route-transition-overlay]")).toBeNull();
+    expect(screen.queryByTestId("route-transition-veil")).toBeNull();
   });
 
-  it("marks the seamless Chat to Agents morph without mixing the route families", () => {
+  it("marks the seamless Chat to Agents morph without mixing the route families", async () => {
     const { rerender } = render(<RouteTransition><p>Чат</p></RouteTransition>);
 
     mocks.pathname = "/agents";
@@ -130,6 +135,10 @@ describe("RouteTransition", () => {
     expect(
       screen.getByText("Агенты").closest("[data-route-transition]")?.getAttribute("data-transition"),
     ).toBe("chat-to-agents");
+    expect(screen.getByTestId("workspace-mode-morph").getAttribute("data-from")).toBe("chat");
+    expect(screen.getByTestId("workspace-mode-morph").getAttribute("data-to")).toBe("agents");
+    expect(screen.getByTestId("workspace-mode-morph").querySelectorAll("[data-morph-node]")).toHaveLength(3);
+    expect(screen.queryByTestId("route-transition-veil")).toBeNull();
 
     mocks.pathname = "/agents/threads-content-day";
     rerender(<RouteTransition><p>Запуск агента</p></RouteTransition>);
@@ -137,5 +146,6 @@ describe("RouteTransition", () => {
     expect(
       screen.getByText("Запуск агента").closest("[data-route-transition]")?.getAttribute("data-transition"),
     ).toBe("standard");
+    await waitFor(() => expect(screen.queryByTestId("workspace-mode-morph")).toBeNull());
   });
 });

@@ -9,6 +9,7 @@ import { DocumentSummaryResult } from "@/components/document-summary-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
+import { usePetActivityControls } from "@/lib/pet-activity";
 import { usePolledStatus } from "@/lib/use-polled-status";
 import {
   api,
@@ -87,6 +88,15 @@ export default function AgentRunPage() {
     null
   );
   const [documentError, setDocumentError] = useState<string | null>(null);
+
+  // Gives the sidebar companion something to do while a multi-step
+  // scenario is actually running, instead of only reacting to clicks.
+  const setPetActive = usePetActivityControls();
+  useEffect(() => {
+    if (!run || !IN_PROGRESS.has(run.status)) return;
+    setPetActive(true);
+    return () => setPetActive(false);
+  }, [run, setPetActive]);
 
   // A custom "Мои агенты" agent's result shape matches its LAST chosen
   // source agent's output_schema (see agents.services.create_custom_agent),

@@ -35,7 +35,8 @@ describe("Lumenza brand system", () => {
         .getAttribute("href"),
     ).toBe("/chat");
     expect(screen.getByTestId("lumenza-mark")).toBeDefined();
-    expect(screen.getAllByTestId("lumenza-source-node")).toHaveLength(3);
+    expect(screen.getByTestId("lumenza-sparkle-primary")).toBeDefined();
+    expect(screen.getByTestId("lumenza-sparkle-secondary")).toBeDefined();
   });
 
   it("can render the compact mark without exposing decorative geometry", () => {

@@ -13,7 +13,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <RequireAuth>
-      <div className="chat-shell relative flex max-h-dvh min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div
+        data-testid="workspace-shell"
+        data-shell-mode="unified"
+        className="chat-shell relative flex max-h-dvh min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
         <ThreadSidebar />
         <div
           data-testid="workspace-content"

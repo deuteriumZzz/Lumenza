@@ -10,9 +10,10 @@ interface LumenzaMarkProps {
 }
 
 /**
- * Three independent model signals converge into Lumenza's routing core and
- * leave as one answer. The same geometry is used from favicon size to the
- * animated chat hero so the product owns one recognisable symbol.
+ * A single four-point sparkle (plus a smaller companion sparkle) in the
+ * brand's gold gradient — the one glyph used everywhere from the sidebar
+ * wordmark to the animated chat-empty-state hero, so the product owns one
+ * recognisable symbol instead of a different mark per surface.
  */
 export function LumenzaMark({
   className = "size-7",
@@ -27,60 +28,24 @@ export function LumenzaMark({
       fill="none"
       className={`lumenza-mark ${animated ? "is-animated" : ""} ${className}`}
     >
+      <defs>
+        <linearGradient id="lumenza-sparkle-gradient" x1="4" y1="2" x2="44" y2="46" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="oklch(0.88 0.12 85)" />
+          <stop offset="1" stopColor="oklch(0.68 0.16 52)" />
+        </linearGradient>
+      </defs>
       <path
-        className="lumenza-route lumenza-route-one"
-        d="M7 10.5h5.5c5.3 0 6.2 6.7 10.4 8.8"
-        pathLength="1"
-      />
-      <path
-        className="lumenza-route lumenza-route-two"
-        d="M7 24h15.5"
-        pathLength="1"
-      />
-      <path
-        className="lumenza-route lumenza-route-three"
-        d="M7 37.5h5.5c5.3 0 6.2-6.7 10.4-8.8"
-        pathLength="1"
-      />
-
-      <circle
-        data-testid="lumenza-source-node"
-        className="lumenza-source lumenza-source-one"
-        cx="6"
-        cy="10.5"
-        r="2"
-      />
-      <circle
-        data-testid="lumenza-source-node"
-        className="lumenza-source lumenza-source-two"
-        cx="6"
-        cy="24"
-        r="2"
-      />
-      <circle
-        data-testid="lumenza-source-node"
-        className="lumenza-source lumenza-source-three"
-        cx="6"
-        cy="37.5"
-        r="2"
-      />
-
-      <path
-        className="lumenza-core-halo"
-        d="M24 14.25 32.45 19v10L24 33.75 15.55 29V19L24 14.25Z"
+        data-testid="lumenza-sparkle-primary"
+        className="lumenza-sparkle lumenza-sparkle-primary"
+        d="M24 0C24 13.2 13.2 24 0 24C13.2 24 24 34.8 24 48C24 34.8 34.8 24 48 24C34.8 24 24 13.2 24 0Z"
+        fill="url(#lumenza-sparkle-gradient)"
       />
       <path
-        className="lumenza-core"
-        d="M24 16.7 30.3 20.25v7.5L24 31.3l-6.3-3.55v-7.5L24 16.7Z"
+        data-testid="lumenza-sparkle-secondary"
+        className="lumenza-sparkle lumenza-sparkle-secondary"
+        d="M36.8 4C36.8 6.64 34.64 8.8 32 8.8C34.64 8.8 36.8 10.96 36.8 13.6C36.8 10.96 38.96 8.8 41.6 8.8C38.96 8.8 36.8 6.64 36.8 4Z"
+        fill="url(#lumenza-sparkle-gradient)"
       />
-      <path className="lumenza-monogram" d="M21.25 20.25v7h5.65" />
-
-      <path
-        className="lumenza-output-route"
-        d="M31.5 24H42"
-        pathLength="1"
-      />
-      <circle className="lumenza-output" cx="42" cy="24" r="2.15" />
     </svg>
   );
 }
@@ -119,6 +84,10 @@ export function LumenzaConvergence() {
       <div className="lumenza-convergence-stage" aria-hidden="true">
         <span className="lumenza-orbit lumenza-orbit-outer" />
         <span className="lumenza-orbit lumenza-orbit-inner" />
+        <span className="lumenza-orbit-particle" style={{ left: "12%", top: "22%" }} />
+        <span className="lumenza-orbit-particle" style={{ left: "85%", top: "18%" }} />
+        <span className="lumenza-orbit-particle" style={{ left: "20%", top: "82%" }} />
+        <span className="lumenza-orbit-particle" style={{ left: "90%", top: "70%" }} />
         <LumenzaMark animated className="size-[6.75rem] sm:size-[7.5rem]" />
       </div>
       <span className="lumenza-convergence-caption" aria-hidden="true">

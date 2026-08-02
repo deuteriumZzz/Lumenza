@@ -141,15 +141,41 @@ function Agents() {
   }
 
   return (
-    <div className="agent-workspace mx-auto w-full max-w-5xl flex-1 px-3 py-6 min-[380px]:px-4 sm:px-6 sm:py-10">
+    <div className="agent-workspace mx-auto w-full max-w-[92rem] flex-1 px-3 pb-10 min-[380px]:px-4 sm:px-8 lg:px-10">
+      <header aria-label="Agents workspace" className="agent-workspace-header">
+        <div>
+          <p className="workspace-eyebrow">Lumenza orchestration</p>
+          <h1>Agents</h1>
+          <p>Ваша AI-команда. Специализированная, связанная и готовая к работе.</p>
+        </div>
+        <Link href="/agents?category=mine" aria-label="Мои агенты" className="workspace-outline-button"><span aria-hidden="true">＋</span> Новый агент</Link>
+      </header>
       <section aria-label="Чат агентов" className="agent-chat-hero">
         <motion.div
           layoutId="lumenza-workspace-core"
           className="agent-orbit-mark"
           transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
           aria-hidden="true"
+          data-testid="agents-network"
         >
-          <span /><span /><span />
+          <svg className="agent-orbit-connectors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="50" y1="50" x2="13" y2="36" />
+            <line x1="50" y1="50" x2="49" y2="4" />
+            <line x1="50" y1="50" x2="88" y2="28" />
+            <line x1="50" y1="50" x2="22" y2="89" />
+            <line x1="50" y1="50" x2="81" y2="93" />
+          </svg>
+          <span className="agent-orbit-particle" style={{ left: "28%", top: "12%" }} />
+          <span className="agent-orbit-particle" style={{ left: "70%", top: "10%" }} />
+          <span className="agent-orbit-particle" style={{ left: "8%", top: "62%" }} />
+          <span className="agent-orbit-particle" style={{ left: "92%", top: "58%" }} />
+          <span className="agent-orbit-particle" style={{ left: "55%", top: "95%" }} />
+          <b aria-hidden="true">✦</b>
+          <span data-agent-node data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
+          <span data-agent-node data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
+          <span data-agent-node data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
+          <span data-agent-node data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
+          <span data-agent-node data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
         </motion.div>
         <div className="agent-hero-copy">
           <p className="agent-mode-label">Агентный режим</p>
@@ -170,6 +196,7 @@ function Agents() {
           onSubmit={startAgentChat}
           className="agent-composer"
         >
+          <h2>Что должна сделать ваша AI-команда?</h2>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -178,36 +205,48 @@ function Agents() {
             rows={5}
           />
           <div className="agent-composer-footer">
-            <ModelPicker
-              models={models}
-              selectedModel={selectedModel}
-              selectedTask={selectedModelTask}
-              onSelect={(model, task) => {
-                setSelectedModel(model);
-                setSelectedModelTask(task);
-              }}
-            />
-            <AgentModeMenu />
-            <label className="agent-selector">
-              <span className="sr-only">Выбрать агента</span>
-              <select
-                aria-label="Выбрать агента"
-                value={selectedAgent?.slug ?? ""}
-                onChange={(event) => setSelectedAgentSlug(event.target.value)}
-                disabled={selectableAgents.length === 0}
-              >
-                {selectableAgents.map((agent) => <option key={agent.slug} value={agent.slug}>{agent.name}</option>)}
-              </select>
-            </label>
-            <span role="status" aria-label={`Активная возможность: ${activeCategoryLabel}`} className="agent-capability-chip">
-              {activeCategoryLabel}
-            </span>
+            <div className="agent-field">
+              <span className="agent-field-label">Model</span>
+              <ModelPicker
+                models={models}
+                selectedModel={selectedModel}
+                selectedTask={selectedModelTask}
+                onSelect={(model, task) => {
+                  setSelectedModel(model);
+                  setSelectedModelTask(task);
+                }}
+              />
+            </div>
+            <div className="agent-field">
+              <span className="agent-field-label">Mode</span>
+              <AgentModeMenu />
+            </div>
+            <div className="agent-field">
+              <span className="agent-field-label">Agent</span>
+              <label className="agent-selector">
+                <span className="sr-only">Выбрать агента</span>
+                <select
+                  aria-label="Выбрать агента"
+                  value={selectedAgent?.slug ?? ""}
+                  onChange={(event) => setSelectedAgentSlug(event.target.value)}
+                  disabled={selectableAgents.length === 0}
+                >
+                  {selectableAgents.map((agent) => <option key={agent.slug} value={agent.slug}>{agent.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="agent-field">
+              <span className="agent-field-label">Domain</span>
+              <span role="status" aria-label={`Активная возможность: ${activeCategoryLabel}`} className="agent-capability-chip">
+                {activeCategoryLabel}
+              </span>
+            </div>
             <span className="agent-routing-note">Предпочтение применяется к совместимым шагам</span>
             <motion.button
               type="submit"
               disabled={!selectedAgent}
               whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
-              className="btn-primary"
+              className="btn-primary agent-composer-submit"
             >
               Продолжить
             </motion.button>
@@ -264,7 +303,7 @@ function Agents() {
           )}
 
           {visibleAgents && visibleAgents.length > 0 && (
-            <div className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {visibleAgents.map((agent, index) => (
                 <GoalCard
                   key={agent.slug}
@@ -272,6 +311,7 @@ function Agents() {
                   href={`/agents/${agent.slug}`}
                   title={agent.name}
                   description={agent.description}
+                  icon={<CategoryIcon category={agent.category} />}
                 />
               ))}
             </div>
@@ -282,6 +322,12 @@ function Agents() {
           )}
         </>
       )}
+      <footer className="agent-trust-footer" aria-label="Гарантии Lumenza">
+        <span>◇ Enterprise security</span>
+        <span>⌁ Ваши данные остаются приватными</span>
+        <span>✓ Надёжные многошаговые сценарии</span>
+        <span>◷ Стабильная работа</span>
+      </footer>
     </div>
   );
 }
@@ -332,23 +378,57 @@ function AgentModeMenu() {
   );
 }
 
+type OrbitNodeKind = "research" | "executive" | "content" | "data" | "automation";
+
+function OrbitNodeIcon({ kind }: { kind: OrbitNodeKind }) {
+  const common = { viewBox: "0 0 24 24", className: "size-4.5", fill: "none", stroke: "currentColor", strokeWidth: 1.6 } as const;
+  if (kind === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
+  if (kind === "executive") return <svg aria-hidden="true" {...common}><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c1.2-3.4 3.6-5 6.5-5s5.3 1.6 6.5 5" strokeLinecap="round" /></svg>;
+  if (kind === "content") return <svg aria-hidden="true" {...common}><path d="M6 19.5 4 20l.5-2 11-11 2 2Z" strokeLinejoin="round" /><path d="m14 6.5 2-2 2 2-2 2Z" strokeLinejoin="round" /></svg>;
+  if (kind === "data") return <svg aria-hidden="true" {...common}><path d="M5 19V9m7 10V5m7 14v-7" strokeLinecap="round" /><path d="M3.5 19.5h17" strokeLinecap="round" /></svg>;
+  return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2.5" strokeLinecap="round" /></svg>;
+}
+
+function CategoryIcon({ category }: { category: AgentCategory }) {
+  const common = { viewBox: "0 0 24 24", className: "size-4.5", fill: "none", stroke: "currentColor", strokeWidth: 1.6 } as const;
+  if (category === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
+  if (category === "content") return <svg aria-hidden="true" {...common}><path d="M6 19.5 4 20l.5-2 11-11 2 2Z" strokeLinejoin="round" /><path d="m14 6.5 2-2 2 2-2 2Z" strokeLinejoin="round" /></svg>;
+  return <svg aria-hidden="true" {...common}><path d="M7 3.5h7l3 3v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" /><path d="M14 3.5v3h3M9 12h6M9 15.5h6" strokeLinecap="round" /></svg>;
+}
+
+type CapabilityIconKind = "research" | "data" | "content" | "strategy" | "automation" | "custom";
+
+function CapabilityIcon({ kind }: { kind: CapabilityIconKind }) {
+  const common = { viewBox: "0 0 24 24", className: "size-4.5", fill: "none", stroke: "currentColor", strokeWidth: 1.6 } as const;
+  if (kind === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
+  if (kind === "data") return <svg aria-hidden="true" {...common}><path d="M5 19V9m7 10V5m7 14v-7" strokeLinecap="round" /><path d="M3.5 19.5h17" strokeLinecap="round" /></svg>;
+  if (kind === "content") return <svg aria-hidden="true" {...common}><path d="M6 19.5 4 20l.5-2 11-11 2 2Z" strokeLinejoin="round" /><path d="m14 6.5 2-2 2 2-2 2Z" strokeLinejoin="round" /></svg>;
+  if (kind === "strategy") return <svg aria-hidden="true" {...common}><path d="M12 3.5v3M12 17.5v3M4.5 12h3M16.5 12h3" strokeLinecap="round" /><circle cx="12" cy="12" r="3.4" /></svg>;
+  if (kind === "automation") return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2.5" strokeLinecap="round" /></svg>;
+  return <svg aria-hidden="true" {...common}><path d="M12 4.5 5 8v8l7 3.5 7-3.5V8Z" strokeLinejoin="round" /><path d="M5 8l7 3.5 7-3.5" strokeLinejoin="round" /></svg>;
+}
+
 const CAPABILITY_LINKS = [
-  ["Featured", "/agents"],
-  ["Agent workflows", "/agents"],
-  ["Research", "/agents?category=research"],
-  ["Documents", "/agents?category=documents"],
-  ["Knowledge", "/knowledge"],
-  ["Code", "/studio?mode=code"],
-  ["Videos", "/studio?mode=video"],
-  ["Audio", "/studio?mode=audio"],
-  ["Apps", "/studio?view=apps"],
-  ["All tools", "/studio?view=tools"],
-] as const;
+  { label: "Research & Insights", description: "Deep dive and synthesize", href: "/agents?category=research", icon: "research" },
+  { label: "Data Analysis", description: "Analyze, visualize, predict", href: "/tools?category=data", icon: "data" },
+  { label: "Content Creation", description: "Write, edit, summarize", href: "/agents?category=content", icon: "content" },
+  { label: "Strategy & Planning", description: "Plans, roadmaps, OKRs", href: "/agents", icon: "strategy" },
+  { label: "Automation", description: "Workflows, integrations", href: "/automations", icon: "automation" },
+  { label: "Custom Task", description: "Describe any task", href: "/agents?category=mine", icon: "custom" },
+] as const satisfies readonly { label: string; description: string; href: string; icon: CapabilityIconKind }[];
 
 function AgentCapabilityRail() {
   return (
     <nav aria-label="Возможности Lumenza" className="agent-capability-rail">
-      {CAPABILITY_LINKS.map(([label, href]) => <Link key={label} href={href}>{label}</Link>)}
+      {CAPABILITY_LINKS.map((item) => (
+        <Link key={item.label} href={item.href}>
+          <span aria-hidden="true" className="agent-capability-icon"><CapabilityIcon kind={item.icon} /></span>
+          <span className="min-w-0">
+            <strong>{item.label}</strong>
+            <small>{item.description}</small>
+          </span>
+        </Link>
+      ))}
     </nav>
   );
 }

@@ -13,6 +13,7 @@ import { RouteTransition } from "@/components/route-transition";
 import { AppBackdrop } from "@/components/app-backdrop";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { LocaleProvider } from "@/lib/locale-context";
+import { PetActivityProvider } from "@/lib/pet-activity";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,23 +24,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-const appearanceBootstrap = `
-(() => {
-  try {
-    const storedTheme = localStorage.getItem("lumenza:theme");
-    const preference = ["system", "dark", "light"].includes(storedTheme) ? storedTheme : "system";
-    const theme = preference === "system"
-      ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
-      : preference;
-    const storedAccent = localStorage.getItem("lumenza:accent");
-    const accent = ["amber", "cyan", "green"].includes(storedAccent) ? storedAccent : "amber";
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreference = preference;
-    document.documentElement.dataset.accent = accent;
-  } catch {}
-})();
-`;
 
 export const metadata: Metadata = {
   title: "Lumenza",
@@ -63,7 +47,6 @@ export default function RootLayout({
           src="https://telegram.org/js/telegram-web-app.js"
           strategy="beforeInteractive"
         />
-        <script dangerouslySetInnerHTML={{ __html: appearanceBootstrap }} />
       </head>
       <body className="flex min-h-full flex-col bg-bg text-ink">
         <ZoneProvider>
@@ -72,14 +55,16 @@ export default function RootLayout({
               <LocaleProvider>
                 <GlobalHotkeys />
                 <AuthProvider>
-                  <AccessibilityShell navigation={<Nav />}>
-                    <TelegramLinkExistingAccount />
-                    <ZoneScope>
-                      <WorkspaceShell>
-                        <RouteTransition>{children}</RouteTransition>
-                      </WorkspaceShell>
-                    </ZoneScope>
-                  </AccessibilityShell>
+                  <PetActivityProvider>
+                    <AccessibilityShell navigation={<Nav />}>
+                      <TelegramLinkExistingAccount />
+                      <ZoneScope>
+                        <WorkspaceShell>
+                          <RouteTransition>{children}</RouteTransition>
+                        </WorkspaceShell>
+                      </ZoneScope>
+                    </AccessibilityShell>
+                  </PetActivityProvider>
                 </AuthProvider>
               </LocaleProvider>
             </TelegramWebAppProvider>

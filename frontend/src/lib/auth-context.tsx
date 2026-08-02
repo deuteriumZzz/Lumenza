@@ -1,7 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { api, ApiError, type Balance, type TelegramWidgetPayload, type User } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type Balance,
+  type PetInput,
+  type TelegramWidgetPayload,
+  type User,
+} from "@/lib/api";
 import { useTelegramWebApp } from "@/components/telegram-webapp-provider";
 
 // Авторизация — это httpOnly cookie, поэтому вкладки не могут отследить
@@ -54,6 +61,8 @@ interface AuthState {
   dismissTelegramJustCreated: () => void;
   linkTelegramToExistingAccount: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updatePet: (input: PetInput) => Promise<User>;
+  removePet: () => Promise<User>;
   refreshBalance: () => Promise<void>;
   setBalance: (balance: Balance) => void;
 }
@@ -182,6 +191,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     broadcastAuthChange();
   }, []);
 
+  const updatePet = useCallback(async (input: PetInput) => {
+    const updatedUser = await api.updatePet(input);
+    setUser(updatedUser);
+    return updatedUser;
+  }, []);
+
+  const removePet = useCallback(async () => {
+    const updatedUser = await api.removePet();
+    setUser(updatedUser);
+    return updatedUser;
+  }, []);
+
   // Защита от ответов не по порядку: если refreshBalance вызывается снова
   // (например, эффект второй страницы триггерит его) до того, как пришёл
   // ответ на первый вызов, применяться должен только ответ на ПОСЛЕДНИЙ
@@ -207,6 +228,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dismissTelegramJustCreated,
         linkTelegramToExistingAccount,
         logout,
+        updatePet,
+        removePet,
         refreshBalance,
         setBalance: setBalanceState,
       }}

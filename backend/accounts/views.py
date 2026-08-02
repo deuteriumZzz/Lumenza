@@ -14,11 +14,13 @@ from rest_framework.response import Response
 
 from accounts.models import UserContext
 from accounts.serializers import (
+    MAX_PET_REQUEST_BYTES,
     RegisterSerializer,
     UserContextSerializer,
+    UserPetSerializer,
     UserSerializer,
 )
-from accounts.throttling import AuthRateThrottle
+from accounts.throttling import AuthRateThrottle, PetRateThrottle
 from bot.services import get_or_create_telegram_user
 from bot.telegram_auth import (
     TelegramAuthError,
@@ -105,6 +107,49 @@ def logout_view(request):
 def me(request):
     get_token(request)
     return Response(UserSerializer(request.user).data)
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([PetRateThrottle])
+def user_pet(request):
+    if request.method == "DELETE":
+        serializer = UserPetSerializer(
+            request.user,
+            data={
+                "pet_name": "",
+                "pet_image": None,
+                "pet_preset": "",
+                "show_pet": False,
+            },
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            user = serializer.save()
+        return Response(UserSerializer(user).data)
+
+    content_length = request.META.get("CONTENT_LENGTH")
+    if content_length:
+        try:
+            request_bytes = int(content_length)
+        except (TypeError, ValueError):
+            request_bytes = MAX_PET_REQUEST_BYTES + 1
+        if request_bytes > MAX_PET_REQUEST_BYTES:
+            return Response(
+                {"detail": "Изображение питомца не должно превышать 5 МБ."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+    serializer = UserPetSerializer(
+        request.user,
+        data=request.data,
+        partial=True,
+    )
+    serializer.is_valid(raise_exception=True)
+    with transaction.atomic():
+        user = serializer.save()
+    return Response(UserSerializer(user).data)
 
 
 class UserContextView(generics.RetrieveUpdateAPIView):

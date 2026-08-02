@@ -7,6 +7,7 @@ from accounts.views import (
     me,
     register,
     telegram_auth,
+    user_pet,
 )
 
 urlpatterns = [
@@ -14,6 +15,7 @@ urlpatterns = [
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("me/", me, name="me"),
+    path("me/pet/", user_pet, name="user-pet"),
     path("context/", UserContextView.as_view(), name="user-context"),
     path("telegram/", telegram_auth, name="telegram-auth"),
 ]

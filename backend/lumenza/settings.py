@@ -213,6 +213,7 @@ REST_FRAMEWORK = {
         "media_ops": "20/min",
         "knowledge": "20/min",
         "code_interpreter": "20/min",
+        "pet": "20/min",
     },
 }
 

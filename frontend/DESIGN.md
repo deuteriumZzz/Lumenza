@@ -64,13 +64,25 @@ measurements, not as prose.
 
 ## Layout
 
-No card grids as default scaffolding — the anti-reference list specifically flags the
-SaaS-dashboard card cliché. Concretely:
+Cards are used only when they represent a real selectable object (agent scenario,
+tool, app, companion or visual work), never as generic dashboard scaffolding. The
+approved 2026-08-01 product references replace the earlier narrow-column-only rule
+with one continuous workspace shell:
 
-- **Chat**: single focused column, max-width ~72ch, messages as plain alternating
-  blocks (no bubbles-in-cards), mode selector as an inline segmented control above the
-  composer, balance as a persistent slim value in the header (monospace, always
-  visible — never a separate "go check your balance" screen).
+- **Shell**: one flat 244–264px sidebar, no product section dividers, with Account
+  pinned at the bottom. Main content uses 32–52px responsive gutters and may add one
+  contextual inspector rail without creating a second shell.
+- **Chat**: focused conversation column inside the wider shell; empty state uses the
+  animated Lumenza convergence mark, a wide composer and a compact capability rail.
+  Messages remain plain blocks rather than chat bubbles.
+- **Agents**: central orchestration/network composition, one task composer, category
+  navigation and scenario cards backed by the real agent catalog.
+- **Studio**: visual inspiration workspace with a single mode rail, one bottom prompt
+  dock and one shared model/settings surface.
+- **Knowledge and All Tools**: dense library/catalog plus an integrated detail
+  inspector. The inspector augments the list rather than replacing it.
+- **Account**: persistent account subnavigation, companion editor, identity and agent
+  context surfaces.
 - **History**: a dense table/list, not a card grid — rows are transactions, and a
   transaction list should look like a ledger, not a gallery.
 - **Pricing/topup**: a short, direct panel (current balance, one sandbox top-up action)

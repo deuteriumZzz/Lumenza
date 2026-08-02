@@ -10,6 +10,7 @@ import { Documents } from "@/app/documents/page";
 import { Analyze } from "@/app/analyze/page";
 import { Code } from "@/app/code/page";
 import { StudioMark } from "@/components/studio-mark";
+import { AllToolsCatalog } from "@/components/all-tools-catalog";
 import { StudioPromptDock } from "@/components/studio-prompt-dock";
 import { StudioWorkspaceControls, type StudioControlMode } from "@/components/studio-workspace-controls";
 import { useSetStudioMode } from "@/components/zone";
@@ -28,29 +29,6 @@ const MODES: { key: StudioMode; label: string; eyebrow: string }[] = [
   { key: "upscale", label: "Upscale", eyebrow: "Enhance" },
 ];
 
-const TOOL_GROUPS = [
-  {
-    title: "Image tools",
-    items: ["Create image", "Edit image", "Style reference", "Inpaint", "Background changer", "Face swap"],
-  },
-  {
-    title: "Video tools",
-    items: ["Create video", "Animate image", "Video extend", "Reference to video", "Motion control", "Video reframe"],
-  },
-  {
-    title: "Audio tools",
-    items: ["Text to speech", "Voice cloning", "Transcription", "Narration workspace"],
-  },
-  {
-    title: "Edit tools",
-    items: ["Edit with prompt", "Inpaint selection", "Outpaint canvas", "Remove object", "Relight scene"],
-  },
-  {
-    title: "Enhancement tools",
-    items: ["Upscale image", "Face recovery", "Texture preserve", "Remove background", "Export presets"],
-  },
-];
-
 const APPS = [
   { name: "Campaign canvas", description: "Соберите визуальную серию из одной идеи.", tone: "warm", category: "Design", route: "/studio?mode=image" },
   { name: "Product stories", description: "Карточки товара, ракурсы и тексты в одном потоке.", tone: "cool", category: "Design", route: "/studio?mode=image" },
@@ -65,6 +43,17 @@ const APPS = [
   { name: "Reference remix", description: "Новая композиция на основе нескольких референсов.", tone: "portrait", category: "Design", route: "/studio?mode=image" },
   { name: "Short-form lab", description: "Вертикальные ролики из одного сценария и набора кадров.", tone: "warm", category: "Video", route: "/studio?mode=video" },
 ];
+
+const INSPIRATION_CATEGORIES = ["Featured", "Photography", "Design", "Illustration", "Portraits"] as const;
+
+const INSPIRATIONS = [
+  { title: "Violet editorial", category: "Photography", tile: "tile-1" },
+  { title: "Liquid typography", category: "Design", tile: "tile-2" },
+  { title: "Quiet architecture", category: "Photography", tile: "tile-3" },
+  { title: "Paper creatures", category: "Illustration", tile: "tile-4" },
+  { title: "Soft flash portrait", category: "Portraits", tile: "tile-5" },
+  { title: "Chrome still life", category: "Design", tile: "tile-6" },
+] as const;
 
 export default function StudioPage() {
   return (
@@ -114,58 +103,74 @@ function Studio() {
   }
 
   return (
-    <div className="studio-shell flex min-h-0 flex-1 flex-col">
+    <div className="studio-shell min-h-0 flex-1">
       <header className="studio-header">
         <div>
           <p className="studio-kicker">Lumenza creative suite</p>
-          <h1 className="studio-title">Studio</h1>
+          <h1 className="studio-title">Welcome to Lumenza Studio</h1>
         </div>
-        <div className="studio-header-status" aria-label="Статус студии">
-          <span className="studio-live-dot" aria-hidden="true" />
-          Project synced
+        <div className="flex items-center gap-3">
+          <div className="studio-header-status" aria-label="Статус студии">
+            <span className="studio-live-dot" aria-hidden="true" />
+            Project synced
+          </div>
+          <Link href="/pricing" className="workspace-outline-button">Тариф</Link>
         </div>
       </header>
 
       {selection.view === "workspace" && (
-        <motion.nav
-          data-testid="studio-mode-navigation"
-          aria-label="Режим студии"
+        <motion.aside
+          aria-label="Навигация Studio"
           initial={shouldReduceMotion ? false : { opacity: 0, y: -motionTokens.distance.sm }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
             duration: shouldReduceMotion ? 0 : motionTokens.duration.normal,
             ease: motionTokens.easing.smooth,
           }}
-          className="studio-mode-navigation"
+          className="studio-subrail"
         >
-          <span data-testid="studio-navigation-mark" className="studio-navigation-mark" title="Lumenza Studio">
-            <StudioMark active className="size-5" />
-          </span>
-          {MODES.map((option) => (
-            <motion.button
-              key={option.key}
-              type="button"
-              aria-label={option.label}
-              aria-pressed={selection.mode === option.key}
-              onClick={() => selectMode(option.key)}
-              whileHover={shouldReduceMotion ? undefined : { y: -2 }}
-              whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
-              className="studio-mode-button"
-            >
-              {selection.mode === option.key && (
-                <motion.span
-                  layoutId="studio-active-mode"
-                  data-testid="studio-active-indicator"
-                  aria-hidden="true"
-                  className="studio-mode-active"
-                  transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
-                />
-              )}
-              <span className="studio-mode-eyebrow">{option.eyebrow}</span>
-              <span className="studio-mode-label">{option.label}</span>
-            </motion.button>
-          ))}
-        </motion.nav>
+          <div className="studio-subrail-view-switch">
+            <Link href="/studio" aria-current="page">Default</Link>
+            <Link href="/studio?view=apps">Apps</Link>
+          </div>
+          <div className="studio-subrail-section-tabs">
+            <Link href="/studio" data-active="">Inspirations</Link>
+            <Link href="/studio?view=community">Community</Link>
+          </div>
+          <p>Choose a mode</p>
+          <nav data-testid="studio-mode-navigation" role="tablist" aria-label="Режим студии" className="studio-mode-navigation">
+            <span data-testid="studio-navigation-mark" className="studio-navigation-mark" title="Lumenza Studio">
+              <StudioMark active className="size-5" />
+            </span>
+            {MODES.map((option) => (
+              <motion.button
+                key={option.key}
+                type="button"
+                id={`studio-tab-${option.key}`}
+                role="tab"
+                aria-label={option.label}
+                aria-selected={selection.mode === option.key}
+                aria-controls={`studio-panel-${option.key}`}
+                onClick={() => selectMode(option.key)}
+                whileHover={shouldReduceMotion ? undefined : { x: 3 }}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+                className="studio-mode-button"
+              >
+                {selection.mode === option.key && (
+                  <motion.span
+                    layoutId="studio-active-mode"
+                    data-testid="studio-active-indicator"
+                    aria-hidden="true"
+                    className="studio-mode-active"
+                    transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
+                  />
+                )}
+                <span className="studio-mode-eyebrow">{option.eyebrow}</span>
+                <span className="studio-mode-label">{option.label}</span>
+              </motion.button>
+            ))}
+          </nav>
+        </motion.aside>
       )}
 
       <div className="studio-mode-stage">
@@ -178,7 +183,7 @@ function Studio() {
               initialDraft={initialDraft}
             />
           ) : (
-            <StudioCatalog key={selection.view} view={selection.view} />
+            <StudioCatalog key={selection.view} view={selection.view} initialTool={searchParams.get("tool")} />
           )}
         </AnimatePresence>
       </div>
@@ -192,6 +197,9 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
 
   return (
     <motion.section
+      id={`studio-panel-${mode}`}
+      role="tabpanel"
+      aria-labelledby={MODES.some((option) => option.key === mode) ? `studio-tab-${mode}` : undefined}
       data-testid="studio-mode-panel"
       data-mode={mode}
       aria-hidden={!isPresent}
@@ -202,14 +210,66 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
       transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
       className="studio-panel"
     >
-      {mode === "image" && <WorkspaceSurface mode="image"><Images initialPrompt={initialDraft} /></WorkspaceSurface>}
+      {mode === "image" && (
+        <WorkspaceSurface mode="image">
+          <StudioInspirationFeed />
+          <Images key={initialDraft || "empty-draft"} initialPrompt={initialDraft} />
+        </WorkspaceSurface>
+      )}
       {mode === "audio" && <WorkspaceSurface mode="audio"><AudioWorkspace autoStart={autoStart} /></WorkspaceSurface>}
-      {mode === "edit" && <WorkspaceSurface mode="edit"><Images initialMode="edit" /></WorkspaceSurface>}
+      {mode === "edit" && <WorkspaceSurface mode="edit"><EditWorkspace /></WorkspaceSurface>}
       {(mode === "video" || mode === "upscale") && <WorkspaceSurface mode={mode}><CapabilityWorkspace mode={mode} /></WorkspaceSurface>}
       {mode === "documents" && <Documents />}
       {mode === "analyze" && <Analyze />}
       {mode === "code" && <Code />}
     </motion.section>
+  );
+}
+
+function StudioInspirationFeed() {
+  const [category, setCategory] = useState<(typeof INSPIRATION_CATEGORIES)[number]>("Featured");
+  const visibleItems = category === "Featured"
+    ? INSPIRATIONS
+    : INSPIRATIONS.filter((item) => item.category === category);
+
+  return (
+    <section
+      data-testid="studio-inspiration-feed"
+      aria-labelledby="studio-inspiration-title"
+      className="mx-auto w-full max-w-[92rem] px-3 pt-3 min-[380px]:px-4 sm:px-8 lg:px-10"
+    >
+      <div className="studio-gallery-heading">
+        <div>
+          <p className="studio-kicker">Discover</p>
+          <h2 id="studio-inspiration-title">Inspiration</h2>
+          <p>Выберите направление, затем создайте собственную серию в нижней панели.</p>
+        </div>
+      </div>
+      <div className="studio-community-filters" aria-label="Категории вдохновения">
+        {INSPIRATION_CATEGORIES.map((item) => (
+          <button
+            key={item}
+            type="button"
+            aria-pressed={category === item}
+            onClick={() => setCategory(item)}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <div className="studio-community-grid" aria-live="polite">
+        {visibleItems.map((item) => (
+          <Link
+            key={item.title}
+            href={`/studio?mode=image&draft=${encodeURIComponent(item.title)}`}
+            aria-label={`Использовать идею ${item.title}`}
+            className={`community-tile ${item.tile}`}
+          >
+            <span>{item.title}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -232,6 +292,20 @@ function AudioWorkspace({ autoStart }: { autoStart: boolean }) {
       <div className="studio-capability-canvas studio-embedded-workspace">
         <StudioWorkspaceControls mode="audio" compact />
         <Voice autoStart={autoStart} />
+      </div>
+    </div>
+  );
+}
+
+function EditWorkspace() {
+  const cards = ["Inpaint", "Outpaint", "Camera angles", "Relight", "Magic text"];
+  const [selectedCard, setSelectedCard] = useState(cards[0]);
+
+  return (
+    <div className="studio-capability-layout">
+      <ModeLibrary title="Edit workspace" cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
+      <div className="studio-capability-canvas studio-embedded-workspace">
+        <Images initialMode="edit" />
       </div>
     </div>
   );
@@ -342,7 +416,7 @@ function ModeLibrary({
   );
 }
 
-function StudioCatalog({ view }: { view: Exclude<StudioView, "workspace"> }) {
+function StudioCatalog({ view, initialTool }: { view: Exclude<StudioView, "workspace">; initialTool?: string | null }) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const [appFilter, setAppFilter] = useState("Discover");
@@ -364,22 +438,10 @@ function StudioCatalog({ view }: { view: Exclude<StudioView, "workspace"> }) {
       {view === "tools" && (
         <>
           <CatalogHeading title="All tools" subtitle="Весь творческий стек Lumenza, сгруппированный по результату." />
-          <div className="studio-tool-groups">
-            {TOOL_GROUPS.map((group) => (
-              <section key={group.title} className="studio-tool-group">
-                <h2>{group.title}</h2>
-                <div>
-                  {group.items.map((item) => (
-                    <Link key={item} href={toolRoute(item)} className="studio-tool-row">
-                      <span className="studio-tool-glyph" aria-hidden="true">◇</span>
-                      <span>{item}</span>
-                      <span aria-hidden="true">↗</span>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+          <AllToolsCatalog
+            initialTool={initialTool}
+            onSelectionChange={(toolId) => router.replace(`/studio?view=tools&tool=${toolId}`, { scroll: false })}
+          />
         </>
       )}
       {view === "apps" && (
@@ -433,15 +495,6 @@ function StudioCatalog({ view }: { view: Exclude<StudioView, "workspace"> }) {
       )}
     </motion.section>
   );
-}
-
-function toolRoute(item: string): string {
-  const normalized = item.toLocaleLowerCase();
-  if (normalized.includes("video") || normalized.includes("animate") || normalized.includes("motion")) return "/studio?mode=video";
-  if (normalized.includes("speech") || normalized.includes("voice") || normalized.includes("transcription") || normalized.includes("narration")) return "/studio?mode=audio";
-  if (normalized.includes("upscale") || normalized.includes("recovery") || normalized.includes("texture") || normalized.includes("export")) return "/studio?mode=upscale";
-  if (normalized.includes("edit") || normalized.includes("inpaint") || normalized.includes("background") || normalized.includes("face")) return "/studio?mode=edit";
-  return "/studio?mode=image";
 }
 
 function CatalogHeading({ title, subtitle }: { title: string; subtitle: string }) {

@@ -28,9 +28,10 @@ vi.mock("@/components/require-auth", () => ({
 }));
 
 vi.mock("@/app/images/page", () => ({
-  Images: ({ initialMode }: { initialMode?: string }) => (
+  Images: ({ initialMode, initialPrompt }: { initialMode?: string; initialPrompt?: string }) => (
     <div>
       <p>{initialMode === "edit" ? "Редактор изображений" : "Генератор изображений"}</p>
+      {initialMode !== "edit" && <input aria-label="Черновик изображения" readOnly value={initialPrompt ?? ""} />}
       <button aria-label={`Инструменты ${initialMode === "edit" ? "Edit" : "Image"}`} />
       <button aria-label={`Модель ${initialMode === "edit" ? "Edit" : "Image"}: Автовыбор`} />
       <button aria-label={`Настройки ${initialMode === "edit" ? "Edit" : "Image"}`} />
@@ -60,6 +61,16 @@ function renderStudioPage() {
 }
 
 describe("StudioPage motion", () => {
+  it("models Studio modes as one accessible tab workspace", () => {
+    mocks.query = "mode=image";
+    renderStudioPage();
+
+    expect(screen.getByRole("tablist", { name: "Режим студии" })).toBeDefined();
+    const imageTab = screen.getByRole("tab", { name: "Image" });
+    expect(imageTab.getAttribute("aria-selected")).toBe("true");
+    expect(imageTab.getAttribute("aria-controls")).toBe("studio-panel-image");
+    expect(screen.getByRole("tabpanel").id).toBe("studio-panel-image");
+  });
   afterEach(() => {
     cleanup();
     mocks.query = "";
@@ -80,17 +91,21 @@ describe("StudioPage motion", () => {
     expect(
       screen.getByTestId("studio-mode-panel").getAttribute("data-mode"),
     ).toBe("image");
-    expect(screen.getByRole("button", { name: "Image" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Video" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Audio" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Upscale" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Image" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Video" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Audio" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Edit" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Upscale" })).toBeDefined();
+    expect(screen.getByTestId("studio-inspiration-feed")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Photography" })).toBeDefined();
+    expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    expect(document.querySelector(".studio-shell")?.className).not.toContain("flex-col");
   });
 
   it("transitions the content panel when a different studio mode is selected", () => {
     renderStudioPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Audio" }));
 
     expect(screen.getByText("Голосовые инструменты")).toBeDefined();
     expect(
@@ -99,7 +114,7 @@ describe("StudioPage motion", () => {
         ?.getAttribute("data-mode"),
     ).toBe("audio");
     expect(
-      screen.getByRole("button", { name: "Audio" }).getAttribute("aria-pressed"),
+      screen.getByRole("tab", { name: "Audio" }).getAttribute("aria-selected"),
     ).toBe("true");
 
     const outgoingPanel = document.querySelector(
@@ -112,13 +127,13 @@ describe("StudioPage motion", () => {
   it("animates every studio tool through the same content stage", () => {
     renderStudioPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Video" }));
     expect(screen.getByText("Video workspace")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edit" }));
     expect(screen.getByText("Редактор изображений")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Upscale" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Upscale" }));
     expect(screen.getByText("Upscale workspace")).toBeDefined();
   });
 
@@ -129,7 +144,7 @@ describe("StudioPage motion", () => {
     renderStudioPage();
 
     expect(screen.getByText("Голосовые инструменты · автозапуск")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Audio" }).getAttribute("aria-pressed"))
+    expect(screen.getByRole("tab", { name: "Audio" }).getAttribute("aria-selected"))
       .toBe("true");
   });
 
@@ -139,7 +154,7 @@ describe("StudioPage motion", () => {
     renderStudioPage();
 
     expect(screen.getByText("Upscale workspace")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Upscale" }).getAttribute("aria-pressed"))
+    expect(screen.getByRole("tab", { name: "Upscale" }).getAttribute("aria-selected"))
       .toBe("true");
   });
 
@@ -166,7 +181,7 @@ describe("StudioPage motion", () => {
 
     expect(screen.getByText("Голосовые инструменты · автозапуск")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edit" }));
     expect(mocks.replace).toHaveBeenCalledWith("/studio", { scroll: false });
   });
 
@@ -218,6 +233,36 @@ describe("StudioPage motion", () => {
     fireEvent.click(screen.getByRole("button", { name: "Popular" }));
     expect(screen.getByRole("button", { name: "Popular" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Daily picks" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("filters the Image inspiration feed without leaving the workspace", () => {
+    renderStudioPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Photography" }));
+
+    expect(screen.getByRole("button", { name: "Photography" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Violet editorial")).toBeDefined();
+    expect(screen.getByRole("link", { name: "Использовать идею Violet editorial" }).getAttribute("href"))
+      .toBe("/studio?mode=image&draft=Violet%20editorial");
+    expect(screen.queryByText("Liquid typography")).toBeNull();
+    expect(screen.getByText("Генератор изображений")).toBeDefined();
+  });
+
+  it("remounts the image workspace when an inspiration draft arrives on the same route", () => {
+    const { rerender } = renderStudioPage();
+    expect(screen.getByLabelText("Черновик изображения")).toHaveProperty("value", "");
+
+    mocks.query = "mode=image&draft=Chrome%20still%20life";
+    rerender(
+      <ZoneProvider>
+        <StudioPage />
+      </ZoneProvider>,
+    );
+
+    expect(screen.getByLabelText("Черновик изображения")).toHaveProperty(
+      "value",
+      "Chrome still life",
+    );
   });
 
   it("keeps a bottom image composer available in Community", () => {

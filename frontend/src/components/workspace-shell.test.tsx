@@ -29,7 +29,7 @@ describe("WorkspaceShell", () => {
 
   afterEach(cleanup);
 
-  it.each(["/chat", "/chat/42", "/studio", "/agents", "/agents/threads-content-day", "/home"])(
+  it.each(["/chat", "/chat/42", "/studio", "/tools", "/agents", "/agents/threads-content-day", "/home", "/profile", "/history", "/pricing", "/usage", "/automations"])(
     "keeps the shared sidebar around %s",
     (pathname) => {
       mocks.pathname = pathname;
@@ -44,6 +44,7 @@ describe("WorkspaceShell", () => {
         .toBeDefined();
       expect(screen.getByTestId("workspace-auth")).toBeDefined();
       expect(screen.getByText("Контент")).toBeDefined();
+      expect(screen.getByTestId("workspace-content").tagName).toBe("DIV");
       expect(screen.getByTestId("workspace-content").className).toContain(
         "miniapp-workspace-content",
       );
@@ -56,7 +57,30 @@ describe("WorkspaceShell", () => {
     },
   );
 
+  it.each(["/chat", "/agents", "/knowledge", "/studio", "/tools", "/automations", "/history", "/profile"])(
+    "uses one route-independent workspace shell on %s",
+    (pathname) => {
+      mocks.pathname = pathname;
+
+      render(
+        <WorkspaceShell>
+          <section aria-label="Контент маршрута">Контент</section>
+        </WorkspaceShell>,
+      );
+
+      const shell = screen.getByTestId("workspace-shell");
+      expect(screen.getAllByTestId("workspace-shell")).toHaveLength(1);
+      expect(shell.getAttribute("data-shell-mode")).toBe("unified");
+      expect(screen.getAllByRole("complementary", { name: "Рабочая навигация" }))
+        .toHaveLength(1);
+      expect(screen.getAllByTestId("workspace-content")).toHaveLength(1);
+      expect(screen.getByRole("region", { name: "Контент маршрута" })).toBeDefined();
+      expect(shell.querySelector("[data-route-specific-chrome]")).toBeNull();
+    },
+  );
+
   it("leaves non-workspace pages in the global shell", () => {
+    mocks.pathname = "/login";
     render(
       <WorkspaceShell>
         <p>История</p>

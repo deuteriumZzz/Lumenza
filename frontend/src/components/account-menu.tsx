@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PetAvatar } from "@/components/pet-avatar";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/locale-context";
+import { usePetActivity } from "@/lib/pet-activity";
 
 // Компактная строка "аватар + имя" внизу сайдбара, раскрывающая меню
 // аккаунта вверх — тот же паттерн, что у ChatGPT/Claude/DeepSeek: одно
@@ -13,6 +15,7 @@ import { useLocale } from "@/lib/locale-context";
 export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
   const { user, balance, logout } = useAuth();
   const { locale, setLocale } = useLocale();
+  const petActive = usePetActivity();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -41,6 +44,7 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
   if (!user) return null;
 
   const initial = user.username.slice(0, 1).toUpperCase();
+  const visiblePet = user.show_pet && (Boolean(user.pet_image) || Boolean(user.pet_preset));
   const planLabel =
     user.tier === "paid" ? "Pro" : locale === "ru" ? "Базовый" : "Base";
   const credits = balance ? Math.trunc(Number(balance.balance)) : null;
@@ -89,9 +93,13 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
         onClick={() => setOpen((current) => !current)}
         className={`account-menu-trigger ${collapsed ? "justify-center px-0" : ""}`}
       >
-        <span className="account-avatar" aria-hidden="true">
-          {initial}
-        </span>
+        {visiblePet ? (
+          <PetAvatar user={user} active={petActive} className="account-avatar object-cover" />
+        ) : (
+          <span className="account-avatar" aria-hidden="true">
+            {initial}
+          </span>
+        )}
         {!collapsed && (
           <span className="min-w-0 flex-1 text-left">
             <span className="block truncate text-sm text-ink">{user.username}</span>
@@ -110,9 +118,18 @@ export function AccountMenu({ collapsed = false }: { collapsed?: boolean }) {
           className={`account-menu-popover ${collapsed ? "left-full bottom-0 ml-2" : "bottom-full left-0 mb-2"}`}
         >
           <div className="account-menu-header">
-            <span className="account-avatar account-avatar-lg" aria-hidden="true">
-              {initial}
-            </span>
+            {visiblePet ? (
+              <PetAvatar
+                user={user}
+                active={petActive}
+                labelled={false}
+                className="account-avatar account-avatar-lg object-cover"
+              />
+            ) : (
+              <span className="account-avatar account-avatar-lg" aria-hidden="true">
+                {initial}
+              </span>
+            )}
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-ink">
                 {user.username}

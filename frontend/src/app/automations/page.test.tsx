@@ -73,6 +73,15 @@ describe("AutomationsPage", () => {
 
   afterEach(cleanup);
 
+  it("uses the unified automation workspace regions", async () => {
+    render(<AutomationsPage />);
+
+    expect(screen.getByTestId("workspace-page-header")).toBeDefined();
+    expect(await screen.findByRole("region", { name: "Каналы Telegram" })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Расписания" })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Ожидают подтверждения" })).toBeDefined();
+  });
+
   it("connects a Telegram channel", async () => {
     mocks.connectTelegramChannel.mockResolvedValue({
       id: 2,

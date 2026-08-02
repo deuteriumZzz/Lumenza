@@ -73,6 +73,24 @@ describe("StudioWorkspaceControls", () => {
     expect(screen.getByRole("button", { name: "Модель Image: Автовыбор" }).getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("opens models and production settings in one two-column project panel", () => {
+    render(<StudioWorkspaceControls mode="image" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Модель Image: Автовыбор" }));
+    const panel = screen.getByRole("dialog", { name: "Image: выбор модели" });
+
+    expect(panel.getAttribute("data-layout")).toBe("model-settings");
+    expect(within(panel).getByRole("heading", { name: "Select model" })).toBeDefined();
+    expect(within(panel).getByRole("heading", { name: "Image settings" })).toBeDefined();
+    expect(within(panel).getByRole("searchbox", { name: "Поиск моделей Image" })).toBeDefined();
+    expect(within(panel).getByRole("radio", { name: "16:9" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Настройки Image" }));
+    const settingsPanel = screen.getByRole("dialog", { name: "Image: настройки" });
+    expect(within(settingsPanel).getByRole("searchbox", { name: "Поиск моделей Image" })).toBeDefined();
+    expect(within(settingsPanel).getByRole("button", { name: /DALL·E 3/ })).toBeDefined();
+  });
+
   it("shows mode-specific production settings for Video and Upscale", () => {
     const { unmount } = render(<StudioWorkspaceControls mode="video" />);
     fireEvent.click(screen.getByRole("button", { name: "Настройки Video" }));

@@ -47,7 +47,9 @@ describe("UsagePage", () => {
 
     render(<UsagePage />);
 
+    expect(screen.getByTestId("workspace-page-header")).toBeDefined();
     await waitFor(() => expect(screen.getByText("GPT-4o mini")).toBeDefined());
+    expect(screen.getByRole("table", { name: "Использование по моделям" })).toBeDefined();
     expect(screen.getAllByText("2 000")).toHaveLength(2);
     expect(screen.getAllByText("12,5")).toHaveLength(2);
     expect(screen.getAllByText(/4 запрос/)).toHaveLength(2);
