@@ -12,6 +12,10 @@ from billing.models import CreditAccount
 from billing.services import usd_to_credits
 from code_interpreter.piston_adapter import CodeExecutionResult
 from code_interpreter.pricing import estimate_code_execution_cost_usd
+from docgen.pricing import (
+    estimate_excel_generation_cost_usd,
+    estimate_pptx_generation_cost_usd,
+)
 from media_ops.base import SpeechResult
 from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
 from media_ops.pricing import estimate_speech_cost_usd
@@ -2782,6 +2786,224 @@ def test_review_sentiment_classifier_missing_reviews_returns_400():
     response = client.post(
         "/api/agents/review-sentiment-classifier/runs/",
         {"input": {}, "idempotency_key": "reviews-missing"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+# --- Phase B: pptx_generation/excel_generation sentinels, 2 new agents ---
+
+PITCH_DECK_INPUT = {
+    "topic": "Продукт X",
+    "key_points": "Растём на 20% в квартал, три ключевых клиента",
+}
+
+PITCH_DECK_STRUCTURE_JSON = json.dumps(
+    {
+        "title": "Продукт X",
+        "slides": [
+            {
+                "heading": "Обзор",
+                "bullets": ["Пункт 1", "Пункт 2"],
+                "chart": None,
+            },
+        ],
+    }
+)
+
+VALID_PITCH_DECK_RESULT_JSON = json.dumps(
+    {
+        "title": "Продукт X",
+        "pptx_url": "",
+        "summary": "Презентация готова.",
+    }
+)
+
+
+def test_pitch_deck_builder_run_injects_real_pptx_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            PITCH_DECK_STRUCTURE_JSON
+            if call_count["n"] == 1
+            else VALID_PITCH_DECK_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks,
+        "build_presentation",
+        lambda structure: b"fake pptx bytes",
+    )
+
+    response = client.post(
+        "/api/agents/pitch-deck-builder/runs/",
+        {"input": PITCH_DECK_INPUT, "idempotency_key": "deck-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["title"] == "Продукт X"
+    # The model's own (empty) pptx_url must never survive — the real
+    # GeneratedPresentation file URL always wins.
+    assert run.result["pptx_url"]
+    assert run.result["pptx_url"].endswith(".pptx")
+    assert run.steps[1]["pptx_url"] == run.result["pptx_url"]
+    expected_pptx_credits = usd_to_credits(estimate_pptx_generation_cost_usd())
+    assert (
+        run.credits_charged
+        == Decimal("1.5") + expected_pptx_credits + Decimal("1.5")
+    )
+
+    from docgen.models import GeneratedPresentation
+
+    assert GeneratedPresentation.objects.filter(user_id=run.user_id).exists()
+
+
+def test_pitch_deck_builder_invalid_structure_json_refunds_hold(monkeypatch):
+    client, user = _authed_client()
+    account = CreditAccount.objects.get(user=user)
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        return ChatOutcome(
+            status="ok", text="this is not json", provider="openai",
+            model="gpt-4o-mini", task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    balance_before = account.balance
+
+    response = client.post(
+        "/api/agents/pitch-deck-builder/runs/",
+        {"input": PITCH_DECK_INPUT, "idempotency_key": "deck-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.ERROR
+    assert run.steps[1]["status"] == "error"
+    account.refresh_from_db()
+    # fake_run_chat fully replaces run_chat (no real charge_credits call
+    # for the first step), so only the pptx step's own charge+refund
+    # touch the real balance — net zero, fully refunded.
+    assert account.balance == balance_before
+
+
+def test_pitch_deck_builder_pptx_step_blocked_by_moderation(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "child sexual content"
+            if call_count["n"] == 1
+            else VALID_PITCH_DECK_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/pitch-deck-builder/runs/",
+        {"input": PITCH_DECK_INPUT, "idempotency_key": "deck-3"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.BLOCKED
+    assert run.steps[1]["status"] == "error"
+
+
+BUDGET_TRACKER_INPUT = {
+    "budget_description": "Аренда 1500, еда 400, транспорт 100",
+}
+
+BUDGET_TRACKER_STRUCTURE_JSON = json.dumps(
+    {
+        "sheet_title": "Budget",
+        "headers": ["Category", "Amount"],
+        "rows": [["Аренда", "1500"], ["Еда", "400"]],
+        "chart_title": "Расходы",
+    }
+)
+
+VALID_BUDGET_TRACKER_RESULT_JSON = json.dumps(
+    {
+        "sheet_title": "Budget",
+        "excel_url": "",
+        "summary": "Таблица бюджета готова.",
+    }
+)
+
+
+def test_budget_tracker_builder_run_injects_real_excel_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            BUDGET_TRACKER_STRUCTURE_JSON
+            if call_count["n"] == 1
+            else VALID_BUDGET_TRACKER_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks, "build_spreadsheet", lambda structure: b"fake xlsx bytes"
+    )
+
+    response = client.post(
+        "/api/agents/budget-tracker-builder/runs/",
+        {"input": BUDGET_TRACKER_INPUT, "idempotency_key": "budget-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["sheet_title"] == "Budget"
+    assert run.result["excel_url"]
+    assert run.result["excel_url"].endswith(".xlsx")
+    expected_excel_credits = usd_to_credits(
+        estimate_excel_generation_cost_usd()
+    )
+    assert (
+        run.credits_charged
+        == Decimal("1.5") + expected_excel_credits + Decimal("1.5")
+    )
+
+    from docgen.models import GeneratedSpreadsheet
+
+    assert GeneratedSpreadsheet.objects.filter(user_id=run.user_id).exists()
+
+
+def test_pitch_deck_builder_missing_key_points_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {"topic": PITCH_DECK_INPUT["topic"]}
+
+    response = client.post(
+        "/api/agents/pitch-deck-builder/runs/",
+        {"input": incomplete_input, "idempotency_key": "deck-missing"},
         format="json",
     )
     assert response.status_code == 400

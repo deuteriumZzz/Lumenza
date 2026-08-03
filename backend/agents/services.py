@@ -10,6 +10,10 @@ from django.utils import timezone
 from agents.models import Agent, AgentRun
 from billing.services import get_or_create_account, usd_to_credits
 from code_interpreter.pricing import estimate_code_execution_cost_usd
+from docgen.pricing import (
+    estimate_excel_generation_cost_usd,
+    estimate_pptx_generation_cost_usd,
+)
 from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
 from media_ops.pricing import estimate_speech_cost_usd
 from providers.services import TASK_ROUTES, _route_hold_credits
@@ -18,14 +22,18 @@ from videogen.replicate_video_adapter import TEXT_TO_VIDEO_MODEL
 
 # Sentinel step "task" values usable in Agent.workflow_steps, alongside
 # real providers.services.TASK_ROUTES keys — a step with one of these
-# tasks runs code/generates a video/synthesizes audio instead of calling
-# run_chat (see agents.tasks._run_code_execution_step/
-# _run_video_generation_step/_run_audio_generation_step). Never valid as
-# TASK_ROUTES keys, so every direct TASK_ROUTES[...] lookup site needs a
-# guard before it, starting with the pre-flight check below.
+# tasks runs code/generates a video/synthesizes audio/builds a real
+# office document instead of calling run_chat (see
+# agents.tasks._run_code_execution_step/_run_video_generation_step/
+# _run_audio_generation_step/_run_pptx_generation_step/
+# _run_excel_generation_step). Never valid as TASK_ROUTES keys, so every
+# direct TASK_ROUTES[...] lookup site needs a guard before it, starting
+# with the pre-flight check below.
 CODE_EXECUTION_TASK = "code_execution"
 VIDEO_GENERATION_TASK = "video_generation"
 AUDIO_GENERATION_TASK = "audio_generation"
+PPTX_GENERATION_TASK = "pptx_generation"
+EXCEL_GENERATION_TASK = "excel_generation"
 
 # The pre-flight balance check needs a prompt length to size the hold
 # against, but the real first-step prompt (system instructions + form
@@ -255,6 +263,10 @@ def start_agent_run(
         required_credits = usd_to_credits(
             estimate_speech_cost_usd(NVIDIA_TTS_MODEL)
         )
+    elif first_task == PPTX_GENERATION_TASK:
+        required_credits = usd_to_credits(estimate_pptx_generation_cost_usd())
+    elif first_task == EXCEL_GENERATION_TASK:
+        required_credits = usd_to_credits(estimate_excel_generation_cost_usd())
     else:
         required_credits = _route_hold_credits(
             TASK_ROUTES[first_task], "x" * _NOMINAL_PROMPT_LENGTH

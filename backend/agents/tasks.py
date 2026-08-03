@@ -1,5 +1,8 @@
+import json
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Optional
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -11,6 +14,8 @@ from agents.models import AgentRun
 from agents.services import (
     AUDIO_GENERATION_TASK,
     CODE_EXECUTION_TASK,
+    EXCEL_GENERATION_TASK,
+    PPTX_GENERATION_TASK,
     VIDEO_GENERATION_TASK,
     parse_final_result,
     render_step_prompt,
@@ -27,6 +32,13 @@ from code_interpreter.piston_adapter import PistonAdapter
 from code_interpreter.pricing import estimate_code_execution_cost_usd
 from core.moderation import ModerationBlocked, check_prompt
 from core.translation import translate_prompt_to_english
+from docgen.excel_builder import build_spreadsheet
+from docgen.models import GeneratedPresentation, GeneratedSpreadsheet
+from docgen.pptx_builder import build_presentation
+from docgen.pricing import (
+    estimate_excel_generation_cost_usd,
+    estimate_pptx_generation_cost_usd,
+)
 from knowledge.services import search as search_workspace
 from media_ops.models import SpeechClip
 from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
@@ -74,7 +86,24 @@ _STEP_ERROR_MESSAGES = {
     "invalid_model": "Выбранная модель не поддерживается для этого шага",
     "model_requires_pro": "Выбранная premium-модель доступна только в тарифе Pro",
     "invalid_workspace": "Подключённая база знаний недоступна",
+    "invalid_structure": "Не удалось разобрать структуру документа",
 }
+
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+
+
+def _parse_json_structure(raw_text: str) -> Optional[dict]:
+    """Parses a preceding step's raw text as a JSON object — used by the
+    pptx_generation/excel_generation sentinel steps, whose input (unlike
+    code/video/audio) must be structured, not passed straight to a
+    builder. Returns None on any parse failure; callers treat that as an
+    "invalid_structure" step outcome rather than crashing."""
+    stripped = _JSON_FENCE_RE.sub("", raw_text or "").strip()
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _step_index(run: AgentRun, key: str) -> int:
@@ -273,6 +302,138 @@ def _run_audio_generation_step(run: AgentRun, text: str) -> _StepOutcome:
     )
 
 
+def _run_pptx_generation_step(
+    run: AgentRun, structure_text: str
+) -> _StepOutcome:
+    """Builds a real .pptx from `structure_text` (the immediately
+    preceding step's raw output) via docgen.pptx_builder.build_presentation
+    — a pure local function, no external API, called directly. Unlike the
+    code/video/audio sentinel steps, `structure_text` must first be parsed
+    as JSON (the preceding chat step is instructed, via the agent's
+    system_instructions, to return exactly that shape) — a genuinely new
+    failure mode this step has that the others don't."""
+    try:
+        check_prompt(structure_text)
+    except ModerationBlocked:
+        return _StepOutcome(status="blocked")
+
+    hold_credits = usd_to_credits(estimate_pptx_generation_cost_usd())
+    try:
+        charge_credits(
+            run.user,
+            hold_credits,
+            reason=LedgerEntry.Reason.PPTX_GENERATION_REQUEST,
+        )
+    except InsufficientCreditsError:
+        return _StepOutcome(status="insufficient_credits")
+
+    structure = _parse_json_structure(structure_text)
+    if structure is None:
+        grant_credits(
+            run.user, hold_credits, reason=LedgerEntry.Reason.REFUND
+        )
+        return _StepOutcome(status="invalid_structure")
+
+    try:
+        pptx_bytes = build_presentation(structure)
+    except Exception:
+        grant_credits(
+            run.user, hold_credits, reason=LedgerEntry.Reason.REFUND
+        )
+        return _StepOutcome(status="provider_error")
+
+    actual_credits = usd_to_credits(estimate_pptx_generation_cost_usd())
+    refund = hold_credits - actual_credits
+    if refund > 0:
+        grant_credits(run.user, refund, reason=LedgerEntry.Reason.REFUND)
+
+    presentation_record = GeneratedPresentation.objects.create(
+        user=run.user,
+        source_text=structure_text,
+        status=GeneratedPresentation.Status.OK,
+        cost_usd=Decimal(str(estimate_pptx_generation_cost_usd())),
+        credits_charged=actual_credits,
+        completed_at=timezone.now(),
+    )
+    presentation_record.file.save(
+        f"{presentation_record.id}.pptx",
+        ContentFile(pptx_bytes),
+        save=True,
+    )
+    pptx_url = presentation_record.file.url
+
+    return _StepOutcome(
+        status="ok",
+        text=f"[presentation generated: {pptx_url}]",
+        credits_charged=actual_credits,
+        extra_fields={"pptx_url": pptx_url},
+    )
+
+
+def _run_excel_generation_step(
+    run: AgentRun, structure_text: str
+) -> _StepOutcome:
+    """Builds a real .xlsx from `structure_text` — same shape as
+    _run_pptx_generation_step above, via docgen.excel_builder.
+    build_spreadsheet."""
+    try:
+        check_prompt(structure_text)
+    except ModerationBlocked:
+        return _StepOutcome(status="blocked")
+
+    hold_credits = usd_to_credits(estimate_excel_generation_cost_usd())
+    try:
+        charge_credits(
+            run.user,
+            hold_credits,
+            reason=LedgerEntry.Reason.EXCEL_GENERATION_REQUEST,
+        )
+    except InsufficientCreditsError:
+        return _StepOutcome(status="insufficient_credits")
+
+    structure = _parse_json_structure(structure_text)
+    if structure is None:
+        grant_credits(
+            run.user, hold_credits, reason=LedgerEntry.Reason.REFUND
+        )
+        return _StepOutcome(status="invalid_structure")
+
+    try:
+        excel_bytes = build_spreadsheet(structure)
+    except Exception:
+        grant_credits(
+            run.user, hold_credits, reason=LedgerEntry.Reason.REFUND
+        )
+        return _StepOutcome(status="provider_error")
+
+    actual_credits = usd_to_credits(estimate_excel_generation_cost_usd())
+    refund = hold_credits - actual_credits
+    if refund > 0:
+        grant_credits(run.user, refund, reason=LedgerEntry.Reason.REFUND)
+
+    spreadsheet_record = GeneratedSpreadsheet.objects.create(
+        user=run.user,
+        source_text=structure_text,
+        status=GeneratedSpreadsheet.Status.OK,
+        cost_usd=Decimal(str(estimate_excel_generation_cost_usd())),
+        credits_charged=actual_credits,
+        completed_at=timezone.now(),
+    )
+    spreadsheet_record.file.save(
+        f"{spreadsheet_record.id}.xlsx",
+        ContentFile(excel_bytes),
+        save=True,
+    )
+    excel_url = spreadsheet_record.file.url
+
+    return _StepOutcome(
+        status="ok",
+        text=f"[spreadsheet generated: {excel_url}]",
+        credits_charged=actual_credits,
+        extra_fields={"excel_url": excel_url},
+    )
+
+
 def run_agent(run_id: int) -> None:
     """Runs every workflow step of an Agent in order. Text steps are their
     own run_chat() call — reused completely unmodified, so moderation,
@@ -306,6 +467,8 @@ def _run_agent_steps(run: AgentRun) -> None:
     last_video_url: str | None = None
     last_code_stdout: str | None = None
     last_audio_url: str | None = None
+    last_pptx_url: str | None = None
+    last_excel_url: str | None = None
     # Fetched once per run, not once per step — the profile doesn't
     # change mid-run, and this keeps the loop below to one query total
     # instead of one per workflow step.
@@ -346,6 +509,14 @@ def _run_agent_steps(run: AgentRun) -> None:
             )
         elif step["task"] == AUDIO_GENERATION_TASK:
             step_outcome = _run_audio_generation_step(
+                run, context.get(previous_step_key, "")
+            )
+        elif step["task"] == PPTX_GENERATION_TASK:
+            step_outcome = _run_pptx_generation_step(
+                run, context.get(previous_step_key, "")
+            )
+        elif step["task"] == EXCEL_GENERATION_TASK:
+            step_outcome = _run_excel_generation_step(
                 run, context.get(previous_step_key, "")
             )
         else:
@@ -416,6 +587,10 @@ def _run_agent_steps(run: AgentRun) -> None:
             last_code_stdout = step_outcome.extra_fields["stdout"]
         if "audio_url" in step_outcome.extra_fields:
             last_audio_url = step_outcome.extra_fields["audio_url"]
+        if "pptx_url" in step_outcome.extra_fields:
+            last_pptx_url = step_outcome.extra_fields["pptx_url"]
+        if "excel_url" in step_outcome.extra_fields:
+            last_excel_url = step_outcome.extra_fields["excel_url"]
         _update_step(
             run,
             step["key"],
@@ -449,6 +624,10 @@ def _run_agent_steps(run: AgentRun) -> None:
             parsed["code_stdout"] = last_code_stdout
         if "audio_url" in output_properties and last_audio_url is not None:
             parsed["audio_url"] = last_audio_url
+        if "pptx_url" in output_properties and last_pptx_url is not None:
+            parsed["pptx_url"] = last_pptx_url
+        if "excel_url" in output_properties and last_excel_url is not None:
+            parsed["excel_url"] = last_excel_url
         run.result = parsed
     run.completed_at = timezone.now()
     run.save(

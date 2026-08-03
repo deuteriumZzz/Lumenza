@@ -46,6 +46,14 @@ class LedgerEntry(models.Model):
         )
         VIDEO_REQUEST = "video_request", "Video generation request"
         UPSCALE_REQUEST = "upscale_request", "Image upscale request"
+        PPTX_GENERATION_REQUEST = (
+            "pptx_generation_request",
+            "PowerPoint generation request",
+        )
+        EXCEL_GENERATION_REQUEST = (
+            "excel_generation_request",
+            "Excel generation request",
+        )
         REFUND = "refund", "Refund"
         REFERRAL_BONUS = "referral_bonus", "Referral bonus"
 

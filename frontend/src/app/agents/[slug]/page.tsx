@@ -34,6 +34,8 @@ import { PodcastSummaryResult } from "@/components/podcast-summary-result";
 import { AudioAdCreatorResult } from "@/components/audio-ad-creator-result";
 import { TravelItineraryPlannerResult } from "@/components/travel-itinerary-planner-result";
 import { ReviewSentimentClassifierResult } from "@/components/review-sentiment-classifier-result";
+import { PitchDeckBuilderResult } from "@/components/pitch-deck-builder-result";
+import { BudgetTrackerBuilderResult } from "@/components/budget-tracker-builder-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -77,6 +79,8 @@ import {
   type AudioAdCreatorResult as AudioAdCreatorResultData,
   type TravelItineraryPlannerResult as TravelItineraryPlannerResultData,
   type ReviewSentimentClassifierResult as ReviewSentimentClassifierResultData,
+  type PitchDeckBuilderResult as PitchDeckBuilderResultData,
+  type BudgetTrackerBuilderResult as BudgetTrackerBuilderResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -149,6 +153,13 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   }
   if (slug === "review-sentiment-classifier" && "overall_summary" in result) {
     return result.overall_summary;
+  }
+  if (
+    (slug === "pitch-deck-builder" || slug === "budget-tracker-builder") &&
+    "summary" in result &&
+    result.summary
+  ) {
+    return result.summary;
   }
   return JSON.stringify(result);
 }
@@ -505,6 +516,16 @@ export default function AgentRunPage() {
                 {step.status === "ok" && step.audio_url && (
                   <audio controls src={step.audio_url} className="w-full" />
                 )}
+                {step.status === "ok" && step.pptx_url && (
+                  <a href={step.pptx_url} download className="btn-secondary self-start">
+                    Скачать презентацию (.pptx)
+                  </a>
+                )}
+                {step.status === "ok" && step.excel_url && (
+                  <a href={step.excel_url} download className="btn-secondary self-start">
+                    Скачать таблицу (.xlsx)
+                  </a>
+                )}
               </li>
             ))}
           </ol>
@@ -578,6 +599,10 @@ export default function AgentRunPage() {
               <TravelItineraryPlannerResult data={run.result as TravelItineraryPlannerResultData} />
             ) : resultSourceSlug === "review-sentiment-classifier" ? (
               <ReviewSentimentClassifierResult data={run.result as ReviewSentimentClassifierResultData} />
+            ) : resultSourceSlug === "pitch-deck-builder" ? (
+              <PitchDeckBuilderResult data={run.result as PitchDeckBuilderResultData} />
+            ) : resultSourceSlug === "budget-tracker-builder" ? (
+              <BudgetTrackerBuilderResult data={run.result as BudgetTrackerBuilderResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}

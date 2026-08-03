@@ -55,3 +55,9 @@ pytest-asyncio==1.4.0
 # personal-workspace MVP scale, plain numpy in Python at query time
 # instead of adding pgvector/a Postgres image change.
 numpy==1.26.4
+
+# Real .pptx/.xlsx file generation for the agents' pptx_generation/
+# excel_generation sentinel steps (docgen app) — both are pure-Python,
+# no system dependencies, no external API.
+python-pptx==1.0.2
+openpyxl==3.1.5

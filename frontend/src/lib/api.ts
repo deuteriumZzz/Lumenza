@@ -524,15 +524,18 @@ export interface AgentRunStep {
   provider?: string;
   model?: string;
   error_message?: string;
-  // Set only by code_execution / video_generation / audio_generation
-  // sentinel steps (see agents.tasks._run_code_execution_step/
-  // _run_video_generation_step/_run_audio_generation_step) — absent for
-  // ordinary chat steps.
+  // Set only by code_execution / video_generation / audio_generation /
+  // pptx_generation / excel_generation sentinel steps (see
+  // agents.tasks._run_code_execution_step/_run_video_generation_step/
+  // _run_audio_generation_step/_run_pptx_generation_step/
+  // _run_excel_generation_step) — absent for ordinary chat steps.
   stdout?: string;
   stderr?: string;
   exit_code?: number;
   video_url?: string;
   audio_url?: string;
+  pptx_url?: string;
+  excel_url?: string;
 }
 
 export interface ThreadsContentPlan {
@@ -733,6 +736,18 @@ export interface ReviewSentimentClassifierResult {
   overall_summary: string;
 }
 
+export interface PitchDeckBuilderResult {
+  title: string;
+  pptx_url: string;
+  summary: string;
+}
+
+export interface BudgetTrackerBuilderResult {
+  sheet_title: string;
+  excel_url: string;
+  summary: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -772,6 +787,8 @@ export interface AgentRun {
     | AudioAdCreatorResult
     | TravelItineraryPlannerResult
     | ReviewSentimentClassifierResult
+    | PitchDeckBuilderResult
+    | BudgetTrackerBuilderResult
     | null;
   credits_charged: string;
   error_message: string;

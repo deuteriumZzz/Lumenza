@@ -1757,4 +1757,96 @@ describe("AgentRunPage", () => {
     expect(screen.getByText("Отличный сервис, быстро доставили!")).toBeDefined();
     expect(screen.getByText("Один довольный отзыв.")).toBeDefined();
   });
+
+  it("renders the pitch-deck-builder result shape with a download link", async () => {
+    mocks.slug = "pitch-deck-builder";
+    mocks.agent.mockResolvedValue({
+      slug: "pitch-deck-builder",
+      name: "Конструктор презентаций",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема презентации", type: "text", required: true, max_length: 300 },
+          { key: "key_points", label: "Ключевые тезисы и данные", type: "text", required: true, max_length: 1000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "pitch-deck-builder",
+        status: "ok",
+        steps: [
+          { key: "draft_structure", label: "Собираем структуру презентации", status: "ok" },
+          { key: "generate_pptx", label: "Генерируем презентацию", status: "ok", pptx_url: "/media/generated_presentations/1.pptx" },
+          { key: "assemble", label: "Пишем сопроводительную заметку", status: "ok" },
+        ],
+        result: {
+          title: "Продукт X",
+          pptx_url: "/media/generated_presentations/1.pptx",
+          summary: "Презентация готова.",
+        },
+        credits_charged: "3.0020",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Тема презентации")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Тема презентации"), { target: { value: "Продукт X" } });
+    fireEvent.change(screen.getByLabelText("Ключевые тезисы и данные"), { target: { value: "растём" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Презентация готова.")).toBeDefined();
+    expect(
+      container.querySelectorAll('a[href="/media/generated_presentations/1.pptx"]').length,
+    ).toBeGreaterThan(1);
+  });
+
+  it("renders the budget-tracker-builder result shape with a download link", async () => {
+    mocks.slug = "budget-tracker-builder";
+    mocks.agent.mockResolvedValue({
+      slug: "budget-tracker-builder",
+      name: "Конструктор бюджет-таблиц",
+      description: "test",
+      category: "finance",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "budget_description", label: "Описание бюджета/расходов по категориям", type: "text", required: true, max_length: 1000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "budget-tracker-builder",
+        status: "ok",
+        steps: [
+          { key: "draft_structure", label: "Собираем структуру таблицы", status: "ok" },
+          { key: "generate_excel", label: "Генерируем таблицу", status: "ok", excel_url: "/media/generated_spreadsheets/1.xlsx" },
+          { key: "assemble", label: "Пишем резюме", status: "ok" },
+        ],
+        result: {
+          sheet_title: "Budget",
+          excel_url: "/media/generated_spreadsheets/1.xlsx",
+          summary: "Таблица бюджета готова.",
+        },
+        credits_charged: "3.0020",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Описание бюджета/расходов по категориям")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Описание бюджета/расходов по категориям"), { target: { value: "аренда 1500" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Таблица бюджета готова.")).toBeDefined();
+    expect(
+      container.querySelectorAll('a[href="/media/generated_spreadsheets/1.xlsx"]').length,
+    ).toBeGreaterThan(1);
+  });
 });
