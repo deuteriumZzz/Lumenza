@@ -9,6 +9,7 @@ from django.utils import timezone
 from accounts.models import UserContext
 from agents.models import AgentRun
 from agents.services import (
+    AUDIO_GENERATION_TASK,
     CODE_EXECUTION_TASK,
     VIDEO_GENERATION_TASK,
     parse_final_result,
@@ -27,6 +28,10 @@ from code_interpreter.pricing import estimate_code_execution_cost_usd
 from core.moderation import ModerationBlocked, check_prompt
 from core.translation import translate_prompt_to_english
 from knowledge.services import search as search_workspace
+from media_ops.models import SpeechClip
+from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
+from media_ops.nvidia_tts_adapter import NvidiaTtsAdapter
+from media_ops.pricing import estimate_speech_cost_usd
 from providers.services import RAG_TOP_K, TASK_ROUTES, run_chat
 from videogen.models import GeneratedVideo
 from videogen.pricing import estimate_video_cost_usd
@@ -205,6 +210,69 @@ def _run_video_generation_step(run: AgentRun, prompt_text: str) -> _StepOutcome:
     )
 
 
+def _run_audio_generation_step(run: AgentRun, text: str) -> _StepOutcome:
+    """Synthesizes speech from `text` (the immediately preceding step's raw
+    output) via the same NvidiaTtsAdapter the standalone Studio Voice
+    feature uses — called directly rather than through
+    media_ops.services.start_speech's async-enqueue path, same reasoning as
+    the code/video steps above. The adapter hardcodes a single English
+    voice (voice_name/language_code aren't parameters), so the text is
+    translated first, same as the video step's prompt. Persists a
+    SpeechClip row directly as status=OK (skipping the PENDING/claim dance,
+    since nothing needs to poll it) purely to reuse its FileField/
+    upload_to/media-serving machinery for the produced audio bytes."""
+    try:
+        check_prompt(text)
+    except ModerationBlocked:
+        return _StepOutcome(status="blocked")
+
+    hold_credits = usd_to_credits(estimate_speech_cost_usd(NVIDIA_TTS_MODEL))
+    try:
+        charge_credits(
+            run.user, hold_credits, reason=LedgerEntry.Reason.SPEECH_REQUEST
+        )
+    except InsufficientCreditsError:
+        return _StepOutcome(status="insufficient_credits")
+
+    try:
+        result = NvidiaTtsAdapter().synthesize(
+            translate_prompt_to_english(text), model=NVIDIA_TTS_MODEL
+        )
+    except Exception:
+        grant_credits(run.user, hold_credits, reason=LedgerEntry.Reason.REFUND)
+        return _StepOutcome(status="provider_error")
+
+    actual_credits = usd_to_credits(result.cost_usd)
+    refund = hold_credits - actual_credits
+    if refund > 0:
+        grant_credits(run.user, refund, reason=LedgerEntry.Reason.REFUND)
+
+    speech_record = SpeechClip.objects.create(
+        user=run.user,
+        text=text,
+        provider="nvidia",
+        model=NVIDIA_TTS_MODEL,
+        status=SpeechClip.Status.OK,
+        cost_usd=Decimal(str(result.cost_usd)),
+        credits_charged=actual_credits,
+        mocked=result.mocked,
+        completed_at=timezone.now(),
+    )
+    speech_record.audio.save(
+        f"{speech_record.id}.mp3",
+        ContentFile(result.audio_bytes),
+        save=True,
+    )
+    audio_url = speech_record.audio.url
+
+    return _StepOutcome(
+        status="ok",
+        text=f"[audio generated: {audio_url}]",
+        credits_charged=actual_credits,
+        extra_fields={"audio_url": audio_url},
+    )
+
+
 def run_agent(run_id: int) -> None:
     """Runs every workflow step of an Agent in order. Text steps are their
     own run_chat() call — reused completely unmodified, so moderation,
@@ -237,6 +305,7 @@ def _run_agent_steps(run: AgentRun) -> None:
     context: dict[str, str] = {}
     last_video_url: str | None = None
     last_code_stdout: str | None = None
+    last_audio_url: str | None = None
     # Fetched once per run, not once per step — the profile doesn't
     # change mid-run, and this keeps the loop below to one query total
     # instead of one per workflow step.
@@ -273,6 +342,10 @@ def _run_agent_steps(run: AgentRun) -> None:
             )
         elif step["task"] == VIDEO_GENERATION_TASK:
             step_outcome = _run_video_generation_step(
+                run, context.get(previous_step_key, "")
+            )
+        elif step["task"] == AUDIO_GENERATION_TASK:
+            step_outcome = _run_audio_generation_step(
                 run, context.get(previous_step_key, "")
             )
         else:
@@ -341,6 +414,8 @@ def _run_agent_steps(run: AgentRun) -> None:
             last_video_url = step_outcome.extra_fields["video_url"]
         if "stdout" in step_outcome.extra_fields:
             last_code_stdout = step_outcome.extra_fields["stdout"]
+        if "audio_url" in step_outcome.extra_fields:
+            last_audio_url = step_outcome.extra_fields["audio_url"]
         _update_step(
             run,
             step["key"],
@@ -372,6 +447,8 @@ def _run_agent_steps(run: AgentRun) -> None:
             parsed["video_url"] = last_video_url
         if "code_stdout" in output_properties and last_code_stdout is not None:
             parsed["code_stdout"] = last_code_stdout
+        if "audio_url" in output_properties and last_audio_url is not None:
+            parsed["audio_url"] = last_audio_url
         run.result = parsed
     run.completed_at = timezone.now()
     run.save(

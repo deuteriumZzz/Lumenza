@@ -12,6 +12,9 @@ from billing.models import CreditAccount
 from billing.services import usd_to_credits
 from code_interpreter.piston_adapter import CodeExecutionResult
 from code_interpreter.pricing import estimate_code_execution_cost_usd
+from media_ops.base import SpeechResult
+from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
+from media_ops.pricing import estimate_speech_cost_usd
 from providers.registry import REGISTRY
 from providers.services import ChatOutcome
 from tests.helpers import authed_client as _shared_authed_client
@@ -2473,3 +2476,190 @@ def test_product_demo_video_run_injects_real_video_url(monkeypatch):
     assert run.result["caption"] == "Постройте полезные привычки шаг за шагом."
     assert run.result["video_url"]
     assert run.result["video_url"].endswith(".gif")
+
+
+# --- Round 6: audio_generation sentinel step + Аудио category ---
+
+PODCAST_SUMMARY_INPUT = {
+    "article_text": (
+        "Учёные обнаружили новый способ переработки пластика с помощью "
+        "ферментов."
+    ),
+}
+
+VALID_PODCAST_SUMMARY_RESULT_JSON = json.dumps(
+    {
+        "title": "Пластик и ферменты",
+        "audio_url": "",
+        "description": "Короткий разбор новой технологии переработки.",
+    }
+)
+
+
+def test_podcast_summary_run_injects_real_audio_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "Привет! Сегодня поговорим о переработке пластика ферментами."
+            if call_count["n"] == 1
+            else VALID_PODCAST_SUMMARY_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks.NvidiaTtsAdapter,
+        "synthesize",
+        lambda self, text, model=None, **kwargs: SpeechResult(
+            audio_bytes=b"fake mp3 bytes",
+            cost_usd=0.015,
+            model=NVIDIA_TTS_MODEL,
+            mocked=True,
+        ),
+    )
+
+    response = client.post(
+        "/api/agents/podcast-summary/runs/",
+        {"input": PODCAST_SUMMARY_INPUT, "idempotency_key": "podcast-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["title"] == "Пластик и ферменты"
+    # The model's own (empty) audio_url must never survive — the real
+    # SpeechClip file URL always wins.
+    assert run.result["audio_url"]
+    assert run.result["audio_url"].endswith(".mp3")
+    assert run.steps[1]["audio_url"] == run.result["audio_url"]
+    expected_audio_credits = usd_to_credits(
+        estimate_speech_cost_usd(NVIDIA_TTS_MODEL)
+    )
+    assert (
+        run.credits_charged
+        == Decimal("1.5") + expected_audio_credits + Decimal("1.5")
+    )
+
+    from media_ops.models import SpeechClip
+
+    assert SpeechClip.objects.filter(user_id=run.user_id).exists()
+
+
+def test_podcast_summary_audio_step_blocked_by_moderation(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "child sexual content"
+            if call_count["n"] == 1
+            else VALID_PODCAST_SUMMARY_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/podcast-summary/runs/",
+        {"input": PODCAST_SUMMARY_INPUT, "idempotency_key": "podcast-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.BLOCKED
+    assert run.steps[1]["status"] == "error"
+
+
+def test_podcast_summary_audio_step_provider_error_refunds_hold(monkeypatch):
+    client, _ = _authed_client()
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        return ChatOutcome(
+            status="ok", text="Скрипт подкаста.", provider="openai",
+            model="gpt-4o-mini", task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    def boom(self, text, model=None, **kwargs):
+        raise RuntimeError("tts unavailable")
+
+    monkeypatch.setattr(agents_tasks.NvidiaTtsAdapter, "synthesize", boom)
+
+    response = client.post(
+        "/api/agents/podcast-summary/runs/",
+        {"input": PODCAST_SUMMARY_INPUT, "idempotency_key": "podcast-3"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.ERROR
+    assert run.steps[1]["status"] == "error"
+
+
+AUDIO_AD_CREATOR_INPUT = {
+    "product_description": "Приложение для трекинга привычек с напоминаниями",
+}
+
+VALID_AUDIO_AD_CREATOR_RESULT_JSON = json.dumps(
+    {
+        "script": "Хочешь новых привычек? Скачай наше приложение!",
+        "audio_url": "",
+        "caption": "Реклама приложения-трекера привычек.",
+    }
+)
+
+
+def test_audio_ad_creator_run_injects_real_audio_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "Хочешь новых привычек? Скачай наше приложение!"
+            if call_count["n"] == 1
+            else VALID_AUDIO_AD_CREATOR_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks.NvidiaTtsAdapter,
+        "synthesize",
+        lambda self, text, model=None, **kwargs: SpeechResult(
+            audio_bytes=b"fake mp3 bytes",
+            cost_usd=0.015,
+            model=NVIDIA_TTS_MODEL,
+            mocked=True,
+        ),
+    )
+
+    response = client.post(
+        "/api/agents/audio-ad-creator/runs/",
+        {"input": AUDIO_AD_CREATOR_INPUT, "idempotency_key": "audioad-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["caption"] == "Реклама приложения-трекера привычек."
+    assert run.result["audio_url"]
+    assert run.result["audio_url"].endswith(".mp3")

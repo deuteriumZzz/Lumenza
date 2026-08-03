@@ -284,6 +284,31 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("link", { name: /Генератор видео-тизера/ })).toBeDefined();
   });
 
+  it("shows an Аудио tab and filters to the audio agent", async () => {
+    mocks.agents.mockResolvedValue([
+      ...AGENTS,
+      {
+        slug: "podcast-summary",
+        name: "Подкаст из текста",
+        description: "Превращает статью в аудио-подкаст.",
+        category: "audio",
+      },
+    ]);
+
+    render(<AgentsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /Подкаст из текста/ })).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Аудио" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
+    );
+    expect(screen.getByRole("link", { name: /Подкаст из текста/ })).toBeDefined();
+  });
+
   it('lists custom agents under "Мои агенты" tab', async () => {
     mocks.agents.mockResolvedValue(AGENTS);
     mocks.customAgents.mockResolvedValue([

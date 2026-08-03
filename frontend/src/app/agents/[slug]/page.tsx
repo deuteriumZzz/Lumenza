@@ -30,6 +30,8 @@ import { DataQuickCheckResult } from "@/components/data-quick-check-result";
 import { VideoTeaserGeneratorResult } from "@/components/video-teaser-generator-result";
 import { CodeReviewAgentResult } from "@/components/code-review-agent-result";
 import { PythonTestWriterResult } from "@/components/python-test-writer-result";
+import { PodcastSummaryResult } from "@/components/podcast-summary-result";
+import { AudioAdCreatorResult } from "@/components/audio-ad-creator-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -69,6 +71,8 @@ import {
   type VideoTeaserGeneratorResult as VideoTeaserGeneratorResultData,
   type CodeReviewAgentResult as CodeReviewAgentResultData,
   type PythonTestWriterResult as PythonTestWriterResultData,
+  type PodcastSummaryResult as PodcastSummaryResultData,
+  type AudioAdCreatorResult as AudioAdCreatorResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -129,6 +133,12 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
     result.summary
   ) {
     return result.summary;
+  }
+  if (slug === "podcast-summary" && "description" in result) {
+    return result.description;
+  }
+  if (slug === "audio-ad-creator" && "caption" in result) {
+    return result.caption;
   }
   return JSON.stringify(result);
 }
@@ -482,6 +492,9 @@ export default function AgentRunPage() {
                     className="w-full max-w-xs rounded-md border border-border"
                   />
                 )}
+                {step.status === "ok" && step.audio_url && (
+                  <audio controls src={step.audio_url} className="w-full" />
+                )}
               </li>
             ))}
           </ol>
@@ -547,6 +560,10 @@ export default function AgentRunPage() {
               <CodeReviewAgentResult data={run.result as CodeReviewAgentResultData} />
             ) : resultSourceSlug === "python-test-writer" ? (
               <PythonTestWriterResult data={run.result as PythonTestWriterResultData} />
+            ) : resultSourceSlug === "podcast-summary" ? (
+              <PodcastSummaryResult data={run.result as PodcastSummaryResultData} />
+            ) : resultSourceSlug === "audio-ad-creator" ? (
+              <AudioAdCreatorResult data={run.result as AudioAdCreatorResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}

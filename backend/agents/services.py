@@ -10,18 +10,22 @@ from django.utils import timezone
 from agents.models import Agent, AgentRun
 from billing.services import get_or_create_account, usd_to_credits
 from code_interpreter.pricing import estimate_code_execution_cost_usd
+from media_ops.nvidia_tts_adapter import DEFAULT_MODEL as NVIDIA_TTS_MODEL
+from media_ops.pricing import estimate_speech_cost_usd
 from providers.services import TASK_ROUTES, _route_hold_credits
 from videogen.pricing import estimate_video_cost_usd
 from videogen.replicate_video_adapter import TEXT_TO_VIDEO_MODEL
 
 # Sentinel step "task" values usable in Agent.workflow_steps, alongside
 # real providers.services.TASK_ROUTES keys — a step with one of these
-# tasks runs code/generates a video instead of calling run_chat (see
-# agents.tasks._run_code_execution_step/_run_video_generation_step). Never
-# valid as TASK_ROUTES keys, so every direct TASK_ROUTES[...] lookup site
-# needs a guard before it, starting with the pre-flight check below.
+# tasks runs code/generates a video/synthesizes audio instead of calling
+# run_chat (see agents.tasks._run_code_execution_step/
+# _run_video_generation_step/_run_audio_generation_step). Never valid as
+# TASK_ROUTES keys, so every direct TASK_ROUTES[...] lookup site needs a
+# guard before it, starting with the pre-flight check below.
 CODE_EXECUTION_TASK = "code_execution"
 VIDEO_GENERATION_TASK = "video_generation"
+AUDIO_GENERATION_TASK = "audio_generation"
 
 # The pre-flight balance check needs a prompt length to size the hold
 # against, but the real first-step prompt (system instructions + form
@@ -246,6 +250,10 @@ def start_agent_run(
     elif first_task == VIDEO_GENERATION_TASK:
         required_credits = usd_to_credits(
             estimate_video_cost_usd(TEXT_TO_VIDEO_MODEL)
+        )
+    elif first_task == AUDIO_GENERATION_TASK:
+        required_credits = usd_to_credits(
+            estimate_speech_cost_usd(NVIDIA_TTS_MODEL)
         )
     else:
         required_credits = _route_hold_credits(

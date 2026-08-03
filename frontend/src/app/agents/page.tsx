@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<AgentCategory, string> = {
   finance: "Финансы",
   code: "Код",
   video: "Видео",
+  audio: "Аудио",
 };
 
 // "Популярное" всегда первая и показывает весь каталог без фильтра — только
@@ -40,6 +41,7 @@ const CATEGORIES: { key: CategoryFilter; label: string }[] = [
   { key: "finance", label: "Финансы" },
   { key: "code", label: "Код" },
   { key: "video", label: "Видео" },
+  { key: "audio", label: "Аудио" },
   { key: "mine", label: "Мои агенты" },
 ];
 
@@ -402,6 +404,7 @@ function CategoryIcon({ category }: { category: AgentCategory }) {
   if (category === "finance") return <svg aria-hidden="true" {...common}><path d="M4 19.5v-6l4-3 4 2.5 4-5 4 3v8.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M3.5 19.5h17" strokeLinecap="round" /></svg>;
   if (category === "code") return <svg aria-hidden="true" {...common}><path d="m9 8-4.5 4L9 16M15 8l4.5 4-4.5 4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
   if (category === "video") return <svg aria-hidden="true" {...common}><rect x="3.5" y="6" width="12" height="12" rx="1.5" /><path d="m20.5 8.5-5 3.5 5 3.5Z" strokeLinejoin="round" /></svg>;
+  if (category === "audio") return <svg aria-hidden="true" {...common}><path d="M4 10v4h3.5L12 17.5v-11L7.5 10Z" strokeLinejoin="round" /><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" strokeLinecap="round" /></svg>;
   return <svg aria-hidden="true" {...common}><path d="M7 3.5h7l3 3v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" /><path d="M14 3.5v3h3M9 12h6M9 15.5h6" strokeLinecap="round" /></svg>;
 }
 
@@ -639,6 +642,7 @@ function parseCategory(value: string | null): CategoryFilter | null {
     || value === "finance"
     || value === "code"
     || value === "video"
+    || value === "audio"
     || value === "mine"
     ? value
     : null;

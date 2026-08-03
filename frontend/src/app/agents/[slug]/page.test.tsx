@@ -1581,4 +1581,91 @@ describe("AgentRunPage", () => {
     expect(screen.getByText("Постройте полезные привычки шаг за шагом.")).toBeDefined();
     expect(container.querySelectorAll('img[src="/media/generated_videos/2.gif"]').length).toBeGreaterThan(0);
   });
+
+  it("renders the podcast-summary result shape with a real audio element", async () => {
+    mocks.slug = "podcast-summary";
+    mocks.agent.mockResolvedValue({
+      slug: "podcast-summary",
+      name: "Подкаст из текста",
+      description: "test",
+      category: "audio",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "article_text", label: "Текст статьи или материала", type: "text", required: true, max_length: 4000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "podcast-summary",
+        status: "ok",
+        steps: [
+          { key: "write_script", label: "Пишем сценарий подкаста", status: "ok" },
+          { key: "generate_audio", label: "Озвучиваем подкаст", status: "ok", audio_url: "/media/speech_clips/1.mp3" },
+          { key: "assemble", label: "Пишем описание эпизода", status: "ok" },
+        ],
+        result: {
+          title: "Пластик и ферменты",
+          audio_url: "/media/speech_clips/1.mp3",
+          description: "Короткий разбор новой технологии переработки.",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Текст статьи или материала")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Текст статьи или материала"), { target: { value: "статья про ферменты" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Короткий разбор новой технологии переработки.")).toBeDefined();
+    // The live step transcript and the final result both render a real <audio>.
+    expect(container.querySelectorAll('audio[src="/media/speech_clips/1.mp3"]').length).toBeGreaterThan(1);
+  });
+
+  it("renders the audio-ad-creator result shape", async () => {
+    mocks.slug = "audio-ad-creator";
+    mocks.agent.mockResolvedValue({
+      slug: "audio-ad-creator",
+      name: "Аудио-реклама",
+      description: "test",
+      category: "audio",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "product_description", label: "Продукт или услуга для рекламы", type: "text", required: true, max_length: 500 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "audio-ad-creator",
+        status: "ok",
+        steps: [
+          { key: "write_script", label: "Пишем рекламный сценарий", status: "ok" },
+          { key: "generate_audio", label: "Озвучиваем ролик", status: "ok", audio_url: "/media/speech_clips/2.mp3" },
+          { key: "assemble", label: "Пишем описание ролика", status: "ok" },
+        ],
+        result: {
+          script: "Хочешь новых привычек? Скачай наше приложение!",
+          audio_url: "/media/speech_clips/2.mp3",
+          caption: "Реклама приложения-трекера привычек.",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Продукт или услуга для рекламы")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Продукт или услуга для рекламы"), { target: { value: "трекер привычек" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Хочешь новых привычек? Скачай наше приложение!")).toBeDefined();
+    expect(screen.getByText("Реклама приложения-трекера привычек.")).toBeDefined();
+  });
 });
