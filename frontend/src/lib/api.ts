@@ -803,6 +803,15 @@ export interface TelegramChannelEntry {
   connected_at: string;
 }
 
+export interface EmbedWidgetEntry {
+  id: number;
+  workspace: number;
+  public_key: string;
+  title: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ScheduledAgentRunEntry {
   id: number;
   agent: string;
@@ -982,6 +991,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query }),
     }),
+  embedWidgets: (workspaceId: number) =>
+    request<EmbedWidgetEntry[]>(`/knowledge/workspaces/${workspaceId}/embeds/`),
+  createEmbedWidget: (workspaceId: number, title: string) =>
+    request<EmbedWidgetEntry>(`/knowledge/workspaces/${workspaceId}/embeds/`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  setEmbedWidgetActive: (id: number, isActive: boolean) =>
+    request<EmbedWidgetEntry>(`/knowledge/embeds/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  deleteEmbedWidget: (id: number) =>
+    request<void>(`/knowledge/embeds/${id}/`, { method: "DELETE" }),
   history: (page = 1, filters: HistoryQuery = {}) => {
     const params = new URLSearchParams({ page: String(page) });
     const filterEntries: [keyof HistoryQuery, string | undefined][] = [

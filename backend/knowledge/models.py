@@ -85,6 +85,38 @@ class Source(models.Model):
         return f"{self.workspace_id} source {self.status}"
 
 
+def _generate_public_key() -> str:
+    import secrets
+
+    return secrets.token_urlsafe(24)
+
+
+class EmbedWidget(models.Model):
+    """A public, unauthenticated door into one Workspace's Knowledge —
+    embedded via <script> on a third-party site (knowledge/views.py::
+    embed_ask_view). `public_key` is deliberately long/random since it's
+    exposed in client-side JS on an arbitrary domain (same trust model as
+    a Stripe.js publishable key: not secret, just unguessable enough to
+    not be trivially enumerated). `is_active` lets the owner kill a
+    widget without losing its history/config."""
+
+    workspace = models.ForeignKey(
+        Workspace, on_delete=models.CASCADE, related_name="embed_widgets"
+    )
+    public_key = models.CharField(
+        max_length=40, unique=True, default=_generate_public_key, editable=False
+    )
+    title = models.CharField(max_length=120, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.workspace_id} embed {self.public_key[:8]}…"
+
+
 class Chunk(models.Model):
     """Один фрагмент текста источника + его embedding. embedding хранится
     как JSON-список float, а не через pgvector — при ожидаемом для MVP

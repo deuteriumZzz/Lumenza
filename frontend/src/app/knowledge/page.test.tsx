@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   workspaces: vi.fn(),
@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
   addTextSource: vi.fn(),
   addImageSource: vi.fn(),
   searchWorkspace: vi.fn(),
+  embedWidgets: vi.fn(),
+  createEmbedWidget: vi.fn(),
+  setEmbedWidgetActive: vi.fn(),
+  deleteEmbedWidget: vi.fn(),
 }));
 
 vi.mock("@/components/require-auth", () => ({
@@ -29,6 +33,10 @@ vi.mock("@/lib/api", async (importOriginal) => {
       addTextSource: mocks.addTextSource,
       addImageSource: mocks.addImageSource,
       searchWorkspace: mocks.searchWorkspace,
+      embedWidgets: mocks.embedWidgets,
+      createEmbedWidget: mocks.createEmbedWidget,
+      setEmbedWidgetActive: mocks.setEmbedWidgetActive,
+      deleteEmbedWidget: mocks.deleteEmbedWidget,
     },
   };
 });
@@ -49,6 +57,13 @@ const SECOND_WORKSPACE = {
 };
 
 describe("KnowledgePage", () => {
+  beforeEach(() => {
+    // Every render of WorkspaceDetail also fetches embed widgets — default
+    // to an empty list so existing tests unrelated to widgets don't need
+    // to know about this fetch; tests below override it explicitly.
+    mocks.embedWidgets.mockResolvedValue([]);
+  });
+
   afterEach(() => {
     cleanup();
     mocks.workspaces.mockReset();
@@ -58,6 +73,10 @@ describe("KnowledgePage", () => {
     mocks.addTextSource.mockReset();
     mocks.addImageSource.mockReset();
     mocks.searchWorkspace.mockReset();
+    mocks.embedWidgets.mockReset();
+    mocks.createEmbedWidget.mockReset();
+    mocks.setEmbedWidgetActive.mockReset();
+    mocks.deleteEmbedWidget.mockReset();
   });
 
   it("renders the knowledge library as a unified source workspace", async () => {
@@ -253,5 +272,92 @@ describe("KnowledgePage", () => {
 
     expect(mocks.searchWorkspace).toHaveBeenCalledWith(WORKSPACE.id, "Что умеет Lumenza?");
     expect(await screen.findByText("Lumenza объединяет чат и поиск.")).toBeDefined();
+  });
+
+  it("creates a public embed widget and shows its snippet", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([]);
+    mocks.createEmbedWidget.mockResolvedValue({
+      id: 1,
+      workspace: WORKSPACE.id,
+      public_key: "abc123publickey",
+      title: "Support bot",
+      is_active: true,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+
+    render(<KnowledgePage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Название виджета")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Название виджета"), {
+      target: { value: "Support bot" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "+ Создать" }));
+    });
+
+    expect(mocks.createEmbedWidget).toHaveBeenCalledWith(WORKSPACE.id, "Support bot");
+    expect(await screen.findByText("Support bot")).toBeDefined();
+    expect(screen.getByText(/abc123publickey/)).toBeDefined();
+  });
+
+  it("toggles an embed widget's active state", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([]);
+    mocks.embedWidgets.mockResolvedValue([
+      {
+        id: 1,
+        workspace: WORKSPACE.id,
+        public_key: "abc123publickey",
+        title: "Support bot",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    mocks.setEmbedWidgetActive.mockResolvedValue({
+      id: 1,
+      workspace: WORKSPACE.id,
+      public_key: "abc123publickey",
+      title: "Support bot",
+      is_active: false,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+
+    render(<KnowledgePage />);
+
+    await screen.findByText("Support bot");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Отключить" }));
+    });
+
+    expect(mocks.setEmbedWidgetActive).toHaveBeenCalledWith(1, false);
+    expect(await screen.findByRole("button", { name: "Включить" })).toBeDefined();
+  });
+
+  it("deletes an embed widget", async () => {
+    mocks.workspaces.mockResolvedValue([WORKSPACE]);
+    mocks.workspaceSources.mockResolvedValue([]);
+    mocks.embedWidgets.mockResolvedValue([
+      {
+        id: 1,
+        workspace: WORKSPACE.id,
+        public_key: "abc123publickey",
+        title: "Support bot",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    mocks.deleteEmbedWidget.mockResolvedValue(undefined);
+
+    render(<KnowledgePage />);
+
+    await screen.findByText("Support bot");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+    });
+
+    expect(mocks.deleteEmbedWidget).toHaveBeenCalledWith(1);
+    await waitFor(() => expect(screen.queryByText("Support bot")).toBeNull());
   });
 });

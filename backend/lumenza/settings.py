@@ -217,6 +217,7 @@ REST_FRAMEWORK = {
         "knowledge": "20/min",
         "code_interpreter": "20/min",
         "pet": "20/min",
+        "embed_ask": "20/min",
     },
 }
 

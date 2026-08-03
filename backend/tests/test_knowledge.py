@@ -198,3 +198,216 @@ def test_knowledge_requires_authentication():
     client = APIClient()
     response = client.get("/api/knowledge/workspaces/")
     assert response.status_code == 401
+
+
+# --- Phase C: EmbedWidget + public embed_ask_view ---
+
+from decimal import Decimal  # noqa: E402
+
+from knowledge.models import EmbedWidget  # noqa: E402
+from providers.services import ChatOutcome  # noqa: E402
+
+
+def test_create_embed_widget():
+    client, user = authed_client()
+    workspace = Workspace.objects.create(user=user, name="Notes")
+
+    response = client.post(
+        f"/api/knowledge/workspaces/{workspace.id}/embeds/",
+        {"title": "Support bot"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    widget = EmbedWidget.objects.get(pk=response.data["id"])
+    assert widget.workspace == workspace
+    assert widget.title == "Support bot"
+    assert widget.is_active is True
+    assert response.data["public_key"] == widget.public_key
+    assert len(widget.public_key) > 20
+
+
+def test_create_embed_widget_requires_workspace_ownership():
+    client, _ = authed_client(username="owner")
+    _, other_user = authed_client(username="other")
+    workspace = Workspace.objects.create(user=other_user, name="Not mine")
+
+    response = client.post(
+        f"/api/knowledge/workspaces/{workspace.id}/embeds/",
+        {"title": "Support bot"},
+        format="json",
+    )
+
+    assert response.status_code == 404
+
+
+def test_list_embed_widgets_only_shows_own():
+    client, user = authed_client(username="owner")
+    _, other_user = authed_client(username="other")
+    workspace = Workspace.objects.create(user=user, name="Mine")
+    other_workspace = Workspace.objects.create(user=other_user, name="Theirs")
+    EmbedWidget.objects.create(workspace=workspace, title="Mine widget")
+    EmbedWidget.objects.create(workspace=other_workspace, title="Their widget")
+
+    response = client.get(f"/api/knowledge/workspaces/{workspace.id}/embeds/")
+
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data]
+    assert titles == ["Mine widget"]
+
+
+def test_deactivate_embed_widget():
+    client, user = authed_client()
+    workspace = Workspace.objects.create(user=user, name="Notes")
+    widget = EmbedWidget.objects.create(workspace=workspace, title="Bot")
+
+    response = client.patch(
+        f"/api/knowledge/embeds/{widget.id}/",
+        {"is_active": False},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    widget.refresh_from_db()
+    assert widget.is_active is False
+
+
+def test_delete_embed_widget_requires_ownership():
+    client, _ = authed_client(username="owner")
+    _, other_user = authed_client(username="other")
+    other_workspace = Workspace.objects.create(user=other_user, name="Theirs")
+    widget = EmbedWidget.objects.create(workspace=other_workspace)
+
+    response = client.delete(f"/api/knowledge/embeds/{widget.id}/")
+
+    assert response.status_code == 404
+    assert EmbedWidget.objects.filter(pk=widget.id).exists()
+
+
+def test_embed_ask_view_happy_path(monkeypatch):
+    owner = authed_client(username="widgetowner")[1]
+    workspace = Workspace.objects.create(user=owner, name="Docs")
+    widget = EmbedWidget.objects.create(workspace=workspace, title="Bot")
+
+    def fake_run_chat(user, prompt, task=None, model=None, system=None,
+                       temperature=None, workspace_id=None):
+        assert user == owner
+        assert workspace_id == workspace.id
+        return ChatOutcome(
+            status="ok", text="Lumenza is an AI aggregator.",
+            provider="openai", model="gpt-4o-mini", task=task,
+            credits_charged=Decimal("0.02"),
+        )
+
+    monkeypatch.setattr("providers.services.run_chat", fake_run_chat)
+
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(
+        f"/api/public/embed/{widget.public_key}/ask/",
+        {"q": "What is Lumenza?"},
+    )
+
+    assert response.status_code == 200
+    assert response.data == {"answer": "Lumenza is an AI aggregator."}
+    assert response["Access-Control-Allow-Origin"] == "*"
+
+
+def test_embed_ask_view_404_for_unknown_key():
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(
+        "/api/public/embed/does-not-exist/ask/", {"q": "hi"}
+    )
+
+    assert response.status_code == 404
+
+
+def test_embed_ask_view_404_for_inactive_widget():
+    owner = authed_client(username="widgetowner2")[1]
+    workspace = Workspace.objects.create(user=owner, name="Docs")
+    widget = EmbedWidget.objects.create(
+        workspace=workspace, is_active=False
+    )
+
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(
+        f"/api/public/embed/{widget.public_key}/ask/", {"q": "hi"}
+    )
+
+    assert response.status_code == 404
+
+
+def test_embed_ask_view_blocked_returns_generic_message_no_billing_detail(
+    monkeypatch,
+):
+    owner = authed_client(username="widgetowner3")[1]
+    workspace = Workspace.objects.create(user=owner, name="Docs")
+    widget = EmbedWidget.objects.create(workspace=workspace)
+
+    def fake_run_chat(user, prompt, task=None, model=None, system=None,
+                       temperature=None, workspace_id=None):
+        return ChatOutcome(status="blocked", task=task)
+
+    monkeypatch.setattr("providers.services.run_chat", fake_run_chat)
+
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(
+        f"/api/public/embed/{widget.public_key}/ask/",
+        {"q": "something blocked"},
+    )
+
+    assert response.status_code == 422
+    # No billing/account detail leaked to the anonymous visitor.
+    assert "credit" not in response.data["detail"].lower()
+    assert "кредит" not in response.data["detail"].lower()
+
+
+def test_embed_ask_view_insufficient_credits_returns_generic_message(
+    monkeypatch,
+):
+    owner = authed_client(username="widgetowner4")[1]
+    workspace = Workspace.objects.create(user=owner, name="Docs")
+    widget = EmbedWidget.objects.create(workspace=workspace)
+
+    def fake_run_chat(user, prompt, task=None, model=None, system=None,
+                       temperature=None, workspace_id=None):
+        return ChatOutcome(status="insufficient_credits", task=task)
+
+    monkeypatch.setattr("providers.services.run_chat", fake_run_chat)
+
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(
+        f"/api/public/embed/{widget.public_key}/ask/", {"q": "hi"}
+    )
+
+    assert response.status_code == 503
+    assert "кредит" not in response.data["detail"].lower()
+    assert "credit" not in response.data["detail"].lower()
+
+
+def test_embed_ask_view_missing_query_returns_400():
+    owner = authed_client(username="widgetowner5")[1]
+    workspace = Workspace.objects.create(user=owner, name="Docs")
+    widget = EmbedWidget.objects.create(workspace=workspace)
+
+    from rest_framework.test import APIClient
+
+    anon_client = APIClient()
+    response = anon_client.get(f"/api/public/embed/{widget.public_key}/ask/")
+
+    assert response.status_code == 400
+
+
+def test_embed_ask_throttle_scope():
+    from knowledge.throttling import EmbedAskThrottle
+
+    assert EmbedAskThrottle.scope == "embed_ask"

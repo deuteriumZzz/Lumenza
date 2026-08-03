@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.validators import MAX_IMAGE_UPLOAD_BYTES, max_upload_size
-from knowledge.models import Source, Workspace
+from knowledge.models import EmbedWidget, Source, Workspace
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):
@@ -40,5 +40,25 @@ class ImageSourceRequestSerializer(serializers.Serializer):
 
 class SearchRequestSerializer(serializers.Serializer):
     query = serializers.CharField(
+        max_length=500, trim_whitespace=True, allow_blank=False
+    )
+
+
+class EmbedWidgetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmbedWidget
+        fields = (
+            "id",
+            "workspace",
+            "public_key",
+            "title",
+            "is_active",
+            "created_at",
+        )
+        read_only_fields = ("id", "workspace", "public_key", "created_at")
+
+
+class EmbedAskRequestSerializer(serializers.Serializer):
+    q = serializers.CharField(
         max_length=500, trim_whitespace=True, allow_blank=False
     )

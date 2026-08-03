@@ -1,12 +1,15 @@
 from django.urls import path
 
 from knowledge.views import (
+    EmbedWidgetDetailView,
+    EmbedWidgetListCreateView,
     SourceDetailView,
     SourceListView,
     WorkspaceDetailView,
     WorkspaceListCreateView,
     create_image_source,
     create_text_source,
+    embed_ask_view,
     search_workspace_view,
 )
 
@@ -45,5 +48,20 @@ urlpatterns = [
         "knowledge/workspaces/<int:workspace_id>/search/",
         search_workspace_view,
         name="knowledge-search",
+    ),
+    path(
+        "knowledge/workspaces/<int:workspace_id>/embeds/",
+        EmbedWidgetListCreateView.as_view(),
+        name="embed-widget-list",
+    ),
+    path(
+        "knowledge/embeds/<int:pk>/",
+        EmbedWidgetDetailView.as_view(),
+        name="embed-widget-detail",
+    ),
+    path(
+        "public/embed/<str:public_key>/ask/",
+        embed_ask_view,
+        name="embed-ask",
     ),
 ]

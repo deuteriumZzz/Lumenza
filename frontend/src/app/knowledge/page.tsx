@@ -8,6 +8,7 @@ import {
   apiErrorMessage,
   ApiError,
   type ChunkMatch,
+  type EmbedWidgetEntry,
   type KnowledgeSource,
   type Workspace,
 } from "@/lib/api";
@@ -585,7 +586,132 @@ function WorkspaceDetail({
           </div>
         </section>
       </div>
+
+      <EmbedWidgetsSection workspaceId={workspaceId} />
     </div>
+  );
+}
+
+function embedSnippet(publicKey: string): string {
+  return `<script src="https://lumenza.app/static/embed.js" data-key="${publicKey}"></script>`;
+}
+
+function EmbedWidgetsSection({ workspaceId }: { workspaceId: number }) {
+  const [widgets, setWidgets] = useState<EmbedWidgetEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.embedWidgets(workspaceId).then(
+      (data) => {
+        if (!cancelled) setWidgets(data);
+      },
+      (requestError) => {
+        if (!cancelled) setError(apiErrorMessage(requestError, "Не удалось загрузить виджеты."));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  async function create() {
+    if (creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await api.createEmbedWidget(workspaceId, title.trim());
+      setWidgets((previous) => [created, ...(previous ?? [])]);
+      setTitle("");
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось создать виджет."));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function toggleActive(widget: EmbedWidgetEntry) {
+    try {
+      const updated = await api.setEmbedWidgetActive(widget.id, !widget.is_active);
+      setWidgets((previous) => previous?.map((item) => (item.id === updated.id ? updated : item)) ?? previous);
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось обновить виджет."));
+    }
+  }
+
+  async function remove(widget: EmbedWidgetEntry) {
+    try {
+      await api.deleteEmbedWidget(widget.id);
+      setWidgets((previous) => previous?.filter((item) => item.id !== widget.id) ?? previous);
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось удалить виджет."));
+    }
+  }
+
+  return (
+    <section aria-label="Публичный виджет" className="mt-5 rounded-2xl border border-border/75 bg-surface/35 p-4 sm:p-5">
+      <h2 className="text-sm font-semibold text-ink">Публичный виджет</h2>
+      <p className="mt-1 text-xs text-muted">
+        Встройте чат-бота на свой сайт — посетители смогут задавать вопросы по этой базе знаний без входа в Lumenza.
+      </p>
+
+      <div className="mt-3 flex gap-2">
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Название виджета (необязательно)"
+          aria-label="Название виджета"
+          className="input"
+        />
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={creating}
+          className="btn-secondary shrink-0"
+        >
+          {creating ? "Создаём…" : "+ Создать"}
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-danger">
+          {error}
+        </p>
+      )}
+
+      {widgets && widgets.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-3">
+          {widgets.map((widget) => (
+            <li key={widget.id} className="rounded-xl border border-border/70 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">{widget.title || "Без названия"}</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void toggleActive(widget)}
+                    className="text-xs font-medium text-primary underline"
+                  >
+                    {widget.is_active ? "Отключить" : "Включить"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void remove(widget)}
+                    className="text-xs font-medium text-danger underline"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-bg/50 p-2 font-mono text-xs text-muted">
+                {embedSnippet(widget.public_key)}
+              </pre>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
