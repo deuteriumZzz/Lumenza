@@ -684,6 +684,18 @@ export interface VideoTeaserGeneratorResult {
   video_url: string;
 }
 
+export interface CodeReviewAgentResult {
+  issues: { severity: string; description: string }[];
+  suggestions: string[];
+  summary: string;
+}
+
+export interface PythonTestWriterResult {
+  test_code: string;
+  code_stdout: string;
+  summary: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -717,6 +729,8 @@ export interface AgentRun {
     | InvestmentResearchResult
     | DataQuickCheckResult
     | VideoTeaserGeneratorResult
+    | CodeReviewAgentResult
+    | PythonTestWriterResult
     | null;
   credits_charged: string;
   error_message: string;

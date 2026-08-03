@@ -1449,4 +1449,136 @@ describe("AgentRunPage", () => {
     // The live step transcript renders the raw video_url as a real <video>.
     expect(container.querySelector('video[src="/media/generated_videos/1.gif"]')).not.toBeNull();
   });
+
+  it("renders the code-review-agent result shape", async () => {
+    mocks.slug = "code-review-agent";
+    mocks.agent.mockResolvedValue({
+      slug: "code-review-agent",
+      name: "Обзор кода",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "code", label: "Код для обзора", type: "text", required: true, max_length: 4000 },
+          { key: "language", label: "Язык", type: "select", required: true, options: ["Python"] },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "code-review-agent",
+        status: "ok",
+        steps: [
+          { key: "review", label: "Анализируем код", status: "ok" },
+          { key: "assemble", label: "Собираем итоговый обзор", status: "ok" },
+        ],
+        result: {
+          issues: [{ severity: "low", description: "Нет аннотаций типов." }],
+          suggestions: ["Добавить type hints."],
+          summary: "Код рабочий, но можно улучшить читаемость.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Код для обзора")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Код для обзора"), { target: { value: "def add(a, b): return a+b" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Код рабочий, но можно улучшить читаемость.")).toBeDefined();
+    expect(screen.getByText("Нет аннотаций типов.")).toBeDefined();
+  });
+
+  it("renders the python-test-writer result shape with real code_stdout", async () => {
+    mocks.slug = "python-test-writer";
+    mocks.agent.mockResolvedValue({
+      slug: "python-test-writer",
+      name: "Генератор и запуск юнит-тестов",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "code", label: "Python-функция или модуль для тестирования", type: "text", required: true, max_length: 4000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "python-test-writer",
+        status: "ok",
+        steps: [
+          { key: "write_tests", label: "Пишем тесты", status: "ok" },
+          { key: "run_tests", label: "Запускаем тесты", status: "ok", stdout: "Ran 1 test in 0.000s\n\nOK\n", stderr: "", exit_code: 0 },
+          { key: "assemble", label: "Собираем итоговый отчёт", status: "ok" },
+        ],
+        result: {
+          test_code: "def add(a, b):\n    return a + b",
+          code_stdout: "Ran 1 test in 0.000s\n\nOK\n",
+          summary: "Все тесты прошли успешно.",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Python-функция или модуль для тестирования")).toBeDefined()
+    );
+    fireEvent.change(screen.getByLabelText("Python-функция или модуль для тестирования"), {
+      target: { value: "def add(a, b):\n    return a + b" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Все тесты прошли успешно.")).toBeDefined();
+    expect(screen.getAllByText(/Ran 1 test in 0\.000s/).length).toBeGreaterThan(0);
+  });
+
+  it("renders the product-demo-video result via the shared video-teaser component", async () => {
+    mocks.slug = "product-demo-video";
+    mocks.agent.mockResolvedValue({
+      slug: "product-demo-video",
+      name: "Демо-видео продукта",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "product_description", label: "Что показать в демо", type: "text", required: true, max_length: 500 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "product-demo-video",
+        status: "ok",
+        steps: [
+          { key: "write_prompt", label: "Составляем промпт", status: "ok" },
+          { key: "generate_video", label: "Генерируем видео", status: "ok", video_url: "/media/generated_videos/2.gif" },
+          { key: "assemble", label: "Пишем подпись", status: "ok" },
+        ],
+        result: {
+          caption: "Постройте полезные привычки шаг за шагом.",
+          video_url: "/media/generated_videos/2.gif",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Что показать в демо")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Что показать в демо"), { target: { value: "трекер привычек" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Постройте полезные привычки шаг за шагом.")).toBeDefined();
+    expect(container.querySelectorAll('img[src="/media/generated_videos/2.gif"]').length).toBeGreaterThan(0);
+  });
 });

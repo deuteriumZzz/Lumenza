@@ -2278,3 +2278,198 @@ def test_video_teaser_generator_video_step_blocked_by_moderation(monkeypatch):
     run = AgentRun.objects.get(id=response.data["id"])
     assert run.status == AgentRun.Status.BLOCKED
     assert run.steps[1]["status"] == "error"
+
+
+# --- Round 4: code-review-agent, python-test-writer, product-demo-video ---
+
+CODE_REVIEW_INPUT = {
+    "code": "def add(a, b):\n    return a+b",
+    "language": "Python",
+}
+
+VALID_CODE_REVIEW_RESULT_JSON = json.dumps(
+    {
+        "issues": [{"severity": "low", "description": "Нет аннотаций типов."}],
+        "suggestions": ["Добавить type hints и докстринг."],
+        "summary": "Код рабочий, но можно улучшить читаемость.",
+    }
+)
+
+
+def test_code_review_agent_run_charges_credits_and_returns_structured_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch, ["review draft text", VALID_CODE_REVIEW_RESULT_JSON]
+    )
+
+    response = client.post(
+        "/api/agents/code-review-agent/runs/",
+        {"input": CODE_REVIEW_INPUT, "idempotency_key": "codereview-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert (
+        run.result["summary"]
+        == "Код рабочий, но можно улучшить читаемость."
+    )
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_code_review_agent_missing_language_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {"code": CODE_REVIEW_INPUT["code"]}
+
+    response = client.post(
+        "/api/agents/code-review-agent/runs/",
+        {"input": incomplete_input, "idempotency_key": "codereview-missing"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+PYTHON_TEST_WRITER_INPUT = {"code": "def add(a, b):\n    return a + b"}
+
+VALID_PYTHON_TEST_WRITER_RESULT_JSON = json.dumps(
+    {
+        "test_code": (
+            "def add(a, b):\n    return a + b\n\nimport unittest\n..."
+        ),
+        "code_stdout": "",
+        "summary": "Все тесты прошли успешно.",
+    }
+)
+
+
+def test_python_test_writer_run_injects_real_code_stdout(monkeypatch):
+    client, _ = _authed_client()
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        text = (
+            "def add(a, b):\n    return a + b\nimport unittest\n"
+            "class T(unittest.TestCase):\n    def test_add(self): "
+            "self.assertEqual(add(1,2),3)\n"
+            "unittest.main(exit=False)"
+            if task == "longform"
+            else VALID_PYTHON_TEST_WRITER_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks.PistonAdapter,
+        "execute",
+        lambda self, code: CodeExecutionResult(
+            stdout="Ran 1 test in 0.000s\n\nOK\n", stderr="", exit_code=0,
+            language="python", version="3.12.0", cost_usd=0.001,
+        ),
+    )
+
+    response = client.post(
+        "/api/agents/python-test-writer/runs/",
+        {"input": PYTHON_TEST_WRITER_INPUT, "idempotency_key": "testwriter-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    # The model's own (empty) code_stdout must never survive.
+    assert run.result["code_stdout"] == "Ran 1 test in 0.000s\n\nOK\n"
+    assert run.steps[1]["exit_code"] == 0
+    expected_code_credits = usd_to_credits(estimate_code_execution_cost_usd())
+    assert run.credits_charged == (
+        Decimal("1.5") + expected_code_credits + Decimal("1.5")
+    )
+
+
+def test_python_test_writer_provider_error_refunds_hold(monkeypatch):
+    client, _ = _authed_client()
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        return ChatOutcome(
+            status="ok", text="print(1)", provider="openai",
+            model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    def boom(self, code):
+        raise RuntimeError("piston unavailable")
+
+    monkeypatch.setattr(agents_tasks.PistonAdapter, "execute", boom)
+
+    response = client.post(
+        "/api/agents/python-test-writer/runs/",
+        {"input": PYTHON_TEST_WRITER_INPUT, "idempotency_key": "testwriter-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.ERROR
+    assert run.steps[1]["status"] == "error"
+
+
+PRODUCT_DEMO_VIDEO_INPUT = {
+    "product_description": (
+        "Мобильное приложение для трекинга привычек с напоминаниями"
+    ),
+}
+
+VALID_PRODUCT_DEMO_VIDEO_RESULT_JSON = json.dumps(
+    {"caption": "Постройте полезные привычки шаг за шагом.", "video_url": ""}
+)
+
+
+def test_product_demo_video_run_injects_real_video_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "calm product demo, showing app screens and features"
+            if call_count["n"] == 1
+            else VALID_PRODUCT_DEMO_VIDEO_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    class FakeVideoAdapter:
+        def generate(self, prompt, model=None, **kwargs):
+            return VideoResult(
+                video_bytes=b"fake video bytes",
+                cost_usd=0.25,
+                model=TEXT_TO_VIDEO_MODEL,
+                mocked=True,
+            )
+
+    monkeypatch.setattr(
+        agents_tasks, "get_video_adapter", lambda name: FakeVideoAdapter()
+    )
+
+    response = client.post(
+        "/api/agents/product-demo-video/runs/",
+        {"input": PRODUCT_DEMO_VIDEO_INPUT, "idempotency_key": "demo-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["caption"] == "Постройте полезные привычки шаг за шагом."
+    assert run.result["video_url"]
+    assert run.result["video_url"].endswith(".gif")

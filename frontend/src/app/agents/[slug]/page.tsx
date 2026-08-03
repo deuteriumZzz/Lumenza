@@ -28,6 +28,8 @@ import { FinancialReportAnalyzerResult } from "@/components/financial-report-ana
 import { InvestmentResearchResult } from "@/components/investment-research-result";
 import { DataQuickCheckResult } from "@/components/data-quick-check-result";
 import { VideoTeaserGeneratorResult } from "@/components/video-teaser-generator-result";
+import { CodeReviewAgentResult } from "@/components/code-review-agent-result";
+import { PythonTestWriterResult } from "@/components/python-test-writer-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -65,6 +67,8 @@ import {
   type InvestmentResearchResult as InvestmentResearchResultData,
   type DataQuickCheckResult as DataQuickCheckResultData,
   type VideoTeaserGeneratorResult as VideoTeaserGeneratorResultData,
+  type CodeReviewAgentResult as CodeReviewAgentResultData,
+  type PythonTestWriterResult as PythonTestWriterResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -113,8 +117,18 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   if (slug === "support-reply-drafter" && "reply_text" in result) {
     return result.reply_text;
   }
-  if (slug === "video-teaser-generator" && "caption" in result) {
+  if (
+    (slug === "video-teaser-generator" || slug === "product-demo-video") &&
+    "caption" in result
+  ) {
     return result.caption;
+  }
+  if (
+    (slug === "code-review-agent" || slug === "python-test-writer") &&
+    "summary" in result &&
+    result.summary
+  ) {
+    return result.summary;
   }
   return JSON.stringify(result);
 }
@@ -526,8 +540,13 @@ export default function AgentRunPage() {
               <InvestmentResearchResult data={run.result as InvestmentResearchResultData} />
             ) : resultSourceSlug === "data-quick-check" ? (
               <DataQuickCheckResult data={run.result as DataQuickCheckResultData} />
-            ) : resultSourceSlug === "video-teaser-generator" ? (
+            ) : resultSourceSlug === "video-teaser-generator" ||
+              resultSourceSlug === "product-demo-video" ? (
               <VideoTeaserGeneratorResult data={run.result as VideoTeaserGeneratorResultData} />
+            ) : resultSourceSlug === "code-review-agent" ? (
+              <CodeReviewAgentResult data={run.result as CodeReviewAgentResultData} />
+            ) : resultSourceSlug === "python-test-writer" ? (
+              <PythonTestWriterResult data={run.result as PythonTestWriterResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}

@@ -519,21 +519,33 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
           {catalog === null && <p className="text-sm text-muted">Загрузка каталога…</p>}
 
           {catalog && (
-            <div className="flex flex-col gap-1.5">
-              {catalog.map((agent) => (
-                <label
-                  key={agent.slug}
-                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(agent.slug)}
-                    onChange={() => toggleSelected(agent.slug)}
-                  />
-                  <span className="text-ink">{agent.name}</span>
-                  <span className="text-xs text-muted">{CATEGORY_LABELS[agent.category]}</span>
-                </label>
-              ))}
+            <div className="flex flex-col gap-3">
+              {(Object.keys(CATEGORY_LABELS) as AgentCategory[]).map((category) => {
+                const agentsInCategory = catalog.filter((agent) => agent.category === category);
+                if (agentsInCategory.length === 0) return null;
+                return (
+                  <div key={category}>
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
+                      {CATEGORY_LABELS[category]}
+                    </p>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      {agentsInCategory.map((agent) => (
+                        <label
+                          key={agent.slug}
+                          className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected.includes(agent.slug)}
+                            onChange={() => toggleSelected(agent.slug)}
+                          />
+                          <span className="text-ink">{agent.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
