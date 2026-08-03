@@ -717,6 +717,22 @@ export interface AudioAdCreatorResult {
   caption: string;
 }
 
+export interface TravelItineraryPlannerResult {
+  destination: string;
+  itinerary: { day_label: string; activities: string[] }[];
+  budget_note: string;
+}
+
+export interface ReviewSentimentClassifierResult {
+  classified_reviews: {
+    review_snippet: string;
+    sentiment: string;
+    urgency: string;
+    reason: string;
+  }[];
+  overall_summary: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -754,6 +770,8 @@ export interface AgentRun {
     | PythonTestWriterResult
     | PodcastSummaryResult
     | AudioAdCreatorResult
+    | TravelItineraryPlannerResult
+    | ReviewSentimentClassifierResult
     | null;
   credits_charged: string;
   error_message: string;

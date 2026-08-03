@@ -1668,4 +1668,93 @@ describe("AgentRunPage", () => {
     expect(screen.getByText("Хочешь новых привычек? Скачай наше приложение!")).toBeDefined();
     expect(screen.getByText("Реклама приложения-трекера привычек.")).toBeDefined();
   });
+
+  it("renders the travel-itinerary-planner result shape", async () => {
+    mocks.slug = "travel-itinerary-planner";
+    mocks.agent.mockResolvedValue({
+      slug: "travel-itinerary-planner",
+      name: "Тревел-планировщик",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "destination", label: "Направление поездки", type: "text", required: true, max_length: 200 },
+          { key: "trip_details", label: "Длительность, бюджет и интересы", type: "text", required: true, max_length: 500 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "travel-itinerary-planner",
+        status: "ok",
+        steps: [
+          { key: "research_destination", label: "Изучаем направление", status: "ok" },
+          { key: "assemble", label: "Собираем маршрут по дням", status: "ok" },
+        ],
+        result: {
+          destination: "Токио",
+          itinerary: [{ day_label: "День 1", activities: ["Сэнсодзи", "Асакуса"] }],
+          budget_note: "Средний бюджет позволяет 2-3 приёма пищи в день вне дома.",
+        },
+        credits_charged: "3.0000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Направление поездки")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Направление поездки"), { target: { value: "Токио" } });
+    fireEvent.change(screen.getByLabelText("Длительность, бюджет и интересы"), { target: { value: "5 дней" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("День 1")).toBeDefined();
+    expect(screen.getByText("Сэнсодзи")).toBeDefined();
+  });
+
+  it("renders the review-sentiment-classifier result shape", async () => {
+    mocks.slug = "review-sentiment-classifier";
+    mocks.agent.mockResolvedValue({
+      slug: "review-sentiment-classifier",
+      name: "Классификатор тональности отзывов",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "reviews_text", label: "Отзывы клиентов (по одному на строку)", type: "text", required: true, max_length: 4000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "review-sentiment-classifier",
+        status: "ok",
+        steps: [{ key: "assemble", label: "Классифицируем отзывы", status: "ok" }],
+        result: {
+          classified_reviews: [
+            {
+              review_snippet: "Отличный сервис, быстро доставили!",
+              sentiment: "позитивная",
+              urgency: "низкая",
+              reason: "Довольный клиент, без жалоб.",
+            },
+          ],
+          overall_summary: "Один довольный отзыв.",
+        },
+        credits_charged: "1.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Отзывы клиентов (по одному на строку)")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Отзывы клиентов (по одному на строку)"), { target: { value: "Отличный сервис!" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Отличный сервис, быстро доставили!")).toBeDefined();
+    expect(screen.getByText("Один довольный отзыв.")).toBeDefined();
+  });
 });

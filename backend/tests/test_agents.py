@@ -2663,3 +2663,125 @@ def test_audio_ad_creator_run_injects_real_audio_url(monkeypatch):
     assert run.result["caption"] == "Реклама приложения-трекера привычек."
     assert run.result["audio_url"]
     assert run.result["audio_url"].endswith(".mp3")
+
+
+# --- Phase A: travel-itinerary-planner, review-sentiment-classifier ---
+
+TRAVEL_ITINERARY_INPUT = {
+    "destination": "Токио",
+    "trip_details": "5 дней, средний бюджет, интересует еда и храмы",
+}
+
+VALID_TRAVEL_ITINERARY_RESULT_JSON = json.dumps(
+    {
+        "destination": "Токио",
+        "itinerary": [
+            {
+                "day_label": "День 1",
+                "activities": ["Сэнсодзи", "Асакуса"],
+            },
+        ],
+        "budget_note": (
+            "Средний бюджет позволяет 2-3 приёма пищи в день вне дома."
+        ),
+    }
+)
+
+
+def test_travel_itinerary_planner_run_returns_structured_itinerary(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(
+        monkeypatch,
+        ["заметки о Токио", VALID_TRAVEL_ITINERARY_RESULT_JSON],
+    )
+
+    response = client.post(
+        "/api/agents/travel-itinerary-planner/runs/",
+        {"input": TRAVEL_ITINERARY_INPUT, "idempotency_key": "travel-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["destination"] == "Токио"
+    assert run.result["itinerary"][0]["day_label"] == "День 1"
+    assert run.credits_charged == Decimal("3.0")
+
+
+def test_travel_itinerary_planner_missing_trip_details_returns_400():
+    client, _ = _authed_client()
+    incomplete_input = {"destination": TRAVEL_ITINERARY_INPUT["destination"]}
+
+    response = client.post(
+        "/api/agents/travel-itinerary-planner/runs/",
+        {"input": incomplete_input, "idempotency_key": "travel-missing"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+REVIEW_SENTIMENT_INPUT = {
+    "reviews_text": (
+        "Отличный сервис, быстро доставили!\n"
+        "Заказ пришёл сломанным, никто не отвечает на письма."
+    ),
+}
+
+VALID_REVIEW_SENTIMENT_RESULT_JSON = json.dumps(
+    {
+        "classified_reviews": [
+            {
+                "review_snippet": "Отличный сервис, быстро доставили!",
+                "sentiment": "позитивная",
+                "urgency": "низкая",
+                "reason": "Довольный клиент, без жалоб.",
+            },
+            {
+                "review_snippet": "Заказ пришёл сломанным...",
+                "sentiment": "негативная",
+                "urgency": "высокая",
+                "reason": "Сломанный товар и отсутствие ответа поддержки.",
+            },
+        ],
+        "overall_summary": (
+            "Один довольный отзыв, один требует срочной реакции."
+        ),
+    }
+)
+
+
+def test_review_sentiment_classifier_run_is_a_single_step_and_returns_result(
+    monkeypatch,
+):
+    client, _ = _authed_client()
+    _mock_run_chat_sequence(monkeypatch, [VALID_REVIEW_SENTIMENT_RESULT_JSON])
+
+    response = client.post(
+        "/api/agents/review-sentiment-classifier/runs/",
+        {"input": REVIEW_SENTIMENT_INPUT, "idempotency_key": "reviews-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    # Single-step agent: exactly one workflow step, ran once.
+    assert len(run.steps) == 1
+    assert run.steps[0]["key"] == "assemble"
+    assert len(run.result["classified_reviews"]) == 2
+    assert run.result["classified_reviews"][1]["urgency"] == "высокая"
+    assert run.credits_charged == Decimal("1.5")
+
+
+def test_review_sentiment_classifier_missing_reviews_returns_400():
+    client, _ = _authed_client()
+
+    response = client.post(
+        "/api/agents/review-sentiment-classifier/runs/",
+        {"input": {}, "idempotency_key": "reviews-missing"},
+        format="json",
+    )
+    assert response.status_code == 400

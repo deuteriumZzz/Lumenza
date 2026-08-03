@@ -32,6 +32,8 @@ import { CodeReviewAgentResult } from "@/components/code-review-agent-result";
 import { PythonTestWriterResult } from "@/components/python-test-writer-result";
 import { PodcastSummaryResult } from "@/components/podcast-summary-result";
 import { AudioAdCreatorResult } from "@/components/audio-ad-creator-result";
+import { TravelItineraryPlannerResult } from "@/components/travel-itinerary-planner-result";
+import { ReviewSentimentClassifierResult } from "@/components/review-sentiment-classifier-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -73,6 +75,8 @@ import {
   type PythonTestWriterResult as PythonTestWriterResultData,
   type PodcastSummaryResult as PodcastSummaryResultData,
   type AudioAdCreatorResult as AudioAdCreatorResultData,
+  type TravelItineraryPlannerResult as TravelItineraryPlannerResultData,
+  type ReviewSentimentClassifierResult as ReviewSentimentClassifierResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -139,6 +143,12 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   }
   if (slug === "audio-ad-creator" && "caption" in result) {
     return result.caption;
+  }
+  if (slug === "travel-itinerary-planner" && "budget_note" in result) {
+    return result.budget_note;
+  }
+  if (slug === "review-sentiment-classifier" && "overall_summary" in result) {
+    return result.overall_summary;
   }
   return JSON.stringify(result);
 }
@@ -564,6 +574,10 @@ export default function AgentRunPage() {
               <PodcastSummaryResult data={run.result as PodcastSummaryResultData} />
             ) : resultSourceSlug === "audio-ad-creator" ? (
               <AudioAdCreatorResult data={run.result as AudioAdCreatorResultData} />
+            ) : resultSourceSlug === "travel-itinerary-planner" ? (
+              <TravelItineraryPlannerResult data={run.result as TravelItineraryPlannerResultData} />
+            ) : resultSourceSlug === "review-sentiment-classifier" ? (
+              <ReviewSentimentClassifierResult data={run.result as ReviewSentimentClassifierResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}
