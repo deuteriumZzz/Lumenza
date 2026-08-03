@@ -26,6 +26,8 @@ import { ContractAnalyzerResult } from "@/components/contract-analyzer-result";
 import { MarketResearchResult } from "@/components/market-research-result";
 import { FinancialReportAnalyzerResult } from "@/components/financial-report-analyzer-result";
 import { InvestmentResearchResult } from "@/components/investment-research-result";
+import { DataQuickCheckResult } from "@/components/data-quick-check-result";
+import { VideoTeaserGeneratorResult } from "@/components/video-teaser-generator-result";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { useAuth } from "@/lib/auth-context";
@@ -61,6 +63,8 @@ import {
   type MarketResearchResult as MarketResearchResultData,
   type FinancialReportAnalyzerResult as FinancialReportAnalyzerResultData,
   type InvestmentResearchResult as InvestmentResearchResultData,
+  type DataQuickCheckResult as DataQuickCheckResultData,
+  type VideoTeaserGeneratorResult as VideoTeaserGeneratorResultData,
   type TelegramChannelEntry,
   type Workspace,
 } from "@/lib/api";
@@ -108,6 +112,9 @@ function defaultPublishText(slug: string, result: AgentRun["result"]): string {
   }
   if (slug === "support-reply-drafter" && "reply_text" in result) {
     return result.reply_text;
+  }
+  if (slug === "video-teaser-generator" && "caption" in result) {
+    return result.caption;
   }
   return JSON.stringify(result);
 }
@@ -441,12 +448,26 @@ export default function AgentRunPage() {
             {run.steps.map((step) => (
               <li
                 key={step.key}
-                className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+                className="flex flex-col gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm"
               >
-                <span className="text-ink">{step.label}</span>
-                <span className={`status-pill ${statusPillClass(step.status)}`} aria-live="polite">
-                  {step.status}
-                </span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-ink">{step.label}</span>
+                  <span className={`status-pill ${statusPillClass(step.status)}`} aria-live="polite">
+                    {step.status}
+                  </span>
+                </div>
+                {step.status === "ok" && step.stdout !== undefined && (
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-bg/50 p-2 font-mono text-xs text-muted">
+                    {step.stdout}
+                  </pre>
+                )}
+                {step.status === "ok" && step.video_url && (
+                  <video
+                    controls
+                    src={step.video_url}
+                    className="w-full max-w-xs rounded-md border border-border"
+                  />
+                )}
               </li>
             ))}
           </ol>
@@ -503,6 +524,10 @@ export default function AgentRunPage() {
               <FinancialReportAnalyzerResult data={run.result as FinancialReportAnalyzerResultData} />
             ) : resultSourceSlug === "investment-research" ? (
               <InvestmentResearchResult data={run.result as InvestmentResearchResultData} />
+            ) : resultSourceSlug === "data-quick-check" ? (
+              <DataQuickCheckResult data={run.result as DataQuickCheckResultData} />
+            ) : resultSourceSlug === "video-teaser-generator" ? (
+              <VideoTeaserGeneratorResult data={run.result as VideoTeaserGeneratorResultData} />
             ) : (
               <AgentRunResult plan={run.result as ThreadsContentPlan} />
             ))}

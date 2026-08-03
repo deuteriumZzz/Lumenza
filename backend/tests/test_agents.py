@@ -9,9 +9,15 @@ from accounts.models import UserContext
 from agents.models import AgentRun
 from agents.services import render_step_prompt
 from billing.models import CreditAccount
+from billing.services import usd_to_credits
+from code_interpreter.piston_adapter import CodeExecutionResult
+from code_interpreter.pricing import estimate_code_execution_cost_usd
 from providers.registry import REGISTRY
 from providers.services import ChatOutcome
 from tests.helpers import authed_client as _shared_authed_client
+from videogen.base import VideoResult
+from videogen.pricing import estimate_video_cost_usd
+from videogen.replicate_video_adapter import TEXT_TO_VIDEO_MODEL
 
 pytestmark = pytest.mark.django_db
 
@@ -2050,3 +2056,225 @@ def test_investment_research_first_step_uses_search_task(monkeypatch):
     assert response.status_code == 202
     assert seen_tasks[0] == "search"
     assert seen_tasks[1] == "content_plan"
+
+
+# --- Engine extension: code_execution / video_generation sentinel steps ---
+
+
+def test_run_agent_task_has_a_time_limit():
+    # The first (and, as of this test, only) Celery time limit anywhere in
+    # this codebase — a video-containing agent run has no other backstop
+    # against an unbounded Replicate wait.
+    assert agents_tasks.run_agent_task.soft_time_limit == 240
+    assert agents_tasks.run_agent_task.time_limit == 300
+
+
+DATA_QUICK_CHECK_INPUT = {
+    "question": "Какое среднее у чисел 4, 8, 15, 16, 23, 42?",
+    "data": "4, 8, 15, 16, 23, 42",
+}
+
+VALID_DATA_QUICK_CHECK_RESULT_JSON = json.dumps(
+    {
+        "question": "Какое среднее у чисел 4, 8, 15, 16, 23, 42?",
+        "code_stdout": "",
+        "explanation": "Среднее значение вычислено скриптом.",
+    }
+)
+
+
+def test_data_quick_check_run_injects_real_code_stdout(monkeypatch):
+    client, _ = _authed_client()
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        text = (
+            "print(sum([4,8,15,16,23,42])/6)"
+            if task == "longform"
+            else VALID_DATA_QUICK_CHECK_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    monkeypatch.setattr(
+        agents_tasks.PistonAdapter,
+        "execute",
+        lambda self, code: CodeExecutionResult(
+            stdout="18.0\n", stderr="", exit_code=0,
+            language="python", version="3.12.0", cost_usd=0.001,
+        ),
+    )
+
+    response = client.post(
+        "/api/agents/data-quick-check/runs/",
+        {"input": DATA_QUICK_CHECK_INPUT, "idempotency_key": "quickcheck-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    # The model's own (empty) code_stdout must never survive — the real
+    # Piston stdout always wins.
+    assert run.result["code_stdout"] == "18.0\n"
+    assert run.steps[1]["stdout"] == "18.0\n"
+    assert run.steps[1]["exit_code"] == 0
+    expected_code_credits = usd_to_credits(estimate_code_execution_cost_usd())
+    assert run.credits_charged == Decimal("1.5") + expected_code_credits + Decimal("1.5")
+
+
+def test_data_quick_check_code_step_blocked_by_moderation_refunds_hold(
+    monkeypatch,
+):
+    client, user = _authed_client()
+    account = CreditAccount.objects.get(user=user)
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        return ChatOutcome(
+            status="ok", text="print('child sexual content')", provider="openai",
+            model="gpt-4o-mini", task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/data-quick-check/runs/",
+        {"input": DATA_QUICK_CHECK_INPUT, "idempotency_key": "quickcheck-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.BLOCKED
+    account.refresh_from_db()
+    # Only the first (chat) step's hold was ever charged and never refunded
+    # (run_chat's own internal reconcile already settled it) — the
+    # moderation-blocked code step's own hold must be fully refunded, not
+    # left charged.
+    assert run.steps[1]["status"] == "error"
+
+
+def test_data_quick_check_code_step_provider_error_refunds_hold(monkeypatch):
+    client, _ = _authed_client()
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        return ChatOutcome(
+            status="ok", text="print(1)", provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    def boom(self, code):
+        raise RuntimeError("piston unavailable")
+
+    monkeypatch.setattr(agents_tasks.PistonAdapter, "execute", boom)
+
+    response = client.post(
+        "/api/agents/data-quick-check/runs/",
+        {"input": DATA_QUICK_CHECK_INPUT, "idempotency_key": "quickcheck-3"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.ERROR
+    assert run.steps[1]["status"] == "error"
+
+
+VIDEO_TEASER_INPUT = {"brief": "30-секундный энергичный тизер для нового кофейного бренда"}
+
+VALID_VIDEO_TEASER_RESULT_JSON = json.dumps(
+    {"caption": "Просыпайся с новым вкусом.", "video_url": ""}
+)
+
+
+def test_video_teaser_generator_run_injects_real_video_url(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat_ordered(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "energetic coffee brand teaser, warm morning light"
+            if call_count["n"] == 1
+            else VALID_VIDEO_TEASER_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat_ordered)
+
+    class FakeVideoAdapter:
+        def generate(self, prompt, model=None, **kwargs):
+            return VideoResult(
+                video_bytes=b"fake video bytes",
+                cost_usd=0.25,
+                model=TEXT_TO_VIDEO_MODEL,
+                mocked=True,
+            )
+
+    monkeypatch.setattr(
+        agents_tasks, "get_video_adapter", lambda name: FakeVideoAdapter()
+    )
+
+    response = client.post(
+        "/api/agents/video-teaser-generator/runs/",
+        {"input": VIDEO_TEASER_INPUT, "idempotency_key": "teaser-1"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.OK
+    assert run.result["caption"] == "Просыпайся с новым вкусом."
+    # The model's own (empty) video_url must never survive — the real
+    # GeneratedVideo file URL always wins.
+    assert run.result["video_url"]
+    assert run.result["video_url"].endswith(".gif")  # mocked=True -> gif
+    assert run.steps[1]["video_url"] == run.result["video_url"]
+    expected_video_credits = usd_to_credits(
+        estimate_video_cost_usd(TEXT_TO_VIDEO_MODEL)
+    )
+    assert (
+        run.credits_charged
+        == Decimal("1.5") + expected_video_credits + Decimal("1.5")
+    )
+
+    from videogen.models import GeneratedVideo
+
+    assert GeneratedVideo.objects.filter(user_id=run.user_id).exists()
+
+
+def test_video_teaser_generator_video_step_blocked_by_moderation(monkeypatch):
+    client, _ = _authed_client()
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None):
+        call_count["n"] += 1
+        text = (
+            "child sexual content"
+            if call_count["n"] == 1
+            else VALID_VIDEO_TEASER_RESULT_JSON
+        )
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    response = client.post(
+        "/api/agents/video-teaser-generator/runs/",
+        {"input": VIDEO_TEASER_INPUT, "idempotency_key": "teaser-2"},
+        format="json",
+    )
+    assert response.status_code == 202
+
+    run = AgentRun.objects.get(id=response.data["id"])
+    assert run.status == AgentRun.Status.BLOCKED
+    assert run.steps[1]["status"] == "error"

@@ -517,6 +517,13 @@ export interface AgentRunStep {
   provider?: string;
   model?: string;
   error_message?: string;
+  // Set only by code_execution / video_generation sentinel steps (see
+  // agents.tasks._run_code_execution_step/_run_video_generation_step) —
+  // absent for ordinary chat steps.
+  stdout?: string;
+  stderr?: string;
+  exit_code?: number;
+  video_url?: string;
 }
 
 export interface ThreadsContentPlan {
@@ -666,6 +673,17 @@ export interface InvestmentResearchResult {
   sources_note: string;
 }
 
+export interface DataQuickCheckResult {
+  question: string;
+  code_stdout: string;
+  explanation: string;
+}
+
+export interface VideoTeaserGeneratorResult {
+  caption: string;
+  video_url: string;
+}
+
 export interface AgentRun {
   id: number;
   agent: string;
@@ -697,6 +715,8 @@ export interface AgentRun {
     | MarketResearchResult
     | FinancialReportAnalyzerResult
     | InvestmentResearchResult
+    | DataQuickCheckResult
+    | VideoTeaserGeneratorResult
     | null;
   credits_charged: string;
   error_message: string;

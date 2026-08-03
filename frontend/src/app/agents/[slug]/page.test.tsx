@@ -1358,4 +1358,95 @@ describe("AgentRunPage", () => {
 
     expect(screen.getByText("Волатильность ставок")).toBeDefined();
   });
+
+  it("renders the data-quick-check result shape", async () => {
+    mocks.slug = "data-quick-check";
+    mocks.agent.mockResolvedValue({
+      slug: "data-quick-check",
+      name: "Быстрая проверка данных",
+      description: "test",
+      category: "research",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "question", label: "Вопрос", type: "text", required: true, max_length: 300 },
+          { key: "data", label: "Данные", type: "text", required: true, max_length: 4000 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "data-quick-check",
+        status: "ok",
+        steps: [
+          { key: "write_code", label: "Пишем скрипт", status: "ok" },
+          { key: "run_code", label: "Выполняем скрипт", status: "ok", stdout: "18.0\n", stderr: "", exit_code: 0 },
+          { key: "assemble", label: "Объясняем", status: "ok" },
+        ],
+        result: {
+          question: "Какое среднее у чисел 4, 8, 15, 16, 23, 42?",
+          code_stdout: "18.0\n",
+          explanation: "Среднее равно 18.",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Вопрос")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Вопрос"), { target: { value: "Среднее?" } });
+    fireEvent.change(screen.getByLabelText("Данные"), { target: { value: "4, 8, 15" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Среднее равно 18.")).toBeDefined();
+    // The live step transcript also shows the real stdout for the code step.
+    expect(screen.getAllByText("18.0").length).toBeGreaterThan(0);
+  });
+
+  it("renders the video-teaser-generator result shape with a real video/gif element", async () => {
+    mocks.slug = "video-teaser-generator";
+    mocks.agent.mockResolvedValue({
+      slug: "video-teaser-generator",
+      name: "Генератор видео-тизера",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "brief", label: "Идея ролика", type: "text", required: true, max_length: 500 },
+        ],
+      },
+    });
+    mocks.createAgentRun.mockResolvedValue(
+      makeRun({
+        agent: "video-teaser-generator",
+        status: "ok",
+        steps: [
+          { key: "write_prompt", label: "Составляем промпт", status: "ok" },
+          { key: "generate_video", label: "Генерируем видео", status: "ok", video_url: "/media/generated_videos/1.gif" },
+          { key: "assemble", label: "Пишем подпись", status: "ok" },
+        ],
+        result: {
+          caption: "Просыпайся с новым вкусом.",
+          video_url: "/media/generated_videos/1.gif",
+        },
+        credits_charged: "4.5000",
+      }),
+    );
+
+    const { container } = render(<AgentRunPage />);
+    await waitFor(() => expect(screen.getByLabelText("Идея ролика")).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Идея ролика"), { target: { value: "тизер для кофе" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Запустить" }));
+    });
+
+    expect(screen.getByText("Просыпайся с новым вкусом.")).toBeDefined();
+    // Mocked output is a .gif -> rendered as <img>, not <video>.
+    expect(container.querySelectorAll('img[src="/media/generated_videos/1.gif"]').length).toBeGreaterThan(0);
+    // The live step transcript renders the raw video_url as a real <video>.
+    expect(container.querySelector('video[src="/media/generated_videos/1.gif"]')).not.toBeNull();
+  });
 });
