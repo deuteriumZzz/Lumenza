@@ -23,6 +23,8 @@ const CATEGORY_LABELS: Record<AgentCategory, string> = {
   research: "Исследования",
   documents: "Документы",
   finance: "Финансы",
+  code: "Код",
+  video: "Видео",
 };
 
 // "Популярное" всегда первая и показывает весь каталог без фильтра — только
@@ -36,6 +38,8 @@ const CATEGORIES: { key: CategoryFilter; label: string }[] = [
   { key: "research", label: "Исследования" },
   { key: "documents", label: "Документы" },
   { key: "finance", label: "Финансы" },
+  { key: "code", label: "Код" },
+  { key: "video", label: "Видео" },
   { key: "mine", label: "Мои агенты" },
 ];
 
@@ -396,6 +400,8 @@ function CategoryIcon({ category }: { category: AgentCategory }) {
   if (category === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
   if (category === "content") return <svg aria-hidden="true" {...common}><path d="M6 19.5 4 20l.5-2 11-11 2 2Z" strokeLinejoin="round" /><path d="m14 6.5 2-2 2 2-2 2Z" strokeLinejoin="round" /></svg>;
   if (category === "finance") return <svg aria-hidden="true" {...common}><path d="M4 19.5v-6l4-3 4 2.5 4-5 4 3v8.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M3.5 19.5h17" strokeLinecap="round" /></svg>;
+  if (category === "code") return <svg aria-hidden="true" {...common}><path d="m9 8-4.5 4L9 16M15 8l4.5 4-4.5 4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  if (category === "video") return <svg aria-hidden="true" {...common}><rect x="3.5" y="6" width="12" height="12" rx="1.5" /><path d="m20.5 8.5-5 3.5 5 3.5Z" strokeLinejoin="round" /></svg>;
   return <svg aria-hidden="true" {...common}><path d="M7 3.5h7l3 3v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" /><path d="M14 3.5v3h3M9 12h6M9 15.5h6" strokeLinecap="round" /></svg>;
 }
 
@@ -631,6 +637,8 @@ function parseCategory(value: string | null): CategoryFilter | null {
     || value === "research"
     || value === "documents"
     || value === "finance"
+    || value === "code"
+    || value === "video"
     || value === "mine"
     ? value
     : null;

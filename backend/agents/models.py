@@ -16,6 +16,8 @@ class Agent(models.Model):
         RESEARCH = "research", "Исследования"
         DOCUMENTS = "documents", "Документы"
         FINANCE = "finance", "Финансы"
+        CODE = "code", "Код"
+        VIDEO = "video", "Видео"
 
     slug = models.SlugField(unique=True, max_length=64)
     name = models.CharField(max_length=120)

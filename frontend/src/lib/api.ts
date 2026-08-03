@@ -476,7 +476,13 @@ export interface CodeExecutionEntry {
   completed_at: string | null;
 }
 
-export type AgentCategory = "content" | "research" | "documents" | "finance";
+export type AgentCategory =
+  | "content"
+  | "research"
+  | "documents"
+  | "finance"
+  | "code"
+  | "video";
 
 export interface AgentField {
   key: string;

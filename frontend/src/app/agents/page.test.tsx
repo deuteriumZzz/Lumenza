@@ -247,6 +247,43 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("link", { name: /Дайджест рынка/ })).toBeDefined();
   });
 
+  it("shows Код and Видео tabs and filters to their respective agents", async () => {
+    mocks.agents.mockResolvedValue([
+      ...AGENTS,
+      {
+        slug: "code-review-agent",
+        name: "Обзор кода",
+        description: "Разбор проблем по важности.",
+        category: "code",
+      },
+      {
+        slug: "video-teaser-generator",
+        name: "Генератор видео-тизера",
+        description: "Превращает идею в видео-тизер.",
+        category: "video",
+      },
+    ]);
+
+    render(<AgentsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /Обзор кода/ })).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Код" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
+    );
+    expect(screen.getByRole("link", { name: /Обзор кода/ })).toBeDefined();
+    expect(screen.queryByRole("link", { name: /Генератор видео-тизера/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Видео" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: /Обзор кода/ })).toBeNull(),
+    );
+    expect(screen.getByRole("link", { name: /Генератор видео-тизера/ })).toBeDefined();
+  });
+
   it('lists custom agents under "Мои агенты" tab', async () => {
     mocks.agents.mockResolvedValue(AGENTS);
     mocks.customAgents.mockResolvedValue([
