@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   agents: vi.fn(),
+  agent: vi.fn(),
   modelsCatalog: vi.fn(),
   customAgents: vi.fn(),
   createCustomAgent: vi.fn(),
   archiveCustomAgent: vi.fn(),
+  createSwarmRun: vi.fn(),
+  swarmRun: vi.fn(),
   query: "",
   replace: vi.fn(),
   push: vi.fn(),
@@ -24,10 +27,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...actual.api,
       agents: mocks.agents,
+      agent: mocks.agent,
       modelsCatalog: mocks.modelsCatalog,
       customAgents: mocks.customAgents,
       createCustomAgent: mocks.createCustomAgent,
       archiveCustomAgent: mocks.archiveCustomAgent,
+      createSwarmRun: mocks.createSwarmRun,
+      swarmRun: mocks.swarmRun,
     },
   };
 });
@@ -43,10 +49,13 @@ describe("AgentsPage", () => {
     cleanup();
     sessionStorage.clear();
     mocks.agents.mockReset();
+    mocks.agent.mockReset();
     mocks.modelsCatalog.mockReset();
     mocks.customAgents.mockReset();
     mocks.createCustomAgent.mockReset();
     mocks.archiveCustomAgent.mockReset();
+    mocks.createSwarmRun.mockReset();
+    mocks.swarmRun.mockReset();
     mocks.replace.mockReset();
     mocks.push.mockReset();
     mocks.query = "";
@@ -381,5 +390,97 @@ describe("AgentsPage", () => {
       ),
     );
     expect(mocks.push).toHaveBeenCalledWith("/agents/custom-xyz789");
+  });
+
+  it('runs an agent swarm from the "Рой агентов" tab and shows the combined report', async () => {
+    mocks.agents.mockResolvedValue(AGENTS);
+    mocks.agent.mockResolvedValue({
+      slug: "threads-content-day",
+      name: "Контент на день для Threads",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+        ],
+      },
+      source_agent_slugs: [],
+    });
+    mocks.createSwarmRun.mockResolvedValue({
+      id: 1,
+      agent: "threads-content-day",
+      inputs: [{ topic: "A" }, { topic: "B" }],
+      status: "ok",
+      result: {
+        combined_summary: "Оба варианта показывают рост интереса к теме.",
+        children: [],
+      },
+      credits_charged: "4.5000",
+      error_message: "",
+      children: [
+        { id: 10, input_payload: { topic: "A" }, status: "ok", result: {} },
+        { id: 11, input_payload: { topic: "B" }, status: "ok", result: {} },
+      ],
+      created_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:01:00Z",
+    });
+
+    render(<AgentsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Рой агентов" }));
+
+    fireEvent.change(await screen.findByLabelText("Выберите агента для роя"), {
+      target: { value: "threads-content-day" },
+    });
+
+    const topicInputs = await screen.findAllByLabelText("Тема");
+    expect(topicInputs).toHaveLength(2);
+    fireEvent.change(topicInputs[0], { target: { value: "A" } });
+    fireEvent.change(topicInputs[1], { target: { value: "B" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Запустить рой" }));
+
+    await waitFor(() =>
+      expect(mocks.createSwarmRun).toHaveBeenCalledWith("threads-content-day", [
+        { topic: "A" },
+        { topic: "B" },
+      ]),
+    );
+    expect(
+      await screen.findByText("Оба варианта показывают рост интереса к теме."),
+    ).toBeDefined();
+  });
+
+  it('adds and removes swarm input rows within the 2-5 bounds', async () => {
+    mocks.agents.mockResolvedValue(AGENTS);
+    mocks.agent.mockResolvedValue({
+      slug: "threads-content-day",
+      name: "Контент на день для Threads",
+      description: "test",
+      category: "content",
+      version: 1,
+      input_schema: {
+        fields: [
+          { key: "topic", label: "Тема", type: "text", required: true, max_length: 200 },
+        ],
+      },
+      source_agent_slugs: [],
+    });
+
+    render(<AgentsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Рой агентов" }));
+    fireEvent.change(await screen.findByLabelText("Выберите агента для роя"), {
+      target: { value: "threads-content-day" },
+    });
+
+    await screen.findAllByLabelText("Тема");
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getByRole("button", { name: "+ Добавить вариант" }));
+    }
+    expect(await screen.findAllByLabelText("Тема")).toHaveLength(5);
+    expect(screen.queryByRole("button", { name: "+ Добавить вариант" })).toBeNull();
+
+    const removeButtons = screen.getAllByRole("button", { name: "Убрать" });
+    expect(removeButtons).toHaveLength(5);
   });
 });

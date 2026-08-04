@@ -3007,3 +3007,218 @@ def test_pitch_deck_builder_missing_key_points_returns_400():
         format="json",
     )
     assert response.status_code == 400
+
+
+# --- Phase D: Agent Swarms (SwarmRun, start_swarm_run, synthesize_swarm) ---
+
+from agents.models import SwarmRun  # noqa: E402
+from agents.services import start_swarm_run  # noqa: E402
+
+SWARM_TRANSLATION_INPUTS = [
+    {"document_text": "Hello", "target_language": "Français"},
+    {"document_text": "Hello", "target_language": "Español"},
+]
+
+
+def _fake_run_chat_for_translation_swarm(monkeypatch):
+    call_order = []
+
+    def fake_run_chat(user, prompt, task=None, model=None, system=None,
+                       temperature=None, workspace_id=None):
+        call_order.append(prompt)
+        index = len(call_order) - 1
+        if index == 0:
+            text = json.dumps(
+                {"translated_text": "Bonjour", "summary": "Greeting"}
+            )
+        elif index == 1:
+            text = json.dumps(
+                {"translated_text": "Hola", "summary": "Greeting"}
+            )
+        else:
+            text = "Both translations look correct and natural."
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+    return call_order
+
+
+def test_start_swarm_run_dispatches_in_parallel_and_synthesizes(monkeypatch):
+    from agents.models import Agent
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+    call_order = _fake_run_chat_for_translation_swarm(monkeypatch)
+
+    outcome = start_swarm_run(user, agent, SWARM_TRANSLATION_INPUTS)
+
+    assert outcome.status == "accepted"
+    swarm = outcome.swarm_run
+    swarm.refresh_from_db()
+    assert swarm.status == SwarmRun.Status.OK
+    assert swarm.result["combined_summary"] == (
+        "Both translations look correct and natural."
+    )
+    assert len(swarm.result["children"]) == 2
+    # 2 children + 1 synthesis call, each mocked at 1.5 credits.
+    assert swarm.credits_charged == Decimal("4.5")
+    assert swarm.child_runs.count() == 2
+    assert all(
+        child.status == AgentRun.Status.OK for child in swarm.child_runs.all()
+    )
+    # Exactly 3 run_chat calls were made: 2 children, then synthesis.
+    assert len(call_order) == 3
+
+
+def test_start_swarm_run_rejects_too_few_inputs():
+    from agents.models import Agent
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+
+    outcome = start_swarm_run(user, agent, SWARM_TRANSLATION_INPUTS[:1])
+
+    assert outcome.status == "invalid_input"
+    assert not SwarmRun.objects.filter(user=user).exists()
+
+
+def test_start_swarm_run_rejects_too_many_inputs():
+    from agents.models import Agent
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+
+    outcome = start_swarm_run(user, agent, SWARM_TRANSLATION_INPUTS * 3)
+
+    assert outcome.status == "invalid_input"
+
+
+def test_start_swarm_run_validates_each_input_against_schema():
+    from agents.models import Agent
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+
+    outcome = start_swarm_run(
+        user,
+        agent,
+        [
+            {"document_text": "Hello", "target_language": "Français"},
+            {"document_text": "Hello"},  # missing required target_language
+        ],
+    )
+
+    assert outcome.status == "invalid_input"
+    assert not SwarmRun.objects.filter(user=user).exists()
+
+
+def test_start_swarm_run_insufficient_credits(monkeypatch):
+    from agents.models import Agent
+    from billing.services import get_or_create_account
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+    account = get_or_create_account(user)
+    account.balance = Decimal("0")
+    account.save(update_fields=["balance"])
+
+    outcome = start_swarm_run(user, agent, SWARM_TRANSLATION_INPUTS)
+
+    assert outcome.status == "insufficient_credits"
+    assert not SwarmRun.objects.filter(user=user).exists()
+
+
+def test_synthesize_swarm_fails_if_any_child_failed(monkeypatch):
+    from agents.models import Agent
+
+    _, user = _authed_client()
+    agent = Agent.objects.get(slug="document-translation")
+    call_count = {"n": 0}
+
+    def fake_run_chat(user, prompt, task=None, model=None, system=None,
+                       temperature=None, workspace_id=None):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            # First child gets valid JSON.
+            text = json.dumps(
+                {"translated_text": "Bonjour", "summary": "Greeting"}
+            )
+        else:
+            # Second child returns unparseable text -> that child errors,
+            # and the swarm must never reach the synthesis call.
+            text = "not json at all"
+        return ChatOutcome(
+            status="ok", text=text, provider="openai", model="gpt-4o-mini",
+            task=task, credits_charged=Decimal("1.5"),
+        )
+
+    monkeypatch.setattr(agents_tasks, "run_chat", fake_run_chat)
+
+    outcome = start_swarm_run(user, agent, SWARM_TRANSLATION_INPUTS)
+
+    assert outcome.status == "accepted"
+    swarm = outcome.swarm_run
+    swarm.refresh_from_db()
+    assert swarm.status == SwarmRun.Status.ERROR
+    assert swarm.result is None
+    assert "1 из 2" in swarm.error_message
+    # Only the 2 children ran — no third (synthesis) call.
+    assert call_count["n"] == 2
+
+
+def test_create_swarm_run_via_api(monkeypatch):
+    client, user = _authed_client()
+    _fake_run_chat_for_translation_swarm(monkeypatch)
+
+    response = client.post(
+        "/api/agents/swarms/",
+        {
+            "agent_slug": "document-translation",
+            "inputs": SWARM_TRANSLATION_INPUTS,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 202
+    swarm_id = response.data["id"]
+    assert response.data["status"] == "ok"
+    assert len(response.data["children"]) == 2
+
+    detail_response = client.get(f"/api/agents/swarms/{swarm_id}/")
+    assert detail_response.status_code == 200
+    assert detail_response.data["result"]["combined_summary"] == (
+        "Both translations look correct and natural."
+    )
+
+
+def test_swarm_run_detail_scoped_to_owner(monkeypatch):
+    client, owner = _authed_client(username="swarmowner")
+    _fake_run_chat_for_translation_swarm(monkeypatch)
+    response = client.post(
+        "/api/agents/swarms/",
+        {
+            "agent_slug": "document-translation",
+            "inputs": SWARM_TRANSLATION_INPUTS,
+        },
+        format="json",
+    )
+    swarm_id = response.data["id"]
+
+    other_client, _ = _authed_client(username="swarmintruder")
+    other_response = other_client.get(f"/api/agents/swarms/{swarm_id}/")
+    assert other_response.status_code == 404
+
+
+def test_create_swarm_run_unknown_agent_returns_404():
+    client, _ = _authed_client()
+
+    response = client.post(
+        "/api/agents/swarms/",
+        {"agent_slug": "does-not-exist", "inputs": SWARM_TRANSLATION_INPUTS},
+        format="json",
+    )
+
+    assert response.status_code == 404

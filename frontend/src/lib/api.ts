@@ -796,6 +796,31 @@ export interface AgentRun {
   completed_at: string | null;
 }
 
+export interface SwarmChildRun {
+  id: number;
+  input_payload: Record<string, string>;
+  status: AgentRun["status"];
+  result: AgentRun["result"];
+}
+
+export interface SwarmRunResult {
+  combined_summary: string;
+  children: { agent_run_id: number; result: AgentRun["result"] }[];
+}
+
+export interface SwarmRun {
+  id: number;
+  agent: string;
+  inputs: Record<string, string>[];
+  status: "pending" | "processing" | "ok" | "error" | "insufficient_credits";
+  result: SwarmRunResult | null;
+  credits_charged: string;
+  error_message: string;
+  children: SwarmChildRun[];
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface TelegramChannelEntry {
   id: number;
   chat_id: number;
@@ -1064,6 +1089,12 @@ export const api = {
       }),
     }),
   agentRun: (id: number) => request<AgentRun>(`/agents/runs/${id}/`),
+  createSwarmRun: (agentSlug: string, inputs: Record<string, string>[]) =>
+    request<SwarmRun>("/agents/swarms/", {
+      method: "POST",
+      body: JSON.stringify({ agent_slug: agentSlug, inputs }),
+    }),
+  swarmRun: (id: number) => request<SwarmRun>(`/agents/swarms/${id}/`),
   customAgents: () => request<CustomAgentSummary[]>("/agents/custom/"),
   createCustomAgent: (name: string, description: string, agentSlugs: string[]) =>
     request<CustomAgentSummary>("/agents/custom/", {

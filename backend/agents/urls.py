@@ -7,12 +7,15 @@ from agents.views import (
     AgentRunDetailView,
     CustomAgentDetailView,
     CustomAgentListCreateView,
+    SwarmRunCreateView,
+    SwarmRunDetailView,
 )
 
 urlpatterns = [
     path("agents/", AgentListView.as_view(), name="agent-list"),
     # Must be registered before agents/<slug:slug>/ — otherwise the
-    # resolver matches "custom" as a slug and routes here to AgentDetailView.
+    # resolver matches "custom"/"swarms" as a slug and routes here to
+    # AgentDetailView.
     path(
         "agents/custom/",
         CustomAgentListCreateView.as_view(),
@@ -22,6 +25,16 @@ urlpatterns = [
         "agents/custom/<slug:slug>/",
         CustomAgentDetailView.as_view(),
         name="custom-agent-detail",
+    ),
+    path(
+        "agents/swarms/",
+        SwarmRunCreateView.as_view(),
+        name="swarm-run-create",
+    ),
+    path(
+        "agents/swarms/<int:pk>/",
+        SwarmRunDetailView.as_view(),
+        name="swarm-run-detail",
     ),
     path(
         "agents/<slug:slug>/", AgentDetailView.as_view(), name="agent-detail"

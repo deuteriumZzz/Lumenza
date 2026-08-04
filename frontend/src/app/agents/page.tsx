@@ -7,16 +7,19 @@ import { motion, useReducedMotion } from "motion/react";
 import { GoalCard } from "@/components/goal-card";
 import { ModelPicker } from "@/components/model-picker";
 import { springs } from "@/lib/motion";
+import { statusPillClass } from "@/lib/status-styles";
 import {
   api,
   apiErrorMessage,
   type AgentCategory,
+  type AgentDetail,
   type AgentSummary,
   type CustomAgentSummary,
   type ModelProgress,
+  type SwarmRun,
 } from "@/lib/api";
 
-type CategoryFilter = "all" | AgentCategory | "mine";
+type CategoryFilter = "all" | AgentCategory | "mine" | "swarm";
 
 const CATEGORY_LABELS: Record<AgentCategory, string> = {
   content: "Контент",
@@ -43,6 +46,7 @@ const CATEGORIES: { key: CategoryFilter; label: string }[] = [
   { key: "video", label: "Видео" },
   { key: "audio", label: "Аудио" },
   { key: "mine", label: "Мои агенты" },
+  { key: "swarm", label: "Рой агентов" },
 ];
 
 export default function AgentsPage() {
@@ -121,7 +125,8 @@ function Agents() {
         ? agents
         : agents.filter((agent) => agent.category === category);
   const activeCategoryLabel = CATEGORIES.find((item) => item.key === category)?.label ?? "Популярное";
-  const selectableAgents = category === "mine" ? [] : visibleAgents ?? [];
+  const selectableAgents =
+    category === "mine" || category === "swarm" ? [] : visibleAgents ?? [];
   const selectedAgent =
     selectableAgents.find((agent) => agent.slug === selectedAgentSlug) ?? selectableAgents[0] ?? null;
 
@@ -296,6 +301,8 @@ function Agents() {
 
       {category === "mine" ? (
         <MyAgents catalog={agents} />
+      ) : category === "swarm" ? (
+        <SwarmBuilder catalog={agents} />
       ) : (
         <>
           {error && (
@@ -635,6 +642,250 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
   );
 }
 
+const MIN_SWARM_SIZE = 2;
+const MAX_SWARM_SIZE = 5;
+const SWARM_POLL_INTERVAL_MS = 2000;
+const SWARM_IN_PROGRESS = new Set<SwarmRun["status"]>(["pending", "processing"]);
+
+// "Рой агентов" — запускает один выбранный агент параллельно на 2-5
+// вариантах входных данных (agents.services.start_swarm_run/
+// agents.tasks.synthesize_swarm), затем показывает объединённый отчёт.
+// Работает с ЛЮБЫМ уже опубликованным агентом каталога, а не с отдельным
+// "агентом для роя" — тот же принцип переиспользования, что и у "Мои
+// агенты".
+function SwarmBuilder({ catalog }: { catalog: AgentSummary[] | null }) {
+  const [selectedSlug, setSelectedSlug] = useState("");
+  const [agentDetail, setAgentDetail] = useState<AgentDetail | null>(null);
+  const [rows, setRows] = useState<Record<string, string>[]>([{}, {}]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [swarmRun, setSwarmRun] = useState<SwarmRun | null>(null);
+
+  useEffect(() => {
+    if (!selectedSlug) return;
+    let cancelled = false;
+    api.agent(selectedSlug).then(
+      (data) => {
+        if (cancelled) return;
+        setAgentDetail(data);
+        setRows([{}, {}]);
+      },
+      (requestError) => {
+        if (!cancelled) setError(apiErrorMessage(requestError, "Не удалось загрузить агента."));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSlug]);
+
+  function selectAgent(slug: string) {
+    setSelectedSlug(slug);
+    if (!slug) setAgentDetail(null);
+  }
+
+  useEffect(() => {
+    if (!swarmRun || !SWARM_IN_PROGRESS.has(swarmRun.status)) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      api.swarmRun(swarmRun.id).then((updated) => {
+        if (!cancelled) setSwarmRun(updated);
+      });
+    }, SWARM_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [swarmRun]);
+
+  function updateRowField(rowIndex: number, key: string, value: string) {
+    setRows((previous) =>
+      previous.map((row, index) => (index === rowIndex ? { ...row, [key]: value } : row)),
+    );
+  }
+
+  function addRow() {
+    setRows((previous) => (previous.length >= MAX_SWARM_SIZE ? previous : [...previous, {}]));
+  }
+
+  function removeRow(rowIndex: number) {
+    setRows((previous) =>
+      previous.length <= MIN_SWARM_SIZE
+        ? previous
+        : previous.filter((_, index) => index !== rowIndex),
+    );
+  }
+
+  async function submit() {
+    if (!agentDetail || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      setSwarmRun(await api.createSwarmRun(agentDetail.slug, rows));
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, "Не удалось запустить рой агентов."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function startOver() {
+    setSwarmRun(null);
+    setError(null);
+  }
+
+  const requiredFilled =
+    !!agentDetail &&
+    rows.every((row) =>
+      agentDetail.input_schema.fields.every(
+        (field) => !field.required || (row[field.key] ?? "").trim().length > 0,
+      ),
+    );
+
+  return (
+    <div className="mt-6">
+      <p className="text-sm text-muted">
+        Запустите один агент параллельно на нескольких вариантах входных данных — Lumenza объединит
+        результаты в один общий отчёт.
+      </p>
+
+      {!swarmRun ? (
+        <div className="mt-4 flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-muted">Агент</span>
+            <select
+              aria-label="Выберите агента для роя"
+              value={selectedSlug}
+              onChange={(event) => selectAgent(event.target.value)}
+              className="input"
+            >
+              <option value="">Выберите агента</option>
+              {(catalog ?? []).map((agent) => (
+                <option key={agent.slug} value={agent.slug}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {agentDetail && (
+            <div className="flex flex-col gap-3">
+              {rows.map((row, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium uppercase tracking-[0.1em] text-muted">
+                      Вариант {rowIndex + 1}
+                    </span>
+                    {rows.length > MIN_SWARM_SIZE && (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(rowIndex)}
+                        className="text-xs text-danger underline"
+                      >
+                        Убрать
+                      </button>
+                    )}
+                  </div>
+                  {agentDetail.input_schema.fields.map((field) => (
+                    <label key={field.key} className="flex flex-col gap-1 text-sm">
+                      <span className="text-muted">{field.label}</span>
+                      {field.type === "select" ? (
+                        <select
+                          value={row[field.key] ?? ""}
+                          onChange={(event) =>
+                            updateRowField(rowIndex, field.key, event.target.value)
+                          }
+                          className="input"
+                        >
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={row[field.key] ?? ""}
+                          maxLength={field.max_length}
+                          onChange={(event) =>
+                            updateRowField(rowIndex, field.key, event.target.value)
+                          }
+                          className="input"
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              ))}
+
+              {rows.length < MAX_SWARM_SIZE && (
+                <button type="button" onClick={addRow} className="btn-secondary self-start">
+                  + Добавить вариант
+                </button>
+              )}
+
+              {error && (
+                <p role="alert" className="text-sm text-danger">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={submitting || !requiredFilled}
+                className="btn-primary self-end"
+              >
+                {submitting ? "Запускаем…" : "Запустить рой"}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-6 flex flex-col gap-4">
+          <ol className="flex flex-col gap-2">
+            {swarmRun.children.map((child, index) => (
+              <li
+                key={child.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              >
+                <span className="text-ink">Вариант {index + 1}</span>
+                <span className={`status-pill ${statusPillClass(child.status)}`} aria-live="polite">
+                  {child.status}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {(swarmRun.status === "error" || swarmRun.status === "insufficient_credits") && (
+            <p role="alert" className="text-sm text-danger">
+              {swarmRun.error_message || "Не удалось выполнить рой агентов."}
+            </p>
+          )}
+
+          {swarmRun.status === "ok" && swarmRun.result && (
+            <div className="rounded-md border border-border bg-surface p-4">
+              <h2 className="text-sm font-medium text-ink">Общий отчёт</h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink">
+                {swarmRun.result.combined_summary}
+              </p>
+            </div>
+          )}
+
+          {!SWARM_IN_PROGRESS.has(swarmRun.status) && (
+            <button type="button" onClick={startOver} className="btn-secondary self-start">
+              Запустить снова
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function parseCategory(value: string | null): CategoryFilter | null {
   return value === "content"
     || value === "research"
@@ -644,6 +895,7 @@ function parseCategory(value: string | null): CategoryFilter | null {
     || value === "video"
     || value === "audio"
     || value === "mine"
+    || value === "swarm"
     ? value
     : null;
 }

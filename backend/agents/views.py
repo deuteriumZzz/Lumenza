@@ -4,7 +4,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from agents.models import Agent, AgentRun
+from agents.models import Agent, AgentRun, SwarmRun
 from agents.serializers import (
     AgentDetailSerializer,
     AgentRunRequestSerializer,
@@ -12,11 +12,14 @@ from agents.serializers import (
     AgentSummarySerializer,
     CustomAgentCreateSerializer,
     CustomAgentSerializer,
+    SwarmRunRequestSerializer,
+    SwarmRunSerializer,
 )
 from agents.services import (
     InvalidAgentInputError,
     create_custom_agent,
     start_agent_run,
+    start_swarm_run,
 )
 from core.responses import INSUFFICIENT_CREDITS_DETAIL
 
@@ -152,3 +155,49 @@ class AgentRunDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return AgentRun.objects.filter(user=self.request.user)
+
+
+class SwarmRunCreateView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SwarmRunRequestSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        agent = get_object_or_404(
+            _runnable_agents(request.user),
+            slug=serializer.validated_data["agent_slug"],
+        )
+
+        outcome = start_swarm_run(
+            request.user, agent, serializer.validated_data["inputs"]
+        )
+
+        if outcome.status == "invalid_input":
+            return Response(
+                {"detail": outcome.error_message},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if outcome.status == "insufficient_credits":
+            return Response(
+                {"detail": INSUFFICIENT_CREDITS_DETAIL},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+        if outcome.status == "enqueue_failed":
+            return Response(
+                {"detail": "Agent swarms are temporarily unavailable"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            SwarmRunSerializer(outcome.swarm_run).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class SwarmRunDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SwarmRunSerializer
+
+    def get_queryset(self):
+        return SwarmRun.objects.filter(user=self.request.user)

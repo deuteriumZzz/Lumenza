@@ -10,7 +10,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from accounts.models import UserContext
-from agents.models import AgentRun
+from agents.models import AgentRun, SwarmRun
 from agents.services import (
     AUDIO_GENERATION_TASK,
     CODE_EXECUTION_TASK,
@@ -638,3 +638,99 @@ def _run_agent_steps(run: AgentRun) -> None:
 run_agent_task = shared_task(
     name="agents.run_agent", soft_time_limit=240, time_limit=300
 )(run_agent)
+
+
+_SWARM_SYNTHESIS_SYSTEM_PROMPT = (
+    "Ты объединяешь результаты нескольких параллельных запусков одного "
+    "агента в один связный итоговый отчёт на русском языке. Не повторяй "
+    "результаты дословно один за другим — синтезируй общие выводы, "
+    "отметь ключевые различия между вариантами."
+)
+
+
+def synthesize_swarm(child_results, swarm_run_id: int) -> None:
+    """Celery chord callback for agents.services.start_swarm_run —
+    `child_results` is celery's automatic list of each child task's
+    return value (always None, since run_agent is a side-effecting DB
+    write, not a return-value task); the real data is re-fetched via the
+    swarm_run FK below. Runs after every child AgentRun's run_agent_task
+    has completed."""
+    swarm_run = SwarmRun.objects.filter(id=swarm_run_id).first()
+    if swarm_run is None:
+        return
+
+    children = list(swarm_run.child_runs.order_by("id"))
+    failed = [
+        child for child in children if child.status != AgentRun.Status.OK
+    ]
+    if failed:
+        swarm_run.status = SwarmRun.Status.ERROR
+        swarm_run.error_message = (
+            f"{len(failed)} из {len(children)} запусков завершились с "
+            "ошибкой — итоговый отчёт не составлен."
+        )
+        swarm_run.credits_charged = sum(
+            (child.credits_charged for child in children), Decimal("0")
+        )
+        swarm_run.completed_at = timezone.now()
+        swarm_run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "credits_charged",
+                "completed_at",
+            ]
+        )
+        return
+
+    prompt_parts = ["Результаты параллельных запусков:"]
+    for index, child in enumerate(children, start=1):
+        prompt_parts.append(f"### Вариант {index}")
+        prompt_parts.append(json.dumps(child.result, ensure_ascii=False))
+    prompt = "\n".join(prompt_parts)
+
+    outcome = run_chat(
+        swarm_run.user, prompt, task="content_plan",
+        system=_SWARM_SYNTHESIS_SYSTEM_PROMPT,
+    )
+    children_credits = sum(
+        (child.credits_charged for child in children), Decimal("0")
+    )
+
+    if outcome.status != "ok":
+        swarm_run.status = SwarmRun.Status.ERROR
+        swarm_run.error_message = _STEP_ERROR_MESSAGES.get(
+            outcome.status, outcome.status
+        )
+        swarm_run.credits_charged = children_credits
+        swarm_run.completed_at = timezone.now()
+        swarm_run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "credits_charged",
+                "completed_at",
+            ]
+        )
+        return
+
+    swarm_run.status = SwarmRun.Status.OK
+    swarm_run.result = {
+        "combined_summary": outcome.text,
+        "children": [
+            {"agent_run_id": child.id, "result": child.result}
+            for child in children
+        ],
+    }
+    swarm_run.credits_charged = children_credits + (
+        outcome.credits_charged or Decimal("0")
+    )
+    swarm_run.completed_at = timezone.now()
+    swarm_run.save(
+        update_fields=["status", "result", "credits_charged", "completed_at"]
+    )
+
+
+synthesize_swarm_task = shared_task(
+    name="agents.synthesize_swarm", soft_time_limit=60, time_limit=90
+)(synthesize_swarm)

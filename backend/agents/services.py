@@ -2,12 +2,13 @@ import json
 import re
 import secrets
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Literal, Optional
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from agents.models import Agent, AgentRun
+from agents.models import Agent, AgentRun, SwarmRun
 from billing.services import get_or_create_account, usd_to_credits
 from code_interpreter.pricing import estimate_code_execution_cost_usd
 from docgen.pricing import (
@@ -193,6 +194,27 @@ def parse_final_result(
     return parsed, None
 
 
+def _estimate_first_step_credits(agent: Agent) -> Decimal:
+    """Pre-flight cost estimate for an agent's first workflow step —
+    shared by start_agent_run (single run) and start_swarm_run (N parallel
+    runs of the same agent), so the sentinel-task branches only need to
+    be listed in one place."""
+    first_task = agent.workflow_steps[0]["task"]
+    if first_task == CODE_EXECUTION_TASK:
+        return usd_to_credits(estimate_code_execution_cost_usd())
+    if first_task == VIDEO_GENERATION_TASK:
+        return usd_to_credits(estimate_video_cost_usd(TEXT_TO_VIDEO_MODEL))
+    if first_task == AUDIO_GENERATION_TASK:
+        return usd_to_credits(estimate_speech_cost_usd(NVIDIA_TTS_MODEL))
+    if first_task == PPTX_GENERATION_TASK:
+        return usd_to_credits(estimate_pptx_generation_cost_usd())
+    if first_task == EXCEL_GENERATION_TASK:
+        return usd_to_credits(estimate_excel_generation_cost_usd())
+    return _route_hold_credits(
+        TASK_ROUTES[first_task], "x" * _NOMINAL_PROMPT_LENGTH
+    )
+
+
 @dataclass
 class StartAgentRunOutcome:
     status: Literal[
@@ -251,26 +273,8 @@ def start_agent_run(
                 error_message="База знаний не найдена",
             )
 
-    first_task = agent.workflow_steps[0]["task"]
     account = get_or_create_account(user)
-    if first_task == CODE_EXECUTION_TASK:
-        required_credits = usd_to_credits(estimate_code_execution_cost_usd())
-    elif first_task == VIDEO_GENERATION_TASK:
-        required_credits = usd_to_credits(
-            estimate_video_cost_usd(TEXT_TO_VIDEO_MODEL)
-        )
-    elif first_task == AUDIO_GENERATION_TASK:
-        required_credits = usd_to_credits(
-            estimate_speech_cost_usd(NVIDIA_TTS_MODEL)
-        )
-    elif first_task == PPTX_GENERATION_TASK:
-        required_credits = usd_to_credits(estimate_pptx_generation_cost_usd())
-    elif first_task == EXCEL_GENERATION_TASK:
-        required_credits = usd_to_credits(estimate_excel_generation_cost_usd())
-    else:
-        required_credits = _route_hold_credits(
-            TASK_ROUTES[first_task], "x" * _NOMINAL_PROMPT_LENGTH
-        )
+    required_credits = _estimate_first_step_credits(agent)
     if account.balance < required_credits:
         return StartAgentRunOutcome(status="insufficient_credits")
 
@@ -403,3 +407,113 @@ def create_custom_agent(
         workflow_steps=combined_steps,
         output_schema=sources[-1].output_schema,
     )
+
+
+MIN_SWARM_SIZE = 2
+MAX_SWARM_SIZE = 5
+
+
+@dataclass
+class StartSwarmRunOutcome:
+    status: Literal[
+        "accepted",
+        "invalid_input",
+        "insufficient_credits",
+        "enqueue_failed",
+    ]
+    swarm_run: Optional[SwarmRun] = None
+    error_message: Optional[str] = None
+
+
+def start_swarm_run(
+    user, agent: Agent, inputs: list[dict]
+) -> StartSwarmRunOutcome:
+    """Fans `agent` out across `inputs` (2-5 entries) in parallel, then
+    synthesizes the results — see agents.tasks.synthesize_swarm_task for
+    the chord callback that does the actual combining. Every child run
+    goes through the exact same run_agent_task Celery task every ordinary
+    single AgentRun already uses, unmodified."""
+    if not MIN_SWARM_SIZE <= len(inputs) <= MAX_SWARM_SIZE:
+        return StartSwarmRunOutcome(
+            status="invalid_input",
+            error_message=(
+                f"Provide between {MIN_SWARM_SIZE} and {MAX_SWARM_SIZE} inputs"
+            ),
+        )
+
+    cleaned_inputs = []
+    for input_payload in inputs:
+        try:
+            cleaned_inputs.append(
+                validate_against_input_schema(
+                    agent.input_schema, input_payload
+                )
+            )
+        except InvalidAgentInputError as exc:
+            return StartSwarmRunOutcome(
+                status="invalid_input", error_message=str(exc)
+            )
+
+    account = get_or_create_account(user)
+    # Best-effort estimate, not an atomic N-way reservation — same
+    # acceptance already established elsewhere in this codebase for
+    # multi-step credit flows (see agents.tasks.run_agent's own
+    # best-effort SoftTimeLimitExceeded refund handling).
+    required_credits = _estimate_first_step_credits(agent) * len(
+        cleaned_inputs
+    )
+    if account.balance < required_credits:
+        return StartSwarmRunOutcome(status="insufficient_credits")
+
+    with transaction.atomic():
+        swarm_run = SwarmRun.objects.create(
+            agent=agent, user=user, inputs=cleaned_inputs
+        )
+        children = [
+            AgentRun.objects.create(
+                agent=agent,
+                agent_version=agent.version,
+                user=user,
+                input_payload=input_payload,
+                idempotency_key=f"swarm-{swarm_run.id}-{index}",
+                swarm_run=swarm_run,
+                steps=[
+                    {
+                        "key": step["key"],
+                        "label": step["label"],
+                        "status": "pending",
+                    }
+                    for step in agent.workflow_steps
+                ],
+            )
+            for index, input_payload in enumerate(cleaned_inputs)
+        ]
+
+    from celery import chord
+
+    from agents.tasks import run_agent_task, synthesize_swarm_task
+
+    try:
+        chord(run_agent_task.si(child.id) for child in children)(
+            synthesize_swarm_task.s(swarm_run.id)
+        )
+    except Exception:
+        swarm_run.status = SwarmRun.Status.ERROR
+        swarm_run.error_message = "Failed to enqueue swarm run"
+        swarm_run.completed_at = timezone.now()
+        swarm_run.save(
+            update_fields=["status", "error_message", "completed_at"]
+        )
+        return StartSwarmRunOutcome(
+            status="enqueue_failed", swarm_run=swarm_run
+        )
+
+    # Under CELERY_TASK_ALWAYS_EAGER (tests, and in principle a very fast
+    # real dispatch too), the chord above may have already run to
+    # completion synchronously by the time we get here — the in-memory
+    # `swarm_run` object is a stale pre-dispatch snapshot at that point,
+    # since synthesize_swarm_task/run_agent_task update the DB through
+    # their own freshly-fetched instances, not this one. Refresh so the
+    # caller always sees the real current state, not "pending" forever.
+    swarm_run.refresh_from_db()
+    return StartSwarmRunOutcome(status="accepted", swarm_run=swarm_run)

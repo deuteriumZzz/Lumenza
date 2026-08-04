@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from agents.models import Agent, AgentRun
+from agents.models import Agent, AgentRun, SwarmRun
 
 
 class AgentSummarySerializer(serializers.ModelSerializer):
@@ -76,6 +76,45 @@ class AgentRunSerializer(serializers.ModelSerializer):
             "result",
             "credits_charged",
             "error_message",
+            "created_at",
+            "completed_at",
+        )
+
+
+class SwarmRunRequestSerializer(serializers.Serializer):
+    agent_slug = serializers.CharField(max_length=64)
+    inputs = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField(allow_blank=True)
+        ),
+        min_length=2,
+        max_length=5,
+    )
+
+
+class SwarmChildRunSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentRun
+        fields = ("id", "input_payload", "status", "result")
+
+
+class SwarmRunSerializer(serializers.ModelSerializer):
+    agent = serializers.SlugRelatedField(slug_field="slug", read_only=True)
+    children = SwarmChildRunSerializer(
+        source="child_runs", many=True, read_only=True
+    )
+
+    class Meta:
+        model = SwarmRun
+        fields = (
+            "id",
+            "agent",
+            "inputs",
+            "status",
+            "result",
+            "credits_charged",
+            "error_message",
+            "children",
             "created_at",
             "completed_at",
         )

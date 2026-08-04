@@ -69,6 +69,51 @@ class Agent(models.Model):
         return f"{self.slug} v{self.version} ({self.status})"
 
 
+class SwarmRun(models.Model):
+    """Fans one published Agent out across N different inputs in parallel
+    (agents.services.start_swarm_run/agents.tasks.synthesize_swarm_task),
+    then synthesizes the N child AgentRuns' results into one combined
+    report. Reuses run_agent/run_agent_task completely unmodified as the
+    per-branch unit of work — this model + the Celery chord in tasks.py
+    are the only new pieces, not a rewrite of the single-run engine."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        OK = "ok", "OK"
+        ERROR = "error", "Error"
+        INSUFFICIENT_CREDITS = "insufficient_credits", "Insufficient credits"
+
+    agent = models.ForeignKey(
+        Agent, on_delete=models.PROTECT, related_name="swarm_runs"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="swarm_runs",
+    )
+    # [{...input_payload}, {...input_payload}, ...] — 2 to 5 entries,
+    # enforced in agents.services.start_swarm_run, not at the DB level.
+    inputs = models.JSONField()
+    status = models.CharField(
+        max_length=24, choices=Status.choices, default=Status.PENDING
+    )
+    # {"combined_summary": str, "children": [{"agent_run_id", "result"}]}
+    result = models.JSONField(null=True, blank=True)
+    credits_charged = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0
+    )
+    error_message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.agent.slug} swarm #{self.pk} ({self.status})"
+
+
 class AgentRun(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -100,6 +145,15 @@ class AgentRun(models.Model):
         related_name="agent_runs",
     )
     idempotency_key = models.CharField(max_length=64)
+    # Set only for a child run created by agents.services.start_swarm_run
+    # (Agent Swarms) — null for every ordinary single-run AgentRun.
+    swarm_run = models.ForeignKey(
+        SwarmRun,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="child_runs",
+    )
     # Optional user preference from the Agents composer. A workflow step
     # uses it only when that model is part of the step's curated route;
     # specialised/search steps otherwise retain automatic routing.
