@@ -28,6 +28,7 @@ function RegisterForm() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -86,9 +87,29 @@ function RegisterForm() {
             />
           </Field>
 
+          <label className="flex items-start gap-2.5 text-sm text-muted">
+            <input
+              required
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Я согласен с{" "}
+              <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
+                Условиями использования
+              </Link>{" "}
+              и{" "}
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
+                Политикой конфиденциальности
+              </Link>
+            </span>
+          </label>
+
           {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
-          <button type="submit" disabled={submitting} className="btn-primary mt-2">
+          <button type="submit" disabled={submitting || !agreed} className="btn-primary mt-2">
             {submitting ? "Создаём аккаунт…" : "Создать аккаунт"}
           </button>
         </form>

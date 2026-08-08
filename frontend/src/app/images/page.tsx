@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { redirect, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { StudioPromptDock } from "@/components/studio-prompt-dock";
 import { useAuth } from "@/lib/auth-context";
@@ -14,7 +15,6 @@ import {
   type UpscaleTask,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
-import { redirect } from "next/navigation";
 
 const MODEL_BY_TASK: Record<ImageTask, string> = {
   illustration: "FLUX Schnell",
@@ -59,7 +59,13 @@ export function Images({
   initialPrompt?: string;
 }) {
   const { refreshBalance } = useAuth();
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [page, setPageState] = useState(() => {
+    const raw = Number(searchParams.get("page"));
+    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
+  });
   // Тот же паттерн пометки страницы, что и на странице history: `loading`
   // выводится, а не отслеживается как отдельный флаг, для которого
   // понадобился бы синхронный setState в начале эффекта загрузки ниже.
@@ -67,6 +73,20 @@ export function Images({
     null
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Отражает страницу галереи в query-параметре `page` (тот же приём прямого
+  // router.replace в обработчике, что и в studio/page.tsx/history/page.tsx),
+  // чтобы навигация назад/вперёд и ссылка восстанавливали ту же страницу.
+  // Компонент встраивается только внутри /studio (см. StudioModePanel), уже
+  // обёрнутого в Suspense, поэтому отдельная граница здесь не нужна.
+  function updatePage(next: number) {
+    setPageState(next);
+    const query = new URLSearchParams(searchParams.toString());
+    if (next > 1) query.set("page", String(next));
+    else query.delete("page");
+    const queryString = query.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }
 
   const mode = initialMode;
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -169,7 +189,7 @@ export function Images({
             : prev
         );
       } else {
-        setPage(1);
+        updatePage(1);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
@@ -201,7 +221,7 @@ export function Images({
             : prev
         );
       } else {
-        setPage(1);
+        updatePage(1);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
@@ -231,7 +251,7 @@ export function Images({
             : prev
         );
       } else {
-        setPage(1);
+        updatePage(1);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
@@ -341,7 +361,7 @@ export function Images({
           <button
             type="button"
             disabled={!data.previous}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => updatePage(Math.max(1, page - 1))}
             className="btn-secondary disabled:opacity-40"
           >
             Назад
@@ -349,7 +369,7 @@ export function Images({
           <button
             type="button"
             disabled={!data.next}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => updatePage(page + 1)}
             className="btn-secondary disabled:opacity-40"
           >
             Далее
@@ -435,6 +455,8 @@ function ImageCard({ entry }: { entry: GeneratedImageEntry }) {
             <img
               src={entry.source_image_url}
               alt="Исходное фото"
+              width={32}
+              height={32}
               className="h-8 w-8 rounded object-cover"
             />
             <span className="text-[11px] text-muted">Исходное фото</span>

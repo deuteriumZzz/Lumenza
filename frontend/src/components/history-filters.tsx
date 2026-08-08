@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import type { HistoryEntry, HistoryQuery, Task } from "@/lib/api";
 
-interface FilterForm {
+export interface FilterForm {
   task: "" | Task;
   provider: string;
   status: "" | HistoryEntry["status"];
@@ -11,7 +11,7 @@ interface FilterForm {
   dateTo: string;
 }
 
-const EMPTY_FILTERS: FilterForm = {
+export const EMPTY_FILTERS: FilterForm = {
   task: "",
   provider: "",
   status: "",
@@ -42,18 +42,46 @@ const STATUS_OPTIONS: {
   { value: "model_locked", label: "Модель заблокирована" },
 ];
 
-function localDateBoundary(value: string, nextDay = false): string {
+export function localDateBoundary(value: string, nextDay = false): string {
   const date = new Date(`${value}T00:00:00`);
   if (nextDay) date.setDate(date.getDate() + 1);
   return date.toISOString();
 }
 
+// Обратное преобразование к localDateBoundary — восстанавливает значение
+// для <input type="date"> из ISO-строки, сохранённой в URL (см. history/page.tsx).
+export function isoToLocalDateInput(iso: string, nextDay = false): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  if (nextDay) date.setDate(date.getDate() - 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function buildHistoryQuery(form: FilterForm): HistoryQuery {
+  const filters: HistoryQuery = {};
+  if (form.task) filters.task = form.task;
+  if (form.provider) filters.provider = form.provider;
+  if (form.status) filters.status = form.status;
+  if (form.dateFrom) {
+    filters.created_after = localDateBoundary(form.dateFrom);
+  }
+  if (form.dateTo) {
+    filters.created_before = localDateBoundary(form.dateTo, true);
+  }
+  return filters;
+}
+
 export function HistoryFilters({
   onApply,
+  initialValues,
 }: {
   onApply: (filters: HistoryQuery) => void;
+  initialValues?: Partial<FilterForm>;
 }) {
-  const [form, setForm] = useState<FilterForm>({ ...EMPTY_FILTERS });
+  const [form, setForm] = useState<FilterForm>({ ...EMPTY_FILTERS, ...initialValues });
   const [error, setError] = useState<string | null>(null);
 
   function applyFilters(event: FormEvent) {
@@ -63,18 +91,8 @@ export function HistoryFilters({
       return;
     }
 
-    const filters: HistoryQuery = {};
-    if (form.task) filters.task = form.task;
-    if (form.provider) filters.provider = form.provider;
-    if (form.status) filters.status = form.status;
-    if (form.dateFrom) {
-      filters.created_after = localDateBoundary(form.dateFrom);
-    }
-    if (form.dateTo) {
-      filters.created_before = localDateBoundary(form.dateTo, true);
-    }
     setError(null);
-    onApply(filters);
+    onApply(buildHistoryQuery(form));
   }
 
   function clearFilters() {

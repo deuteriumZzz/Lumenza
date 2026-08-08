@@ -23,7 +23,7 @@ const ITEMS = [
 // на начало второй копии.
 export function ModelMarquee() {
   return (
-    <div aria-hidden="true" className="overflow-hidden select-none">
+    <div aria-hidden="true" translate="no" className="overflow-hidden select-none">
       <div className="flex w-max animate-[model-marquee-scroll_28s_linear_infinite] text-xs tracking-wide text-muted uppercase">
         {[...ITEMS, ...ITEMS].map((item, index) => (
           <span key={index} className="whitespace-nowrap pr-8">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import {
   api,
@@ -62,6 +63,8 @@ function TelegramChannels() {
   const [chatId, setChatId] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<TelegramChannelEntry | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
     api.telegramChannels().then(setChannels, () =>
@@ -85,12 +88,18 @@ function TelegramChannels() {
     }
   }
 
-  async function disconnect(id: number) {
+  async function confirmDisconnect() {
+    if (!disconnectTarget) return;
+    const id = disconnectTarget.id;
+    setDisconnecting(true);
     try {
       await api.deleteTelegramChannel(id);
       setChannels((prev) => prev?.filter((channel) => channel.id !== id) ?? prev);
+      setDisconnectTarget(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось отключить канал."));
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -148,7 +157,7 @@ function TelegramChannels() {
               <span className="text-ink">{channel.title}</span>
               <button
                 type="button"
-                onClick={() => void disconnect(channel.id)}
+                onClick={() => setDisconnectTarget(channel)}
                 className="rounded px-1 py-1 text-xs text-muted transition-colors duration-200 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Отключить
@@ -157,6 +166,17 @@ function TelegramChannels() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={disconnectTarget !== null}
+        title={`Отключить канал «${disconnectTarget?.title ?? ""}»?`}
+        description="Расписания, которые публикуют результат в этот канал, перестанут доставлять сообщения."
+        confirmLabel="Отключить"
+        pendingLabel="Отключаем…"
+        pending={disconnecting}
+        onConfirm={() => void confirmDisconnect()}
+        onCancel={() => setDisconnectTarget(null)}
+      />
     </section>
   );
 }
@@ -172,6 +192,8 @@ function Schedules() {
   const [channelId, setChannelId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduledAgentRunEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.agents().then(setAgents, () => setError("Не удалось загрузить агентов."));
@@ -226,12 +248,18 @@ function Schedules() {
     }
   }
 
-  async function deleteSchedule(id: number) {
+  async function confirmDeleteSchedule() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleting(true);
     try {
       await api.deleteSchedule(id);
       setSchedules((prev) => prev?.filter((item) => item.id !== id) ?? prev);
+      setDeleteTarget(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось удалить расписание."));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -394,7 +422,7 @@ function Schedules() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void deleteSchedule(schedule.id)}
+                  onClick={() => setDeleteTarget(schedule)}
                   className="rounded px-1 py-1 text-xs text-muted transition-colors duration-200 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   Удалить
@@ -404,6 +432,21 @@ function Schedules() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={
+          deleteTarget
+            ? `Удалить расписание «${deleteTarget.agent} · ${String(deleteTarget.hour).padStart(2, "0")}:${String(deleteTarget.minute).padStart(2, "0")} UTC»?`
+            : ""
+        }
+        description="Агент перестанет запускаться по этому расписанию."
+        confirmLabel="Удалить"
+        pendingLabel="Удаляем…"
+        pending={deleting}
+        onConfirm={() => void confirmDeleteSchedule()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </section>
   );
 }
@@ -509,6 +552,7 @@ function PendingActions() {
               onBlur={() => void saveText(action)}
               rows={4}
               maxLength={8000}
+              aria-label="Текст публикации"
               className="input w-full"
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">

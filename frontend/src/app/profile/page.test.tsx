@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -197,6 +197,9 @@ describe("ProfilePage", () => {
     render(<ProfilePage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Удалить питомца" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
 
     await waitFor(() => expect(mocks.removePet).toHaveBeenCalled());
   });

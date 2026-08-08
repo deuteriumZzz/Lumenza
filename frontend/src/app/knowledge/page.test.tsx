@@ -14,6 +14,15 @@ const mocks = vi.hoisted(() => ({
   createEmbedWidget: vi.fn(),
   setEmbedWidgetActive: vi.fn(),
   deleteEmbedWidget: vi.fn(),
+  query: "",
+  replace: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(mocks.query),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
+  usePathname: () => "/knowledge",
 }));
 
 vi.mock("@/components/require-auth", () => ({
@@ -121,6 +130,9 @@ describe("KnowledgePage", () => {
 
     await screen.findByRole("button", { name: "Заметки" });
     fireEvent.click(screen.getByRole("button", { name: "Удалить «Заметки»" }));
+
+    const workspaceDialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(workspaceDialog).getByRole("button", { name: "Удалить" }));
 
     await waitFor(() => expect(mocks.deleteWorkspace).toHaveBeenCalledWith(WORKSPACE.id));
     await waitFor(() =>
@@ -355,6 +367,11 @@ describe("KnowledgePage", () => {
     await screen.findByText("Support bot");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+    });
+
+    const embedDialog = await screen.findByRole("alertdialog");
+    await act(async () => {
+      fireEvent.click(within(embedDialog).getByRole("button", { name: "Удалить" }));
     });
 
     expect(mocks.deleteEmbedWidget).toHaveBeenCalledWith(1);

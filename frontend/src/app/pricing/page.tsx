@@ -9,6 +9,19 @@ import { api, ApiError, type ReferralStats, type Subscription } from "@/lib/api"
 const PRESETS = ["50", "100", "500"];
 const RUB_PRESETS = ["100", "300", "1000"];
 
+const creditsFormatter = new Intl.NumberFormat("ru-RU", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const wholeCreditsFormatter = new Intl.NumberFormat("ru-RU", {
+  maximumFractionDigits: 0,
+});
+const subscriptionDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
 export default function PricingPage() {
   return (
     <RequireAuth>
@@ -181,8 +194,8 @@ function Pricing() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-ink">
                     {subscription.status === "active"
-                      ? `Активна — продлится ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                      : `Активна до ${new Date(subscription.current_period_end).toLocaleDateString()} — автопродление отключено`}
+                      ? `Активна — продлится ${subscriptionDateFormatter.format(new Date(subscription.current_period_end))}`
+                      : `Активна до ${subscriptionDateFormatter.format(new Date(subscription.current_period_end))} — автопродление отключено`}
                   </p>
                   <button type="button" onClick={() => void cancel()} disabled={subActionPending} className="btn-secondary shrink-0">
                     {subActionPending ? "Отменяем…" : "Отменить подписку"}
@@ -255,7 +268,7 @@ function Pricing() {
           <section aria-label="Обзор баланса" className="rounded-2xl border border-primary/30 bg-primary/[0.065] p-6">
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">Доступно сейчас</p>
             <p className="mt-4 font-mono text-4xl tabular-nums tracking-tight text-ink">
-              {balance ? Number(balance.balance).toFixed(2) : "—"}
+              {balance ? creditsFormatter.format(Number(balance.balance)) : "—"}
             </p>
             <p className="mt-1 text-sm text-muted">кредитов</p>
             <div className="mt-6 h-px bg-gradient-to-r from-primary/50 to-transparent" />
@@ -282,7 +295,7 @@ function Pricing() {
             <section aria-label="Пригласить друзей" className="rounded-2xl border border-border/70 bg-surface/60 p-6">
               <h2 className="text-sm font-medium text-ink">Пригласить друзей</h2>
               <p className="mt-2 text-xs leading-5 text-muted">
-                Вы оба получите {Number(referralStats.reward_credits).toFixed(0)} кредитов после первого запроса друга.
+                Вы оба получите {wholeCreditsFormatter.format(Number(referralStats.reward_credits))} кредитов после первого запроса друга.
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <input readOnly value={referralStats.referral_link} aria-label="Реферальная ссылка" className="input min-w-0 flex-1 text-xs" onFocus={(event) => event.target.select()} />

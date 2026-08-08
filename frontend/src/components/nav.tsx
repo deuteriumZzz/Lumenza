@@ -21,6 +21,11 @@ const LINKS = [
 
 const LOW_BALANCE_THRESHOLD = 10;
 
+const balanceFormatter = new Intl.NumberFormat("ru-RU", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 function BalanceDisplay({ balance }: { balance: Balance | null }) {
   const numericBalance = balance ? Number(balance.balance) : null;
   const validBalance =
@@ -45,7 +50,7 @@ function BalanceDisplay({ balance }: { balance: Balance | null }) {
   const change = balanceAnimation.change;
   const isLow = validBalance !== null && validBalance < LOW_BALANCE_THRESHOLD;
   const formattedBalance =
-    validBalance === null ? "—" : validBalance.toFixed(2);
+    validBalance === null ? "—" : balanceFormatter.format(validBalance);
 
   const colorClass = isLow
     ? "text-danger"

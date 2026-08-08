@@ -6,10 +6,16 @@ const mocks = vi.hoisted(() => ({
   createVideo: vi.fn(),
   createVideoAnimation: vi.fn(),
   refreshBalance: vi.fn(),
+  query: "",
+  replace: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  useSearchParams: () => new URLSearchParams(mocks.query),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
+  usePathname: () => "/studio",
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -60,6 +66,9 @@ describe("Videos workspace", () => {
     mocks.refreshBalance.mockReset();
     mocks.createVideo.mockReset();
     mocks.createVideoAnimation.mockReset();
+    mocks.query = "";
+    mocks.replace.mockReset();
+    mocks.push.mockReset();
   });
 
   it("submits a text-to-video prompt in the default submode", async () => {

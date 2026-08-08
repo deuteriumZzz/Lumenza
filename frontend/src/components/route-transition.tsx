@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { motionTokens } from "@/lib/motion";
+import { redesignMotion } from "@/lib/motion";
 import { getWorkspaceSection } from "@/lib/workspace-sections";
 
 function routeFamily(pathname: string) {
@@ -29,6 +29,15 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       : previousFamily === "agents" && family === "chat"
         ? "agents-to-chat"
         : "standard";
+  // Every other workspace-to-workspace pair (Chat/Agents already get their
+  // own shared-element morph above) gets a light blur-crossfade layered on
+  // the existing opacity+y — Emil Kowalski's "blur masks an imperfect
+  // crossfade" technique, so panel swaps between e.g. Studio and Knowledge
+  // read as one continuous motion instead of a hard cut. Scoped to
+  // workspace<->workspace only (not marketing/login pages), kept well
+  // under the 20px cost ceiling.
+  const isWorkspaceCrossfade =
+    workspaceMorph === "standard" && previousFamily !== "page" && family !== "page" && previousFamily !== family;
   return (
     <div className="route-transition-stage overflow-x-clip">
       <AnimatePresence>
@@ -49,18 +58,14 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
         initial={
           shouldReduceMotion
             ? false
-            : { opacity: workspaceMorph === "standard" ? 0 : 0.42 }
-        }
-        animate={{ opacity: 1 }}
-        transition={
-          shouldReduceMotion
-            ? { duration: 0 }
             : {
-                duration: motionTokens.duration.normal,
-                ease: motionTokens.easing.smooth,
-                opacity: { duration: motionTokens.duration.fast },
+                opacity: workspaceMorph === "standard" ? 0 : 0.42,
+                y: 6,
+                filter: isWorkspaceCrossfade ? "blur(6px)" : "blur(0px)",
               }
         }
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={shouldReduceMotion ? { duration: 0 } : redesignMotion.routeIn}
         className="route-transition-frame"
       >
         {children}
@@ -84,28 +89,31 @@ function WorkspaceModeMorph({ from, to }: { from: "chat" | "agents"; to: "chat" 
       initial={{ opacity: 0, scale: 0.82, y: 46 }}
       animate={{ opacity: [0, 1, 1, 0], scale: [0.82, 1, 1.04, 1.12], y: [46, 0, -4, -14] }}
       exit={{ opacity: 0, y: -14 }}
-      transition={{ duration: 0.72, ease: motionTokens.easing.smooth, times: [0, 0.2, 0.72, 1] }}
+      transition={{ ...redesignMotion.lumenzaCoreTransition, times: [0, 0.2, 0.72, 1] }}
       aria-hidden="true"
     >
       <motion.svg viewBox="0 0 48 48" className="size-24 sm:size-28">
-        {MODE_NODES[from].map((node, index) => (
-          <motion.circle
-            key={index}
-            data-morph-node=""
-            initial={{ cx: node.x, cy: node.y, r: 2.1 }}
-            animate={{
-              cx: MODE_NODES[to][index].x,
-              cy: MODE_NODES[to][index].y,
-              r: to === "agents" ? 2.65 : 2.1,
-            }}
-            transition={{ duration: 0.58, ease: motionTokens.easing.smooth }}
-            className="workspace-mode-node"
-          />
-        ))}
+        {MODE_NODES[from].map((node, index) => {
+          const target = MODE_NODES[to][index];
+          const targetR = to === "agents" ? 2.65 : 2.1;
+          return (
+            <motion.circle
+              key={index}
+              data-morph-node=""
+              cx={node.x}
+              cy={node.y}
+              r={2.1}
+              initial={{ x: 0, y: 0, scale: 1 }}
+              animate={{ x: target.x - node.x, y: target.y - node.y, scale: targetR / 2.1 }}
+              transition={redesignMotion.lumenzaCoreTransition}
+              className="workspace-mode-node"
+            />
+          );
+        })}
         <motion.path
           initial={{ rotate: from === "agents" ? 45 : 0, scale: from === "agents" ? 0.9 : 1 }}
           animate={{ rotate: to === "agents" ? 45 : 0, scale: to === "agents" ? 0.9 : 1 }}
-          transition={{ duration: 0.58, ease: motionTokens.easing.smooth }}
+          transition={redesignMotion.lumenzaCoreTransition}
           style={{ transformOrigin: "24px 24px" }}
           d="M24 15.5 32 20v8l-8 4.5-8-4.5v-8Z"
           className="workspace-mode-core"
@@ -113,7 +121,7 @@ function WorkspaceModeMorph({ from, to }: { from: "chat" | "agents"; to: "chat" 
         <motion.path
           initial={{ pathLength: 0.2, opacity: 0.35 }}
           animate={{ pathLength: 1, opacity: [0.35, 0.9, 0.2] }}
-          transition={{ duration: 0.62, ease: motionTokens.easing.smooth }}
+          transition={redesignMotion.lumenzaCoreTransition}
           d={to === "agents" ? "M11 11 24 24 37 11M24 24v13" : "M8 10 24 24M8 24h16M8 38 24 24M24 24h17"}
           className="workspace-mode-path"
         />

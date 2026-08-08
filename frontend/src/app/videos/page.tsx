@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { redirect } from "next/navigation";
+import { redirect, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StudioPromptDock } from "@/components/studio-prompt-dock";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -28,11 +28,29 @@ export function Videos({
   initialSubmode?: "text" | "image";
 }) {
   const { refreshBalance } = useAuth();
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [page, setPageState] = useState(() => {
+    const raw = Number(searchParams.get("page"));
+    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
+  });
   const [result, setResult] = useState<{ page: number; data: Paginated<GeneratedVideoEntry> } | null>(
     null
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Тот же паттерн синхронизации query-параметра `page`, что и у Images
+  // (images/page.tsx) — компонент тоже встраивается только внутри /studio,
+  // уже обёрнутого в Suspense.
+  function updatePage(next: number) {
+    setPageState(next);
+    const query = new URLSearchParams(searchParams.toString());
+    if (next > 1) query.set("page", String(next));
+    else query.delete("page");
+    const queryString = query.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }
 
   const [submode, setSubmode] = useState<"text" | "image">(initialSubmode);
   const [prompt, setPrompt] = useState("");
@@ -120,7 +138,7 @@ export function Videos({
             : prev
         );
       } else {
-        setPage(1);
+        updatePage(1);
       }
     } catch (err) {
       if (err instanceof ApiError && (err.status === 402 || err.status === 403)) {
@@ -198,7 +216,7 @@ export function Videos({
           <button
             type="button"
             disabled={!data.previous}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => updatePage(Math.max(1, page - 1))}
             className="btn-secondary disabled:opacity-40"
           >
             Назад
@@ -206,7 +224,7 @@ export function Videos({
           <button
             type="button"
             disabled={!data.next}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => updatePage(page + 1)}
             className="btn-secondary disabled:opacity-40"
           >
             Далее
@@ -244,7 +262,13 @@ function VideoCard({ entry }: { entry: GeneratedVideoEntry }) {
             // Заглушки — анимированный GIF (нет лёгкого чисто-питоновского
             // энкодера MP4 на бэкенде, см. videogen/mock.py), а не видео.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={entry.video_url} alt={entry.prompt} className="h-full w-full object-cover" />
+            <img
+              src={entry.video_url}
+              alt={entry.prompt}
+              width={400}
+              height={400}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <video src={entry.video_url} controls className="h-full w-full object-cover" />
           )
@@ -263,6 +287,8 @@ function VideoCard({ entry }: { entry: GeneratedVideoEntry }) {
             <img
               src={entry.source_image_url}
               alt="Стартовый кадр"
+              width={32}
+              height={32}
               className="h-8 w-8 rounded object-cover"
             />
             <span className="text-[11px] text-muted">Стартовый кадр</span>

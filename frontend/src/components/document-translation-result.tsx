@@ -3,12 +3,14 @@ import type { DocumentTranslationResult as DocumentTranslationResultData } from 
 export function DocumentTranslationResult({ data }: { data: DocumentTranslationResultData }) {
   return (
     <div className="flex flex-col gap-6">
-      <section>
-        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Перевод</h2>
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
-          {data.translated_text}
-        </p>
-      </section>
+      {data.translated_text && (
+        <section>
+          <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Перевод</h2>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+            {data.translated_text}
+          </p>
+        </section>
+      )}
 
       {data.summary && (
         <section>

@@ -43,6 +43,7 @@ export function TelegramLinkExistingAccount() {
           required
           autoComplete="username"
           placeholder="Имя пользователя"
+          aria-label="Имя пользователя"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           className="input"
@@ -52,6 +53,7 @@ export function TelegramLinkExistingAccount() {
           type="password"
           autoComplete="current-password"
           placeholder="Пароль"
+          aria-label="Пароль"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="input"

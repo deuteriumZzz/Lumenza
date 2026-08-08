@@ -7,10 +7,16 @@ const mocks = vi.hoisted(() => ({
   createImageEdit: vi.fn(),
   createImageUpscale: vi.fn(),
   refreshBalance: vi.fn(),
+  query: "",
+  replace: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  useSearchParams: () => new URLSearchParams(mocks.query),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
+  usePathname: () => "/studio",
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -63,6 +69,9 @@ describe("Images Mini App layout", () => {
     mocks.createImage.mockReset();
     mocks.createImageEdit.mockReset();
     mocks.createImageUpscale.mockReset();
+    mocks.query = "";
+    mocks.replace.mockReset();
+    mocks.push.mockReset();
   });
 
   it("uses a persistent bottom composer with real model routing", async () => {

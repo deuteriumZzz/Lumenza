@@ -89,6 +89,8 @@ export function Analyze() {
             <img
               src={preview}
               alt="Загруженное фото"
+              width={96}
+              height={96}
               className="aspect-video w-full flex-shrink-0 rounded object-cover sm:h-24 sm:w-24 sm:aspect-square"
             />
           )}

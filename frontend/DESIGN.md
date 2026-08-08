@@ -130,6 +130,16 @@ interpolate together over 220ms with the standard strong ease-in-out curve; the 
 names exact properties rather than using `transition: all`, and the existing global
 `prefers-reduced-motion` rule reduces it to an effectively instant state change.
 
+**Superseded (2026-08-04)** — the pixel-perfect redesign
+(`docs/LUMENZA_PIXEL_PERFECT_REDESIGN_PLAN.md`) retires the per-zone hue
+shift described above: all 6 approved reference screens
+(`docs/redesign-references/approved/`) show one flat gold/charcoal
+palette everywhere, including Studio. The `[data-zone="studio"/"voice"/
+"archive"]` override blocks in `globals.css` are now no-ops (kept, not
+deleted, in case a narrower version is reintroduced later); `zone.tsx`/
+`ZoneProvider`/`STUDIO_MODE_ZONE` are unchanged. This section's original
+rationale is left in place as the historical record.
+
 ## Theme Mode Decision (2026-07-21)
 
 Lumenza remains **dark-only for the current product phase**. This is intentional,

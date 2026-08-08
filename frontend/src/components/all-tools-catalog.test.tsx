@@ -41,7 +41,7 @@ describe("AllToolsCatalog", () => {
   it("opens with the category requested by the unified workspace link", () => {
     render(<AllToolsCatalog initialCategory="data" />);
 
-    expect(screen.getByRole("button", { name: "Data" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Data & Analytics" }).getAttribute("aria-pressed")).toBe("true");
     const catalog = screen.getByRole("list", { name: "Каталог инструментов" });
     expect(within(catalog).getByRole("button", { name: /Data Analysis/i })).toBeDefined();
     expect(within(catalog).queryByRole("button", { name: /Research & Insights/i })).toBeNull();

@@ -4,6 +4,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   history: vi.fn(),
+  query: "",
+  replace: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(mocks.query),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
+  usePathname: () => "/history",
 }));
 
 vi.mock("@/components/require-auth", () => ({
@@ -24,6 +33,9 @@ describe("HistoryPage workspace layout", () => {
   afterEach(() => {
     cleanup();
     mocks.history.mockReset();
+    mocks.query = "";
+    mocks.replace.mockReset();
+    mocks.push.mockReset();
   });
 
   it("presents request history as a calm workspace table", async () => {

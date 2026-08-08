@@ -149,7 +149,7 @@ describe("Nav", () => {
     expect(balances.every((node) => node.dataset.balanceChange === "decrease")).toBe(true);
     expect(
       balances.every((node) =>
-        within(node).getByText("5.00").className.includes("text-danger"),
+        within(node).getByText("5,00").className.includes("text-danger"),
       ),
     ).toBe(true);
   });
@@ -164,10 +164,10 @@ describe("Nav", () => {
     mocks.auth.balance = { balance: "125.00" };
     rerender(<Nav />);
 
-    const balances = screen.getAllByRole("status", { name: "Баланс 125.00 кредитов" });
+    const balances = screen.getAllByRole("status", { name: "Баланс 125,00 кредитов" });
     expect(balances.every((node) => node.dataset.balanceChange === "increase")).toBe(true);
     balances.forEach((node) =>
-      fireEvent.animationEnd(within(node).getByText("125.00")),
+      fireEvent.animationEnd(within(node).getByText("125,00")),
     );
     expect(balances.every((node) => node.dataset.balanceChange === "idle")).toBe(true);
   });

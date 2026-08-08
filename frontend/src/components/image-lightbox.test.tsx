@@ -77,16 +77,16 @@ describe("ImageLightbox", () => {
 
     expect(zoomOut.hasAttribute("disabled")).toBe(true);
     fireEvent.click(zoomIn);
-    expect(preview.style.width).toBe("150%");
+    expect(preview.style.transform).toBe("scale(1.5)");
     expect(within(dialog).getByText("150%")).toBeDefined();
 
     fireEvent.click(zoomOut);
-    expect(preview.style.width).toBe("100%");
+    expect(preview.style.transform).toBe("scale(1)");
     fireEvent.click(zoomIn);
     fireEvent.click(zoomIn);
     fireEvent.click(zoomIn);
     fireEvent.click(zoomIn);
-    expect(preview.style.width).toBe("300%");
+    expect(preview.style.transform).toBe("scale(3)");
     expect(zoomIn.hasAttribute("disabled")).toBe(true);
   });
 

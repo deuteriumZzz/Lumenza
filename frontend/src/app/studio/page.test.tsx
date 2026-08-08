@@ -209,7 +209,7 @@ describe("StudioPage motion", () => {
 
   it.each([
     ["view=tools", "All tools"],
-    ["view=apps", "Lumenza Apps"],
+    ["view=apps", "Apps"],
     ["view=community", "Community"],
   ])("renders the %s catalog as a separate Studio view", (query, heading) => {
     mocks.query = query;

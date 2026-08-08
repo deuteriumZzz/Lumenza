@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { HistoryFilters } from "@/components/history-filters";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  HistoryFilters,
+  isoToLocalDateInput,
+  type FilterForm,
+} from "@/components/history-filters";
 import { RequireAuth } from "@/components/require-auth";
 import {
   api,
@@ -9,16 +14,59 @@ import {
   type HistoryEntry,
   type HistoryQuery,
   type Paginated,
+  type Task,
 } from "@/lib/api";
 import { statusPillClass } from "@/lib/status-styles";
 
 export default function HistoryPage() {
   return (
     <RequireAuth>
-      <History />
+      <Suspense fallback={null}>
+        <History />
+      </Suspense>
     </RequireAuth>
   );
 }
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
+}
+
+function parseFiltersFromParams(searchParams: URLSearchParams): HistoryQuery {
+  const filters: HistoryQuery = {};
+  const task = searchParams.get("task");
+  if (task) filters.task = task as Task;
+  const provider = searchParams.get("provider");
+  if (provider) filters.provider = provider;
+  const status = searchParams.get("status");
+  if (status) filters.status = status as HistoryEntry["status"];
+  const from = searchParams.get("from");
+  if (from) filters.created_after = from;
+  const to = searchParams.get("to");
+  if (to) filters.created_before = to;
+  return filters;
+}
+
+function parseInitialFormValues(searchParams: URLSearchParams): Partial<FilterForm> {
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  return {
+    task: (searchParams.get("task") as FilterForm["task"]) ?? "",
+    provider: searchParams.get("provider") ?? "",
+    status: (searchParams.get("status") as FilterForm["status"]) ?? "",
+    dateFrom: from ? isoToLocalDateInput(from) : "",
+    dateTo: to ? isoToLocalDateInput(to, true) : "",
+  };
+}
+
+const historyDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
   ok: "ок",
@@ -30,8 +78,10 @@ const STATUS_LABEL: Record<HistoryEntry["status"], string> = {
 };
 
 function History() {
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<HistoryQuery>({});
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [page, setPage] = useState(() => parsePage(searchParams.get("page")));
+  const [filters, setFilters] = useState<HistoryQuery>(() => parseFiltersFromParams(searchParams));
   // `result` помечает каждый ответ страницей, на которую он отвечает, так
   // что "loading" можно вывести (страница result ещё не догнала запрошенную
   // страницу), а не отслеживать как отдельный флаг, для которого
@@ -42,6 +92,24 @@ function History() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestKey = JSON.stringify({ page, filters });
+
+  // Отражает текущие страницу/фильтры в URL (page/task/provider/status/
+  // from/to), чтобы навигация назад/вперёд, добавление в закладки и
+  // публикация ссылки восстанавливали тот же отфильтрованный вид. Тот же
+  // приём — прямой вызов router.replace в обработчике изменения, а не в
+  // эффекте, следящем за состоянием, — что и в studio/page.tsx (selectMode),
+  // чтобы не плодить записи в истории браузера на каждое изменение.
+  function syncUrl(nextPage: number, nextFilters: HistoryQuery) {
+    const query = new URLSearchParams();
+    if (nextPage > 1) query.set("page", String(nextPage));
+    if (nextFilters.task) query.set("task", nextFilters.task);
+    if (nextFilters.provider) query.set("provider", nextFilters.provider);
+    if (nextFilters.status) query.set("status", nextFilters.status);
+    if (nextFilters.created_after) query.set("from", nextFilters.created_after);
+    if (nextFilters.created_before) query.set("to", nextFilters.created_before);
+    const queryString = query.toString();
+    router.replace(queryString ? `/history?${queryString}` : "/history", { scroll: false });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -93,10 +161,12 @@ function History() {
 
       <div className="mt-7">
         <HistoryFilters
+          initialValues={parseInitialFormValues(searchParams)}
           onApply={(nextFilters) => {
             setFilters(nextFilters);
             setPage(1);
             setError(null);
+            syncUrl(1, nextFilters);
           }}
         />
       </div>
@@ -154,7 +224,7 @@ function History() {
                       <p className="mt-1 text-xs text-muted">{entry.provider} · {entry.task}</p>
                     </td>
                     <td className="px-5 py-4 text-xs text-muted">
-                      <p>{new Date(entry.created_at).toLocaleString()}</p>
+                      <p>{historyDateFormatter.format(new Date(entry.created_at))}</p>
                       {(entry.used_fallback || entry.mocked) && (
                         <p className="mt-1">
                           {entry.used_fallback && "резервный маршрут"}
@@ -184,7 +254,11 @@ function History() {
           <button
             type="button"
             disabled={!data.previous}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => {
+              const nextPage = Math.max(1, page - 1);
+              setPage(nextPage);
+              syncUrl(nextPage, filters);
+            }}
             className="btn-secondary disabled:opacity-40"
           >
             Назад
@@ -192,7 +266,11 @@ function History() {
           <button
             type="button"
             disabled={!data.next}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => {
+              const nextPage = page + 1;
+              setPage(nextPage);
+              syncUrl(nextPage, filters);
+            }}
             className="btn-secondary disabled:opacity-40"
           >
             Далее

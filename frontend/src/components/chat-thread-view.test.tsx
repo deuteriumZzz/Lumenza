@@ -143,10 +143,11 @@ describe("ChatThreadView model routing", () => {
     expect(within(workspace).getByRole("banner", { name: "Chat workspace" })).toBeDefined();
     expect(within(workspace).getByRole("toolbar", { name: "Контекст чата" })).toBeDefined();
     expect(within(workspace).getByRole("form", { name: "Написать сообщение" })).toBeDefined();
-    expect(within(workspace).getByRole("toolbar", { name: "Инструменты чата" })).toBeDefined();
     expect(within(workspace).getByRole("navigation", { name: "Категории инструментов" })).toBeDefined();
     expect(within(workspace).getAllByRole("link", { name: /Открыть:/ })).toHaveLength(4);
-    expect(within(workspace).getByText(/Lumenza может ошибаться/i)).toBeDefined();
+    expect(within(workspace).getByText(/может ошибаться/i).textContent).toMatch(
+      /Lumenza может ошибаться/i,
+    );
     fireEvent.click(within(workspace).getByRole("button", { name: "Открыть историю чатов" }));
     const savedChats = await within(workspace).findByRole("navigation", { name: "Сохранённые чаты" });
     expect(within(savedChats).getByRole("link", { name: /Запуск продукта/i }).getAttribute("href")).toBe("/chat/7");
@@ -243,7 +244,8 @@ describe("ChatThreadView model routing", () => {
   it("keeps the selected topic visible and active after sending", async () => {
     renderChat();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Исследовать" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Режим" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Поиск в интернете" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), {
       target: { value: "Свежие новости отрасли" },
     });
@@ -334,13 +336,6 @@ describe("ChatThreadView model routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Режим" }));
     fireEvent.click(screen.getByRole("button", { name: /Подробный ответ/i }));
     expect(screen.getByText("Подробный ответ", { selector: "[data-active-tool]" })).toBeDefined();
-
-    fireEvent.click(screen.getByRole("button", { name: "Изображение" }));
-    fireEvent.click(screen.getByRole("button", { name: "Документ" }));
-    fireEvent.click(screen.getByRole("button", { name: "Анализ" }));
-    expect(mocks.push).toHaveBeenCalledWith("/studio");
-    expect(mocks.push).toHaveBeenCalledWith("/studio?mode=documents");
-    expect(mocks.push).toHaveBeenCalledWith("/studio?mode=analyze");
 
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(mocks.push).toHaveBeenCalledWith("/chat");

@@ -3,7 +3,9 @@ import type { BudgetTrackerBuilderResult as BudgetTrackerBuilderResultData } fro
 export function BudgetTrackerBuilderResult({ data }: { data: BudgetTrackerBuilderResultData }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-medium text-ink">{data.sheet_title}</h2>
+      {data.sheet_title && (
+        <h2 className="text-sm font-medium text-ink">{data.sheet_title}</h2>
+      )}
       {data.excel_url && (
         <a
           href={data.excel_url}

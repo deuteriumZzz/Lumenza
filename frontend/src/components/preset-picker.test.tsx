@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -125,6 +125,9 @@ describe("PresetPicker", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Удалить пресет «Дерзкий копирайтер»" }),
     );
+
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
 
     await waitFor(() => expect(mocks.deletePreset).toHaveBeenCalledWith(1));
     expect(mocks.onSelect).toHaveBeenCalledWith(null);

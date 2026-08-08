@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
+import { redesignMotion } from "@/lib/motion";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FileUploadButton } from "@/components/file-upload-button";
 import { RequireAuth } from "@/components/require-auth";
 import {
@@ -34,18 +38,62 @@ const SOURCE_STATUS_LABELS: Record<KnowledgeSource["status"], string> = {
 export default function KnowledgePage() {
   return (
     <RequireAuth>
-      <Knowledge />
+      <Suspense fallback={null}>
+        <Knowledge />
+      </Suspense>
     </RequireAuth>
   );
 }
 
+function parseSourceFilter(value: string | null): SourceFilter {
+  return value === "text" || value === "image" ? value : "all";
+}
+
 function Knowledge() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveIdState] = useState<number | null>(() => {
+    const raw = Number(searchParams.get("workspace"));
+    return Number.isFinite(raw) && raw > 0 ? raw : null;
+  });
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [sourceFilter, setSourceFilterState] = useState<SourceFilter>(() =>
+    parseSourceFilter(searchParams.get("filter")),
+  );
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Отражает активное рабочее пространство и фильтр источников в URL
+  // (workspace/filter), тот же приём прямого router.replace в обработчике
+  // изменения, что и в studio/page.tsx и history/page.tsx — чтобы
+  // навигация назад/вперёд, закладки и ссылки восстанавливали тот же вид.
+  function syncKnowledgeUrl(nextActiveId: number | null, nextFilter: SourceFilter, clearSource = false) {
+    // Сохраняет прочие параметры (например `source`, которым владеет
+    // WorkspaceDetail ниже) — переписываются только workspace/filter,
+    // если явно не запрошена очистка `source` (при смене пространства).
+    const query = new URLSearchParams(searchParams.toString());
+    if (nextActiveId !== null) query.set("workspace", String(nextActiveId));
+    else query.delete("workspace");
+    if (nextFilter !== "all") query.set("filter", nextFilter);
+    else query.delete("filter");
+    if (clearSource) query.delete("source");
+    const queryString = query.toString();
+    router.replace(queryString ? `/knowledge?${queryString}` : "/knowledge", { scroll: false });
+  }
+
+  function setActiveId(next: number | null) {
+    const workspaceChanged = next !== activeId;
+    setActiveIdState(next);
+    syncKnowledgeUrl(next, sourceFilter, workspaceChanged);
+  }
+
+  function setSourceFilter(next: SourceFilter) {
+    setSourceFilterState(next);
+    syncKnowledgeUrl(activeId, next);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +101,12 @@ function Knowledge() {
       (data) => {
         if (cancelled) return;
         setWorkspaces(data);
-        if (data.length > 0) setActiveId((previous) => previous ?? data[0].id);
+        if (data.length > 0) {
+          setActiveIdState((previous) => {
+            const stillValid = previous !== null && data.some((workspace) => workspace.id === previous);
+            return stillValid ? previous : data[0].id;
+          });
+        }
       },
       (requestError) => {
         if (!cancelled) {
@@ -83,18 +136,26 @@ function Knowledge() {
     }
   }
 
-  async function deleteWorkspace(id: number, event: React.MouseEvent) {
+  function requestDeleteWorkspace(workspace: Workspace, event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
+    setDeleteTarget(workspace);
+  }
+
+  async function confirmDeleteWorkspace() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleting(true);
     try {
       await api.deleteWorkspace(id);
       const remainingWorkspaces = (workspaces ?? []).filter((workspace) => workspace.id !== id);
       setWorkspaces(remainingWorkspaces);
-      setActiveId((previous) =>
-        previous === id ? (remainingWorkspaces[0]?.id ?? null) : previous,
-      );
+      if (activeId === id) setActiveId(remainingWorkspaces[0]?.id ?? null);
+      setDeleteTarget(null);
     } catch (requestError) {
       setError(apiErrorMessage(requestError, "Не удалось удалить рабочее пространство."));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -109,10 +170,6 @@ function Knowledge() {
       <div className="relative mx-auto w-full max-w-[1540px]">
         <header className="flex flex-col gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
-              <span className="inline-block size-1.5 rounded-full bg-primary shadow-[0_0_14px_color-mix(in_srgb,var(--color-primary)_75%,transparent)]" />
-              Lumenza workspace
-            </div>
             <h1 className="text-3xl font-semibold tracking-[-0.045em] text-ink sm:text-4xl">
               Knowledge
             </h1>
@@ -127,7 +184,7 @@ function Knowledge() {
               type="button"
               aria-label={`Фильтр источников: ${SOURCE_FILTER_LABELS[sourceFilter]}`}
               title={`Показаны: ${SOURCE_FILTER_LABELS[sourceFilter]}`}
-              onClick={() => setSourceFilter((current) => current === "all" ? "text" : current === "text" ? "image" : "all")}
+              onClick={() => setSourceFilter(sourceFilter === "all" ? "text" : sourceFilter === "text" ? "image" : "all")}
               className={`workspace-icon-button ${sourceFilter !== "all" ? "border-primary/45 text-primary" : ""}`}
             >▽</button>
             <button
@@ -173,7 +230,7 @@ function Knowledge() {
                       <button
                         type="button"
                         aria-label={`Удалить «${workspace.name}»`}
-                        onClick={(event) => void deleteWorkspace(workspace.id, event)}
+                        onClick={(event) => requestDeleteWorkspace(workspace, event)}
                         className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-lg text-muted/70 opacity-0 transition hover:bg-bg hover:text-danger focus:opacity-100 group-hover:opacity-100"
                       >
                         <KnowledgeIcon name="close" className="size-3" />
@@ -224,6 +281,17 @@ function Knowledge() {
           <EmptyWorkspace />
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Удалить «${deleteTarget?.name ?? ""}»?`}
+        description="Все источники, чанки и история поиска этого рабочего пространства будут удалены безвозвратно."
+        confirmLabel="Удалить"
+        pendingLabel="Удаляем…"
+        pending={deleting}
+        onConfirm={() => void confirmDeleteWorkspace()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </section>
   );
 }
@@ -254,8 +322,17 @@ function WorkspaceDetail({
   sourceFilter: SourceFilter;
   onFilterChange: (next: SourceFilter) => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [sources, setSources] = useState<KnowledgeSource[] | null>(null);
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  // Читает выбранный источник из `source` в URL (тот же приём, что и у
+  // activeId/sourceFilter в Knowledge выше) — компонент пересоздаётся при
+  // смене рабочего пространства (см. key={activeId} у вызывающего кода),
+  // так что чтение при монтировании всегда соответствует текущему workspace.
+  const [selectedSourceId, setSelectedSourceIdState] = useState<number | null>(() => {
+    const raw = Number(searchParams.get("source"));
+    return Number.isFinite(raw) && raw > 0 ? raw : null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [submittingText, setSubmittingText] = useState(false);
@@ -264,6 +341,15 @@ function WorkspaceDetail({
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<ChunkMatch[] | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  function setSelectedSourceId(next: number | null) {
+    setSelectedSourceIdState(next);
+    const query = new URLSearchParams(searchParams.toString());
+    if (next !== null) query.set("source", String(next));
+    else query.delete("source");
+    const queryString = query.toString();
+    router.replace(queryString ? `/knowledge?${queryString}` : "/knowledge", { scroll: false });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -375,6 +461,34 @@ function WorkspaceDetail({
         aria-label="Импорт источника"
         className="overflow-hidden rounded-3xl border border-primary/25 bg-bg/70 shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
       >
+        <form
+          className="flex flex-col gap-3 border-b border-border/70 p-3 sm:flex-row sm:items-center sm:p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runSearch();
+          }}
+        >
+          <div className="relative min-w-0 flex-1">
+            <KnowledgeIcon name="search" className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted" />
+            <input
+              id="knowledge-search"
+              type="search"
+              aria-label="Семантический поиск по пространству"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="О чём спросить это рабочее пространство?"
+              className="min-h-12 w-full rounded-xl border border-border/70 bg-bg/55 pl-11 pr-4 text-[15px] text-ink outline-none transition placeholder:text-muted focus:border-primary/40"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={searching || !query.trim()}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-bg/55 px-5 text-sm font-medium text-ink transition hover:border-primary/35 hover:bg-surface-raised active:scale-[0.98] disabled:opacity-40"
+          >
+            {searching ? "Ищем…" : "Найти"}
+          </button>
+        </form>
+
         <div className="grid lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="p-4 sm:p-5 lg:p-6">
             <div className="flex items-start gap-3">
@@ -431,33 +545,21 @@ function WorkspaceDetail({
           </div>
         </div>
 
-        <form
-          className="flex flex-col gap-3 border-t border-border/70 bg-surface/25 p-3 sm:flex-row sm:items-center sm:p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void runSearch();
-          }}
-        >
-          <div className="relative min-w-0 flex-1">
-            <KnowledgeIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <input
-              id="knowledge-search"
-              type="search"
-              aria-label="Семантический поиск по пространству"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="О чём спросить это рабочее пространство?"
-              className="min-h-11 w-full rounded-xl border border-border/70 bg-bg/55 pl-10 pr-4 text-sm text-ink outline-none transition placeholder:text-muted focus:border-primary/40"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={searching || !query.trim()}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-bg/55 px-5 text-sm font-medium text-ink transition hover:border-primary/35 hover:bg-surface-raised active:scale-[0.98] disabled:opacity-40"
-          >
-            {searching ? "Ищем…" : "Найти"}
-          </button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/70 bg-surface/25 p-3 sm:p-4">
+          <span className="text-[11px] uppercase tracking-[0.08em] text-muted">Скоро:</span>
+          {["Ссылка", "Notion", "Google Drive", "Confluence"].map((label) => (
+            <button
+              key={label}
+              type="button"
+              disabled
+              aria-label={`${label} — появится позже`}
+              className="inline-flex min-h-8 cursor-not-allowed items-center rounded-lg border border-border/60 bg-bg/40 px-3 text-xs font-medium text-muted opacity-60"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
       </section>
 
       {error && (
@@ -482,6 +584,25 @@ function WorkspaceDetail({
             <span className="rounded-lg border border-border/70 bg-bg/45 px-2.5 py-1 text-xs tabular-nums text-muted">
               {visibleSources?.length ?? 0}
             </span>
+          </div>
+
+          <div role="tablist" aria-label="Тип источника" className="flex items-center gap-1 border-b border-border/70 px-4 py-2 sm:px-5">
+            {(["all", "text", "image"] as const).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                role="tab"
+                aria-selected={sourceFilter === filter}
+                onClick={() => onFilterChange(filter)}
+                className={`min-h-8 rounded-lg px-3 text-xs font-medium capitalize transition ${
+                  sourceFilter === filter
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted hover:bg-surface-raised hover:text-ink"
+                }`}
+              >
+                {SOURCE_FILTER_LABELS[filter]}
+              </button>
+            ))}
           </div>
 
           {sources === null ? (
@@ -527,7 +648,10 @@ function WorkspaceDetail({
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
         <section aria-label="Недавние источники" className="rounded-2xl border border-border/75 bg-surface/35 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-ink">Недавние источники</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <KnowledgeIcon name="clock" className="size-4 text-muted" />
+              Недавние источники
+            </h2>
             {sources && sources.length > recentSources.length && (
               <button
                 type="button"
@@ -561,7 +685,10 @@ function WorkspaceDetail({
         </section>
 
         <section aria-label="Коллекции" className="rounded-2xl border border-border/75 bg-surface/35 p-4 sm:p-5">
-          <h2 className="text-sm font-semibold text-ink">Коллекции</h2>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <KnowledgeIcon name="folder" className="size-4 text-muted" />
+            Коллекции
+          </h2>
           <div className="mt-2 flex flex-col gap-0.5">
             {(
               [
@@ -601,6 +728,8 @@ function EmbedWidgetsSection({ workspaceId }: { workspaceId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<EmbedWidgetEntry | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -641,12 +770,18 @@ function EmbedWidgetsSection({ workspaceId }: { workspaceId: number }) {
     }
   }
 
-  async function remove(widget: EmbedWidgetEntry) {
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    const widget = removeTarget;
+    setRemoving(true);
     try {
       await api.deleteEmbedWidget(widget.id);
       setWidgets((previous) => previous?.filter((item) => item.id !== widget.id) ?? previous);
+      setRemoveTarget(null);
     } catch (requestError) {
       setError(apiErrorMessage(requestError, "Не удалось удалить виджет."));
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -697,7 +832,7 @@ function EmbedWidgetsSection({ workspaceId }: { workspaceId: number }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void remove(widget)}
+                    onClick={() => setRemoveTarget(widget)}
                     className="text-xs font-medium text-danger underline"
                   >
                     Удалить
@@ -711,6 +846,17 @@ function EmbedWidgetsSection({ workspaceId }: { workspaceId: number }) {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title={`Удалить виджет «${removeTarget?.title || "Без названия"}»?`}
+        description="Встроенный на сайте чат-бот перестанет работать сразу после удаления."
+        confirmLabel="Удалить"
+        pendingLabel="Удаляем…"
+        pending={removing}
+        onConfirm={() => void confirmRemove()}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </section>
   );
 }
@@ -745,6 +891,7 @@ function SearchResults({ results }: { results: ChunkMatch[] }) {
 }
 
 function SourceDetail({ source }: { source: KnowledgeSource | null }) {
+  const shouldReduceMotion = useReducedMotion();
   return (
     <aside
       aria-label="Детали источника"
@@ -755,7 +902,13 @@ function SourceDetail({ source }: { source: KnowledgeSource | null }) {
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-ink">Детали источника</h2>
       </div>
       {source ? (
-        <div className="p-5">
+        <motion.div
+          key={source.id}
+          className="p-5"
+          initial={shouldReduceMotion ? false : { opacity: 0, x: 18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={shouldReduceMotion ? { duration: 0 } : redesignMotion.panel}
+        >
           <div className="flex items-start justify-between gap-4">
             <span className="inline-flex size-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
               <KnowledgeIcon name={source.kind === "image" ? "image" : "document"} className="size-4.5" />
@@ -781,7 +934,7 @@ function SourceDetail({ source }: { source: KnowledgeSource | null }) {
               {source.error_message || "Не удалось обработать источник."}
             </p>
           )}
-        </div>
+        </motion.div>
       ) : (
         <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
           <span className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-bg/45 text-muted">
@@ -862,7 +1015,7 @@ function formatSourceDate(value: string): string {
   return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short" }).format(date);
 }
 
-type KnowledgeIconName = "arrow" | "close" | "cursor" | "document" | "image" | "library" | "plus" | "search" | "spark";
+type KnowledgeIconName = "arrow" | "close" | "cursor" | "document" | "folder" | "clock" | "image" | "library" | "plus" | "search" | "spark";
 
 function KnowledgeIcon({ name, className }: { name: KnowledgeIconName; className?: string }) {
   const paths: Record<KnowledgeIconName, React.ReactNode> = {
@@ -870,6 +1023,8 @@ function KnowledgeIcon({ name, className }: { name: KnowledgeIconName; className
     close: <path d="m7 7 10 10M17 7 7 17" />,
     cursor: <path d="m6 4 12 8-6 2-2 6-4-16Z" />,
     document: <path d="M7 3h7l4 4v14H7V3Zm7 0v5h5M10 12h5M10 16h5" />,
+    folder: <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h4l2 2h7A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z" />,
+    clock: <path d="M12 7v5l3.5 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />,
     image: <path d="M4 5h16v14H4V5Zm3 11 4-4 3 3 2-2 4 4M16 9h.01" />,
     library: <path d="M5 4h4v16H5V4Zm5 0h4v16h-4V4Zm5 2 4-1 2 14-4 1-2-14Z" />,
     plus: <path d="M12 5v14M5 12h14" />,

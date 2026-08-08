@@ -56,11 +56,11 @@ const STUDIO_TOOLS: FlyoutItem[] = [
 ];
 
 const ALL_TOOLS: FlyoutItem[] = [
-  { label: "Research & Insights", description: "Проверенные источники и выводы", href: "/tools?category=Research" },
-  { label: "Content Creation", description: "Статьи, посты, публикации", href: "/tools?category=Writing" },
-  { label: "Code Assistant", description: "Написание и отладка кода", href: "/tools?category=Code" },
-  { label: "Document Intelligence", description: "Извлечение и суммаризация", href: "/tools?category=Documents" },
-  { label: "Automation Builder", description: "Повторяемые сценарии", href: "/tools?category=Automation" },
+  { label: "Research & insights", description: "Проверенные источники и выводы", href: "/tools?category=Research" },
+  { label: "Content creation", description: "Статьи, посты, публикации", href: "/tools?category=Writing" },
+  { label: "Code assistant", description: "Написание и отладка кода", href: "/tools?category=Code" },
+  { label: "Document intelligence", description: "Извлечение и суммаризация", href: "/tools?category=Documents" },
+  { label: "Automation builder", description: "Повторяемые сценарии", href: "/tools?category=Automation" },
   { label: "Весь каталог", description: "Все инструменты Lumenza", href: "/tools" },
 ];
 
@@ -112,14 +112,25 @@ function persistSidebarPreference(value: boolean) {
 export function ThreadSidebar() {
   const pathname = usePathname();
   const activeSection = getWorkspaceSection(pathname)?.key;
-  const [collapsed, setCollapsed] = useState(() => storedSidebarPreference() ?? false);
+  // Starts at the server-safe default (false) so the first client render
+  // matches SSR exactly — reading localStorage synchronously here would
+  // make the client's initial render diverge from the server's whenever a
+  // stored preference exists, causing a hydration mismatch. The real
+  // preference (stored value, or the mobile no-preference default) is
+  // applied a frame later via the effect below; `is-initializing` (see
+  // globals.css) keeps that brief window from flashing wide on mobile.
+  const [collapsed, setCollapsed] = useState(false);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (storedSidebarPreference() === null
-        && typeof window.matchMedia === "function"
-        && window.matchMedia("(max-width: 767px)").matches) {
+      const stored = storedSidebarPreference();
+      if (stored !== null) {
+        setCollapsed(stored);
+      } else if (
+        typeof window.matchMedia === "function"
+        && window.matchMedia("(max-width: 767px)").matches
+      ) {
         setCollapsed(true);
       }
       setInitializing(false);
@@ -296,9 +307,9 @@ function SidebarIcon({ icon, active = false }: { icon: SidebarIconName; active?:
   if (icon === "studio") return <StudioMark active={active} className="size-4.5 shrink-0" />;
   const common = { viewBox: "0 0 24 24", className: "size-4.5 shrink-0", fill: "none", stroke: "currentColor", strokeWidth: 1.6 };
   if (icon === "chat") return <svg aria-hidden="true" {...common}><path d="M4 12a8 8 0 1 1 5 7.4L4 20l1.1-4.4A8 8 0 0 1 4 12Z" strokeLinejoin="round" /></svg>;
-  if (icon === "agents") return <svg aria-hidden="true" {...common}><circle cx="6" cy="7" r="2.25" /><circle cx="18" cy="7" r="2.25" /><circle cx="12" cy="17.5" r="2.25" /><path d="M7.8 8.6 10.4 15.7M16.2 8.6 13.6 15.7M8.25 7h7.5" strokeLinecap="round" /></svg>;
+  if (icon === "agents") return <svg aria-hidden="true" {...common}><circle cx="12" cy="8" r="3.2" /><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" strokeLinecap="round" /></svg>;
   if (icon === "knowledge") return <svg aria-hidden="true" {...common}><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5Zm16 0A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5Z" /></svg>;
-  if (icon === "tools") return <svg aria-hidden="true" {...common}>{[6, 12, 18].flatMap((y) => [6, 12, 18].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.5" />))}</svg>;
+  if (icon === "tools") return <svg aria-hidden="true" {...common}><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>;
   if (icon === "apps") return <svg aria-hidden="true" {...common}><rect x="4" y="4" width="6" height="6" rx="1.5" /><rect x="14" y="4" width="6" height="6" rx="1.5" /><rect x="4" y="14" width="6" height="6" rx="1.5" /><path d="M17 14v6m-3-3h6" strokeLinecap="round" /></svg>;
   if (icon === "community") return <svg aria-hidden="true" {...common}><circle cx="9" cy="9" r="3" /><circle cx="17" cy="8" r="2" /><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5s4.9 1.5 5.5 4.5M15 13.5c2.8 0 4.5 1.2 5 3.5" strokeLinecap="round" /></svg>;
   if (icon === "automations") return <svg aria-hidden="true" {...common}><path d="M12.5 3.5 5.5 13h5l-1 7.5 7-9.5h-5l1-7.5Z" strokeLinejoin="round" /></svg>;

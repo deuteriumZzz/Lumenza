@@ -39,7 +39,7 @@ export function PetAvatar({ user, active = false, size = "md", className = "", l
   if (user.pet_image) {
     return (
       <span className={`pet-avatar pet-avatar-${size} ${className}`} data-active={active}>
-        <img src={user.pet_image} alt={alt} className="size-full object-cover" />
+        <img src={user.pet_image} alt={alt} width={40} height={40} className="size-full object-cover" />
       </span>
     );
   }

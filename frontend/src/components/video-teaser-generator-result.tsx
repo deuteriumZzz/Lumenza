@@ -14,6 +14,8 @@ export function VideoTeaserGeneratorResult({ data }: { data: VideoTeaserGenerato
         <img
           src={data.video_url}
           alt={data.caption || "Сгенерированное видео (заглушка)"}
+          width={1280}
+          height={720}
           className="w-full max-w-md rounded-md border border-border"
         />
       ) : data.video_url ? (

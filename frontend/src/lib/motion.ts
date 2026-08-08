@@ -38,3 +38,18 @@ export const springs = {
   instant: { type: "spring", stiffness: 600, damping: 35 },
   release: { type: "spring", stiffness: 200, damping: 20, restDelta: 0.001 },
 } as const;
+
+// Choreography-specific tokens for the pixel-perfect redesign
+// (docs/LUMENZA_PIXEL_PERFECT_REDESIGN_PLAN.md §8). Kept separate from
+// motionTokens.duration above rather than repurposing fast/normal/slow,
+// since those are the existing single source of truth other components
+// already depend on — reusing them here would silently retime unrelated
+// animations. Consumed by route-transition.tsx (route in/out,
+// Chat↔Agents core morph) and any right-inspector panel that needs to
+// animate on selection change.
+export const redesignMotion = {
+  routeOut: { duration: 0.14, ease: [0.22, 1, 0.36, 1] },
+  routeIn: { duration: 0.21, ease: [0.22, 1, 0.36, 1] },
+  panel: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+  lumenzaCoreTransition: { duration: 0.56, ease: [0.22, 1, 0.36, 1] },
+} as const;

@@ -20,6 +20,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
 }));
 
+vi.mock("@/lib/auth-context", () => ({
+  useAuth: () => ({ user: { id: 1, username: "alice" } }),
+}));
+
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return {

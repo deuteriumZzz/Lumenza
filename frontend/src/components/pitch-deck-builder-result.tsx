@@ -3,7 +3,7 @@ import type { PitchDeckBuilderResult as PitchDeckBuilderResultData } from "@/lib
 export function PitchDeckBuilderResult({ data }: { data: PitchDeckBuilderResultData }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-medium text-ink">{data.title}</h2>
+      {data.title && <h2 className="text-sm font-medium text-ink">{data.title}</h2>}
       {data.pptx_url && (
         <a
           href={data.pptx_url}

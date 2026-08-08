@@ -5,10 +5,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { PetAvatar, petPresetLabel } from "@/components/pet-avatar";
 import { PET_PRESETS, api, apiErrorMessage, type PetInput, type PetPreset, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { WorkspaceTopActions } from "@/components/workspace-top-actions";
 
 // UserContextData's nested fields are all optional (a freshly saved
 // profile may only have some of them) — the form always works with the
@@ -95,8 +97,8 @@ function Profile() {
   return (
     <div className="account-workspace mx-auto w-full max-w-[92rem] flex-1 px-4 pb-12 sm:px-8 lg:px-10">
       <header className="account-workspace-header">
-        <div><p className="workspace-eyebrow">Lumenza account</p><h1>Account</h1><p>Управляйте профилем, компанией и персональными настройками.</p></div>
-        <span>{user?.email || user?.username}</span>
+        <div><h1>Account</h1><p>Управляйте профилем, компанией и персональными настройками.</p></div>
+        <WorkspaceTopActions />
       </header>
 
       <div className="account-workspace-layout">
@@ -242,6 +244,7 @@ function PetSection({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const objectPreviewRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -329,6 +332,7 @@ function PetSection({
       setPreset("");
       clearObjectPreview();
       setPreviewUrl(null);
+      setConfirmDeleteOpen(false);
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось удалить питомца."));
     } finally {
@@ -348,6 +352,8 @@ function PetSection({
             <img
               src={previewUrl}
               alt={`Питомец ${name || user.username}`}
+              width={288}
+              height={288}
               className="size-full object-cover"
             />
           ) : preset ? (
@@ -447,7 +453,7 @@ function PetSection({
             {(user.pet_image || user.pet_preset || previewUrl || preset) && (
               <button
                 type="button"
-                onClick={() => void deletePet()}
+                onClick={() => setConfirmDeleteOpen(true)}
                 disabled={saving || removing}
                 className="rounded-md border border-border px-4 py-2 text-sm text-muted transition-colors hover:border-danger/40 hover:text-danger disabled:opacity-50"
               >
@@ -457,6 +463,17 @@ function PetSection({
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title={`Удалить питомца «${name || user.username}»?`}
+        description="Фото и настройки питомца будут удалены безвозвратно."
+        confirmLabel="Удалить"
+        pendingLabel="Удаляем…"
+        pending={removing}
+        onConfirm={() => void deletePet()}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </section>
   );
 }

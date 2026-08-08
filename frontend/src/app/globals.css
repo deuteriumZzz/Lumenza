@@ -3,47 +3,108 @@
 @property --color-bg {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.09 0 0);
+  initial-value: #0a0f13;
 }
 
 @property --color-surface {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.16 0.004 60);
+  initial-value: #11181d;
 }
 
 @property --color-surface-raised {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.21 0.005 60);
+  initial-value: #161e23;
 }
 
 @property --color-primary {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.76 0.16 61);
+  initial-value: #efb64d;
 }
 
 @property --color-accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.74 0.12 199);
+  initial-value: #55d7e5;
 }
 
 :root {
-  /* One fixed dark/gold identity — see DESIGN.md. No theme or accent
-     switcher: every reference (Abacus/ImagineArt/the Codex mockups) is a
-     single committed palette, not a user-configurable one. */
-  --color-bg: oklch(0.09 0 0);
-  --color-surface: oklch(0.16 0.004 60);
-  --color-surface-raised: oklch(0.21 0.005 60);
-  --color-ink: oklch(0.96 0.004 60);
-  --color-muted: oklch(0.64 0.012 60);
-  --color-primary: oklch(0.76 0.16 61);
-  --color-accent: oklch(0.74 0.12 199);
-  --color-success: oklch(0.72 0.14 152);
-  --color-danger: oklch(0.63 0.19 25);
-  --color-border: oklch(0.28 0.006 60);
+  /* Pixel-perfect redesign palette — see
+     docs/LUMENZA_PIXEL_PERFECT_REDESIGN_PLAN.md §4 and
+     docs/redesign-references/. Supersedes the prior brass/copper +
+     verdigris OKLCH system (still see DESIGN.md for the historical
+     record). Raw token layer below, named to match the plan doc 1:1. */
+  --bg-root: #0a0f13;
+  --bg-sidebar: #0c1216;
+  --bg-surface: #11181d;
+  --bg-surface-raised: #161e23;
+  --bg-surface-hover: #1a2329;
+  --bg-input: #12191e;
+
+  --border-subtle: #263038;
+  --border-default: #323d45;
+  --border-strong: #45515a;
+
+  --text-primary: #f3f5f6;
+  --text-secondary: #a9b0b5;
+  --text-muted: #7d8890;
+  --text-disabled: #4d565c;
+
+  --gold-primary: #efb64d;
+  --gold-hover: #ffc767;
+  --gold-active: #dda33c;
+  --gold-soft: rgba(239, 182, 77, 0.1);
+  --gold-border: rgba(239, 182, 77, 0.62);
+  --gold-glow: rgba(239, 182, 77, 0.18);
+
+  --cyan-primary: #55d7e5;
+  --cyan-hover: #76e5ef;
+  --cyan-soft: rgba(85, 215, 229, 0.1);
+  --cyan-border: rgba(85, 215, 229, 0.38);
+
+  --success: #42cf8c;
+  --danger: #ef6464;
+  --warning: #efb64d;
+
+  /* Typography scale — doc §5. Defined only; no component consumes
+     these yet (font family stays Geist Sans, already satisfies the
+     doc's "Inter or Geist Sans"). */
+  --fs-page-title: 1.875rem;
+  --fw-page-title: 600;
+  --ls-page-title: -0.025em;
+  --fs-workspace-headline: 2.125rem;
+  --fw-workspace-headline: 600;
+  --fs-section-title: 1.0625rem;
+  --fw-section-title: 600;
+  --fs-card-title: 0.9375rem;
+  --fw-card-title: 600;
+  --fs-body: 0.875rem;
+  --fw-body: 400;
+  --fs-secondary: 0.8125rem;
+  --fw-secondary: 400;
+  --fs-metadata: 0.75rem;
+  --fw-metadata: 450;
+  --fs-sidebar-item: 0.9375rem;
+  --fw-sidebar-item: 480;
+  --fs-wordmark: 0.9375rem;
+  --fw-wordmark: 560;
+  --ls-wordmark: 0.28em;
+
+  /* Existing semantic names, re-pointed at the new palette above
+     (aliasing step — every component already consumes these names, so
+     this is the single place the whole app's paint changes from). */
+  --color-bg: var(--bg-root);
+  --color-surface: var(--bg-surface);
+  --color-surface-raised: var(--bg-surface-raised);
+  --color-ink: var(--text-primary);
+  --color-muted: var(--text-secondary);
+  --color-primary: var(--gold-primary);
+  --color-accent: var(--cyan-primary);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-border: var(--border-default);
   --workspace-sidebar-width: 15.5rem;
   --workspace-gutter: clamp(1rem, 3vw, 3.25rem);
   --workspace-radius-sm: 0.75rem;
@@ -64,6 +125,15 @@
   --color-success: var(--color-success);
   --color-danger: var(--color-danger);
   --color-border: var(--color-border);
+  /* Additive — new richer tiers, nothing above changes meaning. */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-hover: var(--bg-surface-hover);
+  --color-bg-input: var(--bg-input);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -230,23 +300,66 @@ html[data-telegram-mini-app="true"] body {
   position: relative;
   display: grid;
   place-items: center;
-  width: 8.25rem;
-  height: 8.25rem;
+  width: 10.5rem;
+  height: 10.5rem;
+  animation: lumenza-core-enter 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumenza-convergence-stage {
+    animation: none;
+  }
 }
 
 .lumenza-convergence-stage::before {
   content: "";
   position: absolute;
-  inset: 22%;
+  inset: 32%;
   border-radius: 999px;
   background: color-mix(in oklch, var(--color-primary) 16%, transparent);
-  filter: blur(20px);
+  filter: blur(16px);
   animation: lumenza-atmosphere 3.8s ease-in-out infinite;
+}
+
+.lumenza-aperture-mark {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+/* The blade ring rotates a few degrees and swells slightly — reads as the
+   iris breathing/focusing, not spinning. The glow pulses on the same
+   rhythm, brighter at the "more open" extreme, selling the idea that the
+   light is what's being focused. */
+.lumenza-aperture-blades {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lumenza-aperture-breathe 6s ease-in-out infinite;
+}
+
+.lumenza-aperture-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lumenza-aperture-glow-pulse 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumenza-aperture-blades,
+  .lumenza-aperture-glow {
+    animation: none;
+  }
 }
 
 .lumenza-convergence-stage .lumenza-mark {
   position: relative;
   z-index: 1;
+}
+
+.lumenza-orbit-ring {
+  position: absolute;
+  inset: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 22%, transparent);
 }
 
 .lumenza-orbit {
@@ -274,15 +387,11 @@ html[data-telegram-mini-app="true"] body {
   animation: lumenza-orbit-spin-reverse 13s linear infinite;
 }
 
-.lumenza-orbit-particle {
-  position: absolute;
-  z-index: 2;
-  width: 0.2rem;
-  height: 0.2rem;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--color-primary) 75%, transparent);
-  box-shadow: 0 0 6px 1px color-mix(in oklch, var(--color-primary) 55%, transparent);
-  animation: lumenza-caption-pulse 3.2s ease-in-out infinite;
+.lumenza-orbit-outermost {
+  inset: -0.85rem;
+  border: 1px dashed color-mix(in oklch, var(--color-primary) 16%, transparent);
+  mask-image: none;
+  animation: lumenza-orbit-spin 34s linear infinite;
 }
 
 .lumenza-convergence-caption {
@@ -296,16 +405,6 @@ html[data-telegram-mini-app="true"] body {
   font-weight: 520;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.lumenza-caption-pulse {
-  width: 0.3rem;
-  height: 0.3rem;
-  border-radius: 999px;
-  background: var(--color-accent);
-  box-shadow: 0 0 8px
-    color-mix(in oklch, var(--color-accent) 55%, transparent);
-  animation: lumenza-caption-pulse 3.8s ease-in-out infinite;
 }
 
 .brand-cursor {
@@ -826,38 +925,32 @@ html[data-telegram-mini-app="true"] body {
   transform: translateY(0);
 }
 
-/* Zones (see DESIGN.md) — a restrained hue shift on primary/accent plus a
-   near-imperceptible background/surface chroma tint per section of the
-   product, NOT a different palette per section. "desk" (chat/history/
-   pricing/login/register) intentionally has no override block below — it
-   IS the :root palette above, unchanged. Scoped to [data-zone], which
-   ZoneScope renders around page content only (never around Nav), so the
-   header never shifts between zones, only the content beneath it does. */
-[data-zone="studio"] {
-  /* images + analyze — warmer, toward orange */
-  --color-bg: oklch(0.09 0.006 45);
-  --color-surface: oklch(0.16 0.008 45);
-  --color-surface-raised: oklch(0.21 0.009 45);
-  --color-primary: oklch(0.72 0.15 45);
-  --color-accent: oklch(0.74 0.12 190);
-}
+/* Zones (see DESIGN.md "Zones") — formerly a restrained per-section hue
+   shift on primary/accent/background. Neutralized (2026-08-04) for the
+   pixel-perfect redesign: all 6 approved references
+   (docs/redesign-references/approved/) show one flat gold/charcoal
+   palette everywhere, including Studio, whose internal Audio/Documents/
+   Code mode tabs used to drive [data-zone="voice"/"archive"] purely from
+   a tab click (see ZoneProvider in components/zone.tsx) — that
+   per-section hue-shift is retired, not deleted, in case a narrower
+   version is reintroduced later. zone.tsx/ZoneProvider/STUDIO_MODE_ZONE
+   and all [data-zone] plumbing are untouched; these blocks are now
+   no-ops that just restate the base :root tokens.
 
-[data-zone="voice"] {
-  /* voice — cooler, toward blue-violet */
-  --color-bg: oklch(0.09 0.006 280);
-  --color-surface: oklch(0.16 0.008 280);
-  --color-surface-raised: oklch(0.21 0.009 280);
-  --color-primary: oklch(0.68 0.12 280);
-  --color-accent: oklch(0.7 0.13 275);
-}
-
+   Also note (not fixed here): WorkspaceShell renders ThreadSidebar as a
+   descendant of the [data-zone] wrapper, contradicting the "header never
+   shifts between zones" invariant these blocks were originally written
+   under (predates the sidebar being unified into WorkspaceShell).
+   Neutralizing the blocks below makes this dormant — don't let a future
+   change to these blocks silently reintroduce sidebar hue-shift. */
+[data-zone="studio"],
+[data-zone="voice"],
 [data-zone="archive"] {
-  /* documents (OCR) — lower chroma, quieter/neutral */
-  --color-bg: oklch(0.09 0.002 60);
-  --color-surface: oklch(0.155 0.003 60);
-  --color-surface-raised: oklch(0.2 0.004 60);
-  --color-primary: oklch(0.6 0.05 60);
-  --color-accent: oklch(0.58 0.04 60);
+  --color-bg: var(--bg-root);
+  --color-surface: var(--bg-surface);
+  --color-surface-raised: var(--bg-surface-raised);
+  --color-primary: var(--gold-primary);
+  --color-accent: var(--cyan-primary);
 }
 
 .zone-scope {
@@ -996,6 +1089,37 @@ html[data-telegram-mini-app="true"] body {
   }
 }
 
+@keyframes lumenza-aperture-breathe {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(7deg) scale(1.035);
+  }
+}
+
+@keyframes lumenza-aperture-glow-pulse {
+  0%, 100% {
+    opacity: 0.75;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes lumenza-core-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes lumenza-atmosphere {
   0%, 100% {
     opacity: 0.45;
@@ -1042,6 +1166,181 @@ html[data-telegram-mini-app="true"] body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Dark OLED Luxury — landing page only (see /page.tsx). True-black
+   surface plus brushed-gold materiality: a deeper, more overtly premium
+   register than the app's near-black --bg-root, reserved for the
+   marketing landing page per DESIGN.md's "3D/playful motion ... reserved
+   for the marketing landing page register" carve-out. Scoped under
+   .landing-oled so the rest of the app keeps its current --bg-root. */
+.landing-oled {
+  position: relative;
+  isolation: isolate;
+  background: #000;
+}
+
+.landing-oled::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 58% 42% at 50% 6%, color-mix(in oklch, var(--gold-primary) 12%, transparent), transparent 72%),
+    radial-gradient(ellipse 40% 30% at 88% 94%, color-mix(in oklch, var(--cyan-primary) 5%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* Faint fractal-noise grain — on true OLED black, a gold radial glow
+   alone shows visible gradient banding; a ~3.5% noise layer breaks the
+   bands up so the glow reads as light on a material, not a CSS gradient. */
+.landing-oled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.landing-reveal {
+  animation: landing-fade-up 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Brushed-gold sheen sweeps across the headline once on load, like light
+   catching an engraved metal plate — not a decorative loop, it runs once
+   and settles, so it reads as an entrance, not an idle animation. */
+.landing-hero-heading {
+  background: linear-gradient(100deg, var(--text-primary) 42%, var(--gold-hover) 50%, var(--text-primary) 58%);
+  background-size: 240% 100%;
+  background-position: 168% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    landing-fade-up 640ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    landing-heading-sheen 1400ms ease-out 520ms both;
+}
+
+@keyframes landing-heading-sheen {
+  to {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal {
+    animation: none;
+  }
+  .landing-hero-heading {
+    animation: none;
+    background-position: -40% 0;
+  }
+}
+
+/* Gold-foil CTA: an inset highlight for a beveled-metal edge, a soft
+   gold cast shadow instead of a flat drop shadow, and a diagonal sheen
+   that sweeps through on hover — the same "light catching metal" idea
+   as the headline, but interactive this time. */
+.landing-cta-primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(155deg, var(--gold-hover), var(--gold-primary) 55%, var(--gold-active));
+  color: #17100a;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 30%, transparent),
+    0 12px 30px -14px color-mix(in oklch, var(--gold-primary) 65%, transparent);
+  transition:
+    box-shadow 220ms ease-out,
+    transform 220ms ease-out;
+}
+
+.landing-cta-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 32%, color-mix(in oklch, white 60%, transparent) 48%, transparent 64%);
+  transform: translateX(-130%);
+  transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-cta-primary:hover {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 34%, transparent),
+    0 16px 38px -14px color-mix(in oklch, var(--gold-primary) 78%, transparent);
+  transform: translateY(-1px);
+}
+
+.landing-cta-primary:hover::after {
+  transform: translateX(130%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-cta-primary,
+  .landing-cta-primary::after {
+    transition: none;
+  }
+}
+
+/* Feature cards on true black read as void without a material cue — a
+   faint gold-tinted hairline border plus an inset top highlight gives
+   each card an edge to catch light on, and the hover state lifts it
+   slightly with a soft gold cast shadow rather than a generic elevation
+   shadow. */
+.landing-feature-card {
+  position: relative;
+  border: 1px solid color-mix(in oklch, var(--gold-primary) 15%, var(--border-subtle));
+  background: linear-gradient(180deg, color-mix(in oklch, var(--gold-primary) 6%, #050505), #050505);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 6%, transparent);
+  transition:
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 240ms ease-out,
+    box-shadow 240ms ease-out;
+}
+
+.landing-feature-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklch, var(--gold-primary) 42%, var(--border-subtle));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 9%, transparent),
+    0 18px 44px -22px color-mix(in oklch, var(--gold-primary) 55%, transparent);
+}
+
+/* Middle card's resting stagger offset, owned here (not via a Tailwind
+   translate-y utility) so the hover rule above can compose with it
+   instead of a same-specificity `transform` clash silently overriding
+   the resting offset on hover. */
+@media (min-width: 768px) {
+  .landing-feature-card--stagger {
+    transform: translateY(1rem);
+  }
+
+  .landing-feature-card--stagger:hover {
+    transform: translateY(calc(1rem - 3px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-feature-card {
+    transition: none;
+  }
+  .landing-feature-card:hover {
+    transform: none;
   }
 }
 
@@ -1208,7 +1507,8 @@ html[data-telegram-mini-app="true"] body {
   }
 
   .sidebar-active-indicator {
-    @apply absolute inset-0 -z-10 rounded-xl border border-primary/45 bg-primary/6;
+    @apply absolute inset-0 -z-10 rounded-xl bg-primary/6;
+    border-left: 2px solid var(--gold-primary);
     box-shadow: inset 0 1px color-mix(in oklch, var(--color-ink) 6%, transparent), 0 8px 24px color-mix(in oklch, var(--color-primary) 6%, transparent);
   }
 
@@ -1216,6 +1516,7 @@ html[data-telegram-mini-app="true"] body {
     @apply mx-auto grid w-full max-w-[98rem] flex-1 min-w-0;
     grid-template-columns: minmax(0, 1fr);
     padding: 0 var(--workspace-gutter) 3rem;
+    background: radial-gradient(circle at 76% 3%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 28rem);
   }
 
   .workspace-page.has-inspector {
@@ -1364,6 +1665,14 @@ html[data-telegram-mini-app="true"] body {
     @apply size-9 text-sm;
   }
 
+  .workspace-top-actions {
+    @apply flex shrink-0 items-center gap-2.5;
+  }
+
+  .workspace-top-avatar {
+    @apply size-9 text-sm transition duration-150 hover:bg-primary/25;
+  }
+
   /* Shared companion renderer (sidebar trigger, popover header, profile
      preview, preset gallery) — sizing/rounding comes from whatever class
      the caller pairs it with (account-avatar, pet-avatar-preview, …) so
@@ -1479,9 +1788,8 @@ html[data-telegram-mini-app="true"] body {
   }
 
   .chat-workspace-header {
-    @apply flex min-h-20 items-center justify-between gap-5 border-b border-border/60;
+    @apply flex min-h-20 items-center justify-end gap-5;
   }
-  .chat-workspace-header strong { @apply mt-0.5 block text-xl font-semibold tracking-[-0.035em]; }
   .chat-context-toolbar { @apply hidden items-center gap-2 sm:flex; }
   .chat-context-toolbar i { @apply not-italic text-primary; }
   .chat-context-display-pill {
@@ -1505,7 +1813,6 @@ html[data-telegram-mini-app="true"] body {
   .chat-history-popover > p { @apply px-2.5 py-5 text-center text-xs text-muted; }
   .chat-workspace-status-dot { @apply size-1.5 rounded-full bg-success; box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-success) 10%, transparent); }
   .chat-disclaimer { @apply mb-3 text-center text-[10px] text-muted; }
-  .chat-capability-toolbar { @apply rounded-2xl border border-border/55 bg-surface/35 px-2 py-1.5; }
 
   .chat-tool-categories {
     @apply -mt-2 flex min-h-10 items-center overflow-x-auto rounded-2xl border border-border/55 bg-surface/35 px-2;
@@ -1513,7 +1820,7 @@ html[data-telegram-mini-app="true"] body {
   }
   .chat-tool-categories::-webkit-scrollbar { display: none; }
   .chat-tool-categories > a {
-    @apply relative inline-flex min-h-9 shrink-0 items-center border-r border-border/55 px-4 text-[11px] text-muted transition hover:bg-surface-raised/60 hover:text-ink;
+    @apply relative inline-flex min-h-9 shrink-0 items-center gap-1.5 border-r border-border/55 px-4 text-[11px] text-muted transition hover:bg-surface-raised/60 hover:text-ink;
   }
   .chat-tool-categories > a:first-child { @apply text-primary; }
   .chat-tool-categories > a:first-child::after {
@@ -1527,8 +1834,6 @@ html[data-telegram-mini-app="true"] body {
     box-shadow: inset 0 1px color-mix(in oklch, var(--color-ink) 5%, transparent);
   }
   .chat-action-card > span { @apply row-span-2 inline-flex size-10 items-center justify-center rounded-full border border-primary/30 bg-primary/7 text-lg text-primary; }
-  .chat-action-card:nth-child(2n) > span { @apply border-accent/35 bg-accent/8 text-accent; }
-  .chat-action-card:nth-child(3n) > span { @apply border-success/35 bg-success/8 text-success; }
   .chat-action-card > strong { @apply self-center text-sm font-semibold text-ink; }
   .chat-action-card > p { @apply col-start-2 mt-2 text-[11px] leading-5 text-muted; }
   .chat-action-card > em { @apply col-start-2 mt-3 flex items-center justify-between text-[11px] not-italic text-accent; }
@@ -1604,7 +1909,15 @@ html[data-telegram-mini-app="true"] body {
   }
 
   .composer-send-button {
-    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-bg transition duration-150 hover:scale-[1.04] active:scale-[0.94] disabled:cursor-not-allowed disabled:bg-surface-raised disabled:text-muted;
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-full border transition duration-150 hover:scale-[1.04] active:scale-[0.94] disabled:cursor-not-allowed;
+    border-color: var(--gold-border);
+    background: var(--gold-soft);
+    color: var(--gold-primary);
+  }
+  .composer-send-button:disabled {
+    border-color: var(--border-default);
+    background: transparent;
+    color: var(--text-muted);
   }
 
   .model-picker-popover {
@@ -1636,14 +1949,6 @@ html[data-telegram-mini-app="true"] body {
 
   .task-picker-popover {
     @apply absolute bottom-[calc(100%+0.75rem)] left-0 z-30 grid w-[min(44rem,calc(100vw-6rem))] gap-2 rounded-2xl border border-border/80 bg-surface/98 p-3 shadow-2xl backdrop-blur-xl md:grid-cols-3;
-  }
-
-  .quick-action-chip {
-    @apply inline-flex min-h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs text-muted transition duration-150 hover:bg-surface/80 hover:text-ink active:scale-[0.97];
-  }
-
-  .quick-action-chip.is-active {
-    @apply bg-primary/10 text-ink;
   }
 
   .sidebar-section-label {
@@ -1753,6 +2058,16 @@ html[data-telegram-mini-app="true"] body {
     @apply mt-0.5 text-sm font-medium;
   }
 
+  .studio-mode-preview-badge {
+    @apply absolute right-2 top-2 rounded-full border border-accent/45 bg-bg/70 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em] text-accent;
+  }
+
+  .studio-preview-placeholder {
+    @apply mx-auto flex max-w-xl flex-col items-start gap-3 px-3 py-16 text-left min-[380px]:px-4 sm:px-8;
+  }
+  .studio-preview-placeholder h2 { @apply text-2xl font-semibold tracking-[-0.03em] text-ink; }
+  .studio-preview-placeholder p:last-child { @apply text-sm leading-6 text-muted; }
+
   @media (max-width: 1023px) {
     .studio-shell { display: flex; flex-direction: column; }
     .studio-header,
@@ -1780,7 +2095,8 @@ html[data-telegram-mini-app="true"] body {
     scrollbar-width: none;
   }
   .studio-control-bar::-webkit-scrollbar { display: none; }
-  .studio-control-bar > button { @apply inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-xs text-muted transition duration-150 hover:bg-surface-raised hover:text-ink aria-expanded:bg-surface-raised aria-expanded:text-ink; }
+  .studio-control-bar > button { @apply inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border/70 px-3 text-xs text-muted transition duration-150 hover:bg-surface-raised hover:text-ink aria-expanded:bg-surface-raised aria-expanded:text-ink; }
+  .studio-workspace-controls.is-compact .studio-control-bar > button { @apply bg-surface/70; }
   .studio-control-bar > button:first-child { @apply min-w-48; }
   .studio-control-panel {
     @apply absolute left-4 top-[calc(100%-0.25rem)] z-50 w-[min(30rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border/80 bg-surface/98 p-3 backdrop-blur-xl sm:left-8 lg:left-10;
@@ -1925,6 +2241,22 @@ html[data-telegram-mini-app="true"] body {
       radial-gradient(circle at 72% 24%, color-mix(in oklch, var(--color-primary) 72%, white), transparent 18%),
       conic-gradient(from 220deg, var(--color-bg), color-mix(in oklch, var(--color-primary) 35%, var(--color-surface)), var(--color-bg));
   }
+  .studio-mode-card.tone-1 .studio-mode-card-art {
+    background:
+      radial-gradient(circle at 28% 70%, color-mix(in oklch, var(--color-accent) 70%, white), transparent 18%),
+      conic-gradient(from 60deg, var(--color-bg), color-mix(in oklch, var(--color-accent) 32%, var(--color-surface)), var(--color-bg));
+  }
+  .studio-mode-card.tone-2 .studio-mode-card-art {
+    background:
+      radial-gradient(circle at 50% 30%, color-mix(in oklch, var(--color-primary) 55%, white), transparent 20%),
+      radial-gradient(circle at 80% 80%, color-mix(in oklch, var(--color-accent) 30%, transparent), transparent 30%),
+      linear-gradient(160deg, color-mix(in oklch, var(--color-primary) 14%, var(--color-surface)), var(--color-bg));
+  }
+  .studio-mode-card.tone-3 .studio-mode-card-art {
+    background:
+      radial-gradient(circle at 75% 65%, color-mix(in oklch, var(--color-accent) 58%, white), transparent 19%),
+      conic-gradient(from 300deg, var(--color-bg), color-mix(in oklch, var(--color-primary) 24%, var(--color-surface)), var(--color-bg));
+  }
 
   .studio-capability-canvas {
     @apply relative flex min-h-[38rem] flex-col items-center justify-center rounded-[2rem] border border-border/55 bg-bg/35 px-5 pb-44 pt-10 text-center;
@@ -2057,29 +2389,43 @@ html[data-telegram-mini-app="true"] body {
   .all-tools-filters button { @apply min-h-8 shrink-0 rounded-lg px-3 text-[11px] text-muted transition hover:bg-surface-raised hover:text-ink aria-pressed:bg-primary/10 aria-pressed:text-primary; }
 
   .all-tools-featured {
-    @apply mt-4 flex min-h-40 items-end justify-between gap-6 overflow-hidden rounded-2xl border border-primary/20 p-5;
-    background: radial-gradient(circle at 75% 28%, color-mix(in oklch, var(--color-primary) 34%, transparent), transparent 16rem), linear-gradient(140deg, color-mix(in oklch, var(--color-primary) 12%, var(--color-surface)), var(--color-bg));
+    @apply mt-4 grid items-center gap-5 overflow-hidden rounded-2xl border border-primary/20 p-5;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    background: radial-gradient(circle at 82% 30%, color-mix(in oklch, var(--color-primary) 22%, transparent), transparent 16rem), linear-gradient(140deg, color-mix(in oklch, var(--color-primary) 12%, var(--color-surface)), var(--color-bg));
   }
-  .all-tools-featured span:first-child { @apply text-[9px] font-semibold uppercase tracking-[0.16em] text-primary; }
-  .all-tools-featured h2 { @apply mt-2 text-2xl font-semibold tracking-[-0.035em]; }
-  .all-tools-featured p { @apply mt-1 max-w-lg text-xs leading-5 text-muted; }
-  .all-tools-featured > a { @apply inline-flex shrink-0 items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-ink transition hover:-translate-y-px hover:bg-primary/15; }
+  .all-tools-featured-header { @apply flex flex-col items-start gap-2 self-start; }
+  .all-tools-featured-icon { @apply inline-flex size-9 items-center justify-center rounded-xl border border-primary/35 bg-primary/10 text-primary; }
+  .all-tools-featured-badge { @apply rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary; }
+  .all-tools-featured-eyebrow { @apply block text-[9px] font-semibold uppercase tracking-[0.16em] text-primary; }
+  .all-tools-featured h2 { @apply mt-1 text-2xl font-semibold tracking-[-0.035em]; }
+  .all-tools-featured-copy > p { @apply mt-2 max-w-lg text-xs leading-5 text-muted; }
+  .all-tools-featured-tags { @apply mt-3 flex flex-wrap gap-x-5 gap-y-1.5; }
+  .all-tools-featured-tags li { @apply inline-flex items-center gap-1.5 text-[11px] text-ink/85; }
+  .all-tools-featured-tags span { @apply text-primary; }
+  .all-tools-featured-copy > a { @apply mt-4 inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-accent transition hover:gap-2.5; }
+  .all-tools-featured-visual {
+    @apply relative hidden size-36 shrink-0 items-center justify-center sm:flex;
+  }
+  .all-tools-featured-visual .lumenza-orbit-outermost { inset: 0; }
+  .all-tools-featured-visual .lumenza-orbit-outer { inset: 0.6rem; }
+  .all-tools-featured-visual .lumenza-orbit-inner { inset: 2.1rem; }
 
-  .all-tools-grid { @apply mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3; }
+  .all-tools-browse-heading { @apply mt-5 mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted; }
+  .all-tools-grid { @apply grid gap-2.5 md:grid-cols-2 xl:grid-cols-3; }
   .all-tools-grid > li { @apply min-w-0; }
-  .all-tools-card { @apply flex min-h-20 w-full items-center gap-3 rounded-xl border border-border/60 bg-bg/28 px-3 text-left transition duration-200 hover:-translate-y-px hover:border-primary/25 hover:bg-surface-raised/75 aria-pressed:border-primary/35 aria-pressed:bg-primary/8; }
-  .all-tools-card-index { @apply inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-surface/80 font-mono text-[10px] text-primary; }
-  .all-tools-card-copy { @apply min-w-0 flex-1; }
-  .all-tools-card-copy strong { @apply block truncate text-xs font-medium text-ink; }
-  .all-tools-card-copy small { @apply mt-1 block text-[10px] text-muted; }
-  .all-tools-card > em { @apply text-[9px] not-italic text-muted; }
+  .all-tools-card {
+    @apply flex min-h-32 w-full flex-col items-start gap-1 rounded-xl border border-border/60 bg-bg/28 p-3.5 text-left transition duration-200 hover:-translate-y-px hover:border-primary/25 hover:bg-surface-raised/75 aria-pressed:border-primary/45 aria-pressed:bg-primary/8;
+  }
+  .all-tools-card-icon { @apply mb-1.5 inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-surface/80 text-primary; }
+  .all-tools-card > strong { @apply block text-sm font-medium text-ink; }
+  .all-tools-card > small { @apply block text-[11px] leading-5 text-muted; }
+  .all-tools-card-link { @apply mt-auto inline-flex items-center gap-1 pt-2 text-[11px] font-medium text-accent; }
 
   .all-tools-inspector { @apply flex flex-col border-l border-border/70 bg-bg/38 p-5; }
   .all-tools-inspector-visual {
-    @apply mb-6 flex aspect-[4/3] items-end justify-end rounded-2xl border border-border/70 p-4;
-    background: radial-gradient(circle at 35% 28%, color-mix(in oklch, var(--color-primary) 50%, white), transparent 15%), conic-gradient(from 210deg, var(--color-bg), color-mix(in oklch, var(--color-primary) 28%, var(--color-surface)), var(--color-bg));
+    @apply mb-4 inline-flex size-16 items-center justify-center self-start rounded-full border border-primary/35 text-primary;
+    box-shadow: 0 0 0 6px color-mix(in oklch, var(--color-primary) 6%, transparent);
   }
-  .all-tools-inspector-visual span { @apply font-mono text-xs text-ink/70; }
   .all-tools-inspector-title { @apply mt-2 flex items-center justify-between gap-3; }
   .all-tools-inspector-title h2 { @apply text-xl font-semibold tracking-tight; }
   .all-tools-inspector-title span { @apply rounded-lg border border-primary/25 bg-primary/8 px-2 py-1 text-[9px] font-medium uppercase tracking-wide text-primary; }
@@ -2089,6 +2435,18 @@ html[data-telegram-mini-app="true"] body {
   .all-tools-inspector dt { @apply text-muted; }
   .all-tools-inspector dd { @apply text-right text-ink; }
   .all-tools-inspector > small { @apply mt-3 text-[10px] leading-4 text-muted; }
+  .all-tools-inspector-facts { @apply divide-y-0 border-y-0 gap-3; display: flex; flex-direction: column; }
+  .all-tools-inspector-facts > div { @apply flex-col items-start gap-1 py-0 text-[11px]; }
+  .all-tools-inspector-facts dt { @apply text-[9px] uppercase tracking-[0.1em] text-muted; }
+  .all-tools-inspector-facts dd { @apply text-left text-xs leading-5 text-ink; }
+  .all-tools-favorite-button {
+    @apply mt-2 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-border/70 bg-surface/50 text-xs font-medium text-muted transition hover:border-primary/35 hover:text-ink;
+  }
+  .all-tools-favorite-button[aria-pressed="true"] { @apply border-primary/45 text-primary; }
+
+  .account-workspace {
+    background: radial-gradient(circle at 80% 4%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 28rem);
+  }
 
   .account-workspace-header { @apply flex min-h-32 items-end justify-between gap-6 border-b border-border/65 pb-5 pt-7; }
   .account-workspace-header h1 { @apply mt-1 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl; }
@@ -2124,7 +2482,8 @@ html[data-telegram-mini-app="true"] body {
   }
 
   @media (max-width: 639px) {
-    .all-tools-featured { @apply flex-col items-start; }
+    .all-tools-featured { grid-template-columns: minmax(0, 1fr); }
+    .all-tools-featured-visual { @apply hidden; }
   }
 
   .studio-tool-glyph {
@@ -2157,6 +2516,18 @@ html[data-telegram-mini-app="true"] body {
     @apply min-h-48 rounded-[1.25rem];
     background: radial-gradient(circle at 64% 25%, color-mix(in oklch, var(--color-primary) 75%, white), transparent 13%), linear-gradient(145deg, color-mix(in oklch, var(--color-primary) 26%, var(--color-surface)), var(--color-bg));
     transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .studio-app-card.tone-warm .studio-app-visual {
+    background: radial-gradient(circle at 30% 70%, color-mix(in oklch, var(--color-primary) 70%, white), transparent 15%), radial-gradient(circle at 78% 22%, color-mix(in oklch, var(--color-primary) 30%, transparent), transparent 38%), linear-gradient(160deg, color-mix(in oklch, var(--color-primary) 20%, var(--color-surface)), var(--color-bg));
+  }
+  .studio-app-card.tone-cool .studio-app-visual {
+    background: radial-gradient(circle at 68% 28%, color-mix(in oklch, var(--color-accent) 70%, white), transparent 14%), radial-gradient(circle at 20% 78%, color-mix(in oklch, var(--color-accent) 26%, transparent), transparent 40%), linear-gradient(150deg, color-mix(in oklch, var(--color-accent) 18%, var(--color-surface)), var(--color-bg));
+  }
+  .studio-app-card.tone-portrait .studio-app-visual {
+    background: radial-gradient(circle at 42% 20%, color-mix(in oklch, var(--color-primary) 55%, white), transparent 16%), radial-gradient(circle at 75% 72%, color-mix(in oklch, var(--color-accent) 45%, white), transparent 20%), linear-gradient(170deg, color-mix(in oklch, var(--color-primary) 12%, var(--color-surface)), var(--color-bg));
+  }
+  .studio-app-card.tone-signal .studio-app-visual {
+    background: radial-gradient(circle at 25% 30%, color-mix(in oklch, var(--color-accent) 65%, white), transparent 15%), radial-gradient(circle at 82% 78%, color-mix(in oklch, var(--color-primary) 38%, transparent), transparent 34%), linear-gradient(135deg, color-mix(in oklch, var(--color-accent) 16%, var(--color-surface)), var(--color-bg));
   }
 
   .studio-app-card:hover .studio-app-visual {
@@ -2191,6 +2562,16 @@ html[data-telegram-mini-app="true"] body {
   .community-tile:nth-child(3n + 2) { min-height: 22rem; }
   .community-tile:nth-child(4n) { background: radial-gradient(circle at 70% 30%, color-mix(in oklch, var(--color-accent) 60%, white), transparent 16%), linear-gradient(145deg, var(--color-surface-raised), var(--color-bg)); }
   .community-tile span { @apply translate-y-3 text-xs text-ink opacity-0 transition duration-200; }
+
+  /* tile-1..6 (see studio/page.tsx INSPIRATIONS) — six distinct abstract
+     compositions so the gallery reads as varied art directions rather
+     than one blob repeated six times. */
+  .community-tile.tile-1 { background: radial-gradient(circle at 28% 68%, color-mix(in oklch, var(--color-primary) 62%, white), transparent 16%), radial-gradient(circle at 76% 20%, color-mix(in oklch, var(--color-accent) 24%, transparent), transparent 36%), linear-gradient(160deg, color-mix(in oklch, var(--color-primary) 16%, var(--color-surface)), var(--color-bg)); }
+  .community-tile.tile-2 { background: radial-gradient(circle at 68% 30%, color-mix(in oklch, var(--color-accent) 62%, white), transparent 15%), radial-gradient(circle at 22% 80%, color-mix(in oklch, var(--color-primary) 26%, transparent), transparent 38%), linear-gradient(150deg, color-mix(in oklch, var(--color-accent) 16%, var(--color-surface)), var(--color-bg)); }
+  .community-tile.tile-3 { background: radial-gradient(circle at 40% 18%, color-mix(in oklch, var(--color-primary) 50%, white), transparent 18%), radial-gradient(circle at 78% 70%, color-mix(in oklch, var(--color-primary) 34%, transparent), transparent 30%), linear-gradient(170deg, color-mix(in oklch, var(--color-primary) 10%, var(--color-surface)), var(--color-bg)); }
+  .community-tile.tile-4 { background: radial-gradient(circle at 74% 74%, color-mix(in oklch, var(--color-accent) 55%, white), transparent 17%), radial-gradient(circle at 24% 24%, color-mix(in oklch, var(--color-primary) 30%, transparent), transparent 32%), linear-gradient(135deg, color-mix(in oklch, var(--color-accent) 14%, var(--color-surface)), var(--color-bg)); }
+  .community-tile.tile-5 { background: radial-gradient(circle at 50% 42%, color-mix(in oklch, var(--color-primary) 46%, white), transparent 22%), radial-gradient(circle at 85% 15%, color-mix(in oklch, var(--color-accent) 40%, white), transparent 20%), linear-gradient(145deg, color-mix(in oklch, var(--color-primary) 14%, var(--color-surface)), var(--color-bg)); }
+  .community-tile.tile-6 { background: radial-gradient(circle at 20% 30%, color-mix(in oklch, var(--color-accent) 50%, white), transparent 18%), radial-gradient(circle at 70% 85%, color-mix(in oklch, var(--color-primary) 42%, white), transparent 20%), linear-gradient(155deg, color-mix(in oklch, var(--color-accent) 12%, var(--color-surface)), var(--color-bg)); }
   .community-tile:hover span { @apply translate-y-0 opacity-100; }
 
   .agent-chat-hero {
@@ -2218,10 +2599,11 @@ html[data-telegram-mini-app="true"] body {
   .agent-orbit-mark::before { inset: 2rem 8%; }
   .agent-orbit-mark::after { inset: 4.5rem 21%; background: color-mix(in oklch, var(--color-primary) 5%, transparent); }
   .agent-orbit-mark > b {
-    @apply absolute left-1/2 top-1/2 z-10 inline-flex size-24 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary/45 bg-bg text-4xl font-normal text-primary;
+    @apply absolute left-1/2 top-1/2 z-10 inline-flex size-24 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary/45 bg-bg text-primary;
     box-shadow: 0 0 0 18px color-mix(in oklch, var(--color-primary) 6%, transparent), 0 0 70px color-mix(in oklch, var(--color-primary) 25%, transparent);
   }
   .agent-orbit-mark span { @apply absolute z-20 flex size-11 items-center justify-center rounded-full border border-primary/50 bg-surface-raised text-primary; box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-primary) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-primary) 35%, transparent); }
+  .agent-orbit-mark span[data-tone="cyan"] { @apply border-accent/50 text-accent; box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-accent) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-accent) 35%, transparent); }
 
   .agent-orbit-connectors {
     @apply absolute inset-0 z-0 size-full;
@@ -2235,7 +2617,7 @@ html[data-telegram-mini-app="true"] body {
   .agent-orbit-particle {
     @apply absolute z-10 size-1 rounded-full bg-primary/70;
     box-shadow: 0 0 6px 1px color-mix(in oklch, var(--color-primary) 55%, transparent);
-    animation: lumenza-caption-pulse 3.4s ease-in-out infinite;
+    animation: lumenza-caption-pulse 4.6s ease-in-out infinite;
   }
   .agent-orbit-mark span::after { content: attr(data-label); @apply absolute left-[calc(100%+0.75rem)] top-1/2 w-36 -translate-y-1/2 text-left text-[11px] text-ink; }
   .agent-orbit-mark span:nth-of-type(1) { left: 11%; top: 34%; }
@@ -2284,7 +2666,11 @@ html[data-telegram-mini-app="true"] body {
   }
 
   .agent-capability-chip { @apply inline-flex min-h-9 items-center rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary; }
-  .agent-composer-submit { @apply ml-auto; }
+  .agent-composer-submit {
+    @apply ml-auto inline-flex size-10 shrink-0 items-center justify-center rounded-full transition duration-150 hover:scale-[1.04] active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-50;
+    background: linear-gradient(155deg, var(--gold-hover), var(--gold-active));
+    color: var(--bg-root);
+  }
   .agent-mode-picker { @apply relative; }
   .agent-mode-picker > button { @apply inline-flex min-h-9 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-xs text-ink transition hover:border-primary/30; }
   .agent-mode-menu {
@@ -2316,8 +2702,9 @@ html[data-telegram-mini-app="true"] body {
     transform: translateY(-4px);
   }
 
-  .agent-trust-footer { @apply mt-8 grid gap-3 border-t border-border/60 py-5 text-[10px] text-muted sm:grid-cols-2 xl:grid-cols-4; }
-  .agent-trust-footer > span { @apply text-center; }
+  .agent-trust-footer { @apply mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border/60 py-5 text-[11px] text-muted; }
+  .agent-trust-footer > span { @apply inline-flex items-center gap-1.5; }
+  .agent-trust-footer-link { @apply ml-auto inline-flex items-center gap-1.5 text-primary transition hover:text-ink; }
 
   @media (max-width: 767px) {
     .agent-orbit-mark { @apply h-48; }

@@ -14,6 +14,7 @@ import { AppBackdrop } from "@/components/app-backdrop";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PetActivityProvider } from "@/lib/pet-activity";
+import { ChatRoutingProvider } from "@/components/chat-routing";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,9 +60,11 @@ export default function RootLayout({
                     <AccessibilityShell navigation={<Nav />}>
                       <TelegramLinkExistingAccount />
                       <ZoneScope>
-                        <WorkspaceShell>
-                          <RouteTransition>{children}</RouteTransition>
-                        </WorkspaceShell>
+                        <ChatRoutingProvider>
+                          <WorkspaceShell>
+                            <RouteTransition>{children}</RouteTransition>
+                          </WorkspaceShell>
+                        </ChatRoutingProvider>
                       </ZoneScope>
                     </AccessibilityShell>
                   </PetActivityProvider>

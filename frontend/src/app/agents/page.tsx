@@ -4,8 +4,10 @@ import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { GoalCard } from "@/components/goal-card";
 import { ModelPicker } from "@/components/model-picker";
+import { WorkspaceAccountAvatar } from "@/components/workspace-top-actions";
 import { springs } from "@/lib/motion";
 import { statusPillClass } from "@/lib/status-styles";
 import {
@@ -157,11 +159,13 @@ function Agents() {
     <div className="agent-workspace mx-auto w-full max-w-[92rem] flex-1 px-3 pb-10 min-[380px]:px-4 sm:px-8 lg:px-10">
       <header aria-label="Agents workspace" className="agent-workspace-header">
         <div>
-          <p className="workspace-eyebrow">Lumenza orchestration</p>
           <h1>Agents</h1>
           <p>Ваша AI-команда. Специализированная, связанная и готовая к работе.</p>
         </div>
-        <Link href="/agents?category=mine" aria-label="Мои агенты" className="workspace-outline-button"><span aria-hidden="true">＋</span> Новый агент</Link>
+        <div className="workspace-top-actions">
+          <Link href="/agents?category=mine" aria-label="Мои агенты" className="workspace-outline-button"><span aria-hidden="true">＋</span> Новый агент</Link>
+          <WorkspaceAccountAvatar />
+        </div>
       </header>
       <section aria-label="Чат агентов" className="agent-chat-hero">
         <motion.div
@@ -178,17 +182,15 @@ function Agents() {
             <line x1="50" y1="50" x2="22" y2="89" />
             <line x1="50" y1="50" x2="81" y2="93" />
           </svg>
-          <span className="agent-orbit-particle" style={{ left: "28%", top: "12%" }} />
-          <span className="agent-orbit-particle" style={{ left: "70%", top: "10%" }} />
-          <span className="agent-orbit-particle" style={{ left: "8%", top: "62%" }} />
-          <span className="agent-orbit-particle" style={{ left: "92%", top: "58%" }} />
-          <span className="agent-orbit-particle" style={{ left: "55%", top: "95%" }} />
-          <b aria-hidden="true">✦</b>
-          <span data-agent-node data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
-          <span data-agent-node data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
-          <span data-agent-node data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
-          <span data-agent-node data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
-          <span data-agent-node data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
+          <i className="agent-orbit-particle" style={{ left: "28%", top: "12%" }} />
+          <i className="agent-orbit-particle" style={{ left: "8%", top: "62%" }} />
+          <i className="agent-orbit-particle" style={{ left: "55%", top: "95%" }} />
+          <b aria-hidden="true"><HubIcon /></b>
+          <span data-agent-node data-tone="cyan" data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
+          <span data-agent-node data-tone="gold" data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
+          <span data-agent-node data-tone="cyan" data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
+          <span data-agent-node data-tone="cyan" data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
+          <span data-agent-node data-tone="cyan" data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
         </motion.div>
         <div className="agent-hero-copy">
           <p className="agent-mode-label">Агентный режим</p>
@@ -215,7 +217,7 @@ function Agents() {
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="Опишите результат, который хотите получить"
             aria-label="Задача агенту"
-            rows={5}
+            rows={2}
           />
           <div className="agent-composer-footer">
             <div className="agent-field">
@@ -258,10 +260,14 @@ function Agents() {
             <motion.button
               type="submit"
               disabled={!selectedAgent}
+              aria-label="Продолжить"
+              title="Продолжить"
               whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
-              className="btn-primary agent-composer-submit"
+              className="agent-composer-submit"
             >
-              Продолжить
+              <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M10 15V5m0 0L6 9m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </motion.button>
           </div>
         </motion.form>
@@ -338,10 +344,15 @@ function Agents() {
         </>
       )}
       <footer className="agent-trust-footer" aria-label="Гарантии Lumenza">
-        <span>◇ Enterprise security</span>
-        <span>⌁ Ваши данные остаются приватными</span>
-        <span>✓ Надёжные многошаговые сценарии</span>
-        <span>◷ Стабильная работа</span>
+        <span><TrustIcon variant="shield" /> Корпоративная безопасность</span>
+        <span><TrustIcon variant="home" /> Ваши данные остаются приватными</span>
+        <span><TrustIcon variant="badge" /> SOC 2 Type II</span>
+        <span><TrustIcon variant="clock" /> Стабильная работа 99.9%</span>
+        <Link href="/about" className="agent-trust-footer-link">
+          <TrustIcon variant="help" /> Подробнее об Агентах <span aria-hidden="true">↗</span>
+        </Link>
+        <Link href="/privacy" className="agent-trust-footer-link">Политика конфиденциальности</Link>
+        <Link href="/terms" className="agent-trust-footer-link">Условия использования</Link>
       </footer>
     </div>
   );
@@ -395,6 +406,54 @@ function AgentModeMenu() {
 
 type OrbitNodeKind = "research" | "executive" | "content" | "data" | "automation";
 
+type TrustIconKind = "shield" | "home" | "badge" | "clock" | "help";
+
+function TrustIcon({ variant }: { variant: TrustIconKind }) {
+  const common = { viewBox: "0 0 20 20", className: "size-3.5 shrink-0", fill: "none", stroke: "currentColor", strokeWidth: 1.6 } as const;
+  if (variant === "shield") return <svg aria-hidden="true" {...common}><path d="M10 2.5 16 5v4.5C16 13.5 13.5 16 10 17.5 6.5 16 4 13.5 4 9.5V5Z" strokeLinejoin="round" /></svg>;
+  if (variant === "home") return <svg aria-hidden="true" {...common}><path d="M3.5 9.5 10 4l6.5 5.5M5.5 8.5V16h9V8.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  if (variant === "badge") return <svg aria-hidden="true" {...common}><path d="M10 2.5 16 5v4.5C16 13.5 13.5 16 10 17.5 6.5 16 4 13.5 4 9.5V5Z" strokeLinejoin="round" /><path d="m7.5 9.8 1.8 1.8 3.2-3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  if (variant === "clock") return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 1.5" strokeLinecap="round" /></svg>;
+  return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M8.2 8a1.8 1.8 0 1 1 2.5 1.6c-.5.25-.7.55-.7 1.1" strokeLinecap="round" /><path d="M10 13.5v.01" strokeLinecap="round" /></svg>;
+}
+
+// Central hub glyph — traced from docs/redesign-references/detail-crops
+// (approved/agents.png hero center), a distribution/network icon rather
+// than the generic sparkle placeholder it replaced.
+function HubIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 100 100" className="size-9" fill="none">
+      <defs>
+        <linearGradient id="agent-hub-gradient" x1="10" y1="5" x2="90" y2="95" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--gold-hover)" />
+          <stop offset="1" stopColor="var(--gold-active)" />
+        </linearGradient>
+      </defs>
+      <g stroke="url(#agent-hub-gradient)" strokeWidth="1.6" strokeLinecap="round">
+        <line x1="50" y1="14" x2="50" y2="20" />
+        <line x1="30" y1="27" x2="41" y2="35" />
+        <line x1="70" y1="27" x2="59" y2="35" />
+        <line x1="14" y1="50" x2="30" y2="50" />
+        <line x1="86" y1="50" x2="70" y2="50" />
+        <line x1="30" y1="73" x2="41" y2="65" />
+        <line x1="70" y1="73" x2="59" y2="65" />
+        <line x1="50" y1="86" x2="50" y2="80" />
+      </g>
+      <rect x="46" y="17" width="8" height="66" rx="4" fill="url(#agent-hub-gradient)" />
+      <rect x="26" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
+      <rect x="66" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
+      <circle cx="50" cy="9" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="24" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="76" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="9" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="91" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="24" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="76" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
+      <circle cx="50" cy="91" r="4.5" fill="url(#agent-hub-gradient)" />
+    </svg>
+  );
+}
+
 function OrbitNodeIcon({ kind }: { kind: OrbitNodeKind }) {
   const common = { viewBox: "0 0 24 24", className: "size-4.5", fill: "none", stroke: "currentColor", strokeWidth: 1.6 } as const;
   if (kind === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
@@ -422,9 +481,9 @@ function CapabilityIcon({ kind }: { kind: CapabilityIconKind }) {
   if (kind === "research") return <svg aria-hidden="true" {...common}><circle cx="10.5" cy="10.5" r="6" /><path d="m19 19-4.3-4.3" strokeLinecap="round" /></svg>;
   if (kind === "data") return <svg aria-hidden="true" {...common}><path d="M5 19V9m7 10V5m7 14v-7" strokeLinecap="round" /><path d="M3.5 19.5h17" strokeLinecap="round" /></svg>;
   if (kind === "content") return <svg aria-hidden="true" {...common}><path d="M6 19.5 4 20l.5-2 11-11 2 2Z" strokeLinejoin="round" /><path d="m14 6.5 2-2 2 2-2 2Z" strokeLinejoin="round" /></svg>;
-  if (kind === "strategy") return <svg aria-hidden="true" {...common}><path d="M12 3.5v3M12 17.5v3M4.5 12h3M16.5 12h3" strokeLinecap="round" /><circle cx="12" cy="12" r="3.4" /></svg>;
+  if (kind === "strategy") return <svg aria-hidden="true" {...common}><path d="M12 4.5a5 5 0 0 0-3 9v1.5h6V13.5a5 5 0 0 0-3-9Z" /><path d="M9.5 18h5M10.5 20.5h3" strokeLinecap="round" /></svg>;
   if (kind === "automation") return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2.5" strokeLinecap="round" /></svg>;
-  return <svg aria-hidden="true" {...common}><path d="M12 4.5 5 8v8l7 3.5 7-3.5V8Z" strokeLinejoin="round" /><path d="M5 8l7 3.5 7-3.5" strokeLinejoin="round" /></svg>;
+  return <svg aria-hidden="true" {...common}><path d="M6 18 18 6M6 18l1-3.5L15.5 5.5 18.5 8.5 9.5 17Z" strokeLinejoin="round" /><path d="M17 3.5l.6 1.4L19 5.5l-1.4.6-.6 1.4-.6-1.4L15 5.5l1.4-.6Z" strokeLinejoin="round" /></svg>;
 }
 
 const CAPABILITY_LINKS = [
@@ -467,6 +526,8 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<CustomAgentSummary | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     api.customAgents().then(setMyAgents, (err) =>
@@ -506,12 +567,18 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
     }
   }
 
-  async function archive(slug: string) {
+  async function confirmArchive() {
+    if (!archiveTarget) return;
+    const slug = archiveTarget.slug;
+    setArchiving(true);
     try {
       await api.archiveCustomAgent(slug);
       setMyAgents((prev) => prev?.filter((agent) => agent.slug !== slug) ?? prev);
+      setArchiveTarget(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось архивировать агента."));
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -569,12 +636,14 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Название"
+            aria-label="Название"
             className="input"
           />
           <input
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Описание (необязательно)"
+            aria-label="Описание (необязательно)"
             className="input"
           />
 
@@ -629,7 +698,7 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
               </Link>
               <button
                 type="button"
-                onClick={() => void archive(agent.slug)}
+                onClick={() => setArchiveTarget(agent)}
                 className="shrink-0 text-xs text-muted underline hover:text-danger"
               >
                 Архивировать
@@ -638,6 +707,17 @@ function MyAgents({ catalog }: { catalog: AgentSummary[] | null }) {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={archiveTarget !== null}
+        title={`Архивировать «${archiveTarget?.name ?? ""}»?`}
+        description="Агент исчезнет из списка «Мои агенты». Это действие можно расценивать как удаление — восстановить агента из интерфейса будет нельзя."
+        confirmLabel="Архивировать"
+        pendingLabel="Архивируем…"
+        pending={archiving}
+        onConfirm={() => void confirmArchive()}
+        onCancel={() => setArchiveTarget(null)}
+      />
     </div>
   );
 }

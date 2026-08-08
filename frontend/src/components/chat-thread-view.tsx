@@ -13,7 +13,7 @@ import { PresetPicker } from "@/components/preset-picker";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
 import { LumenzaConvergence } from "@/components/lumenza-brand";
-import { useChatRouting } from "@/components/chat-routing";
+import { useChatRouting, modelLabel } from "@/components/chat-routing";
 import { useAuth } from "@/lib/auth-context";
 import {
   TASK_DEFINITIONS,
@@ -43,18 +43,58 @@ interface Message {
   meta?: Pick<ChatThreadMessage, "provider" | "model" | "task" | "mocked" | "used_fallback" | "credits_charged">;
 }
 
-// Человекочитаемые имена — по факту уже используемых в
-// providers.services.TASK_ROUTES id моделей (backend/providers/services.py).
-// Нераспознанный id (новая модель добавлена в маршрут, лейбл сюда ещё не
-// добавлен) просто показывается как есть — не ошибка, а понятный fallback.
-const MODEL_LABELS: Record<string, string> = {
-  "claude-3-5-sonnet-latest": "Claude 3.5 Sonnet",
-  "gpt-4o-mini": "GPT-4o mini",
-  "gemini-1.5-flash": "Gemini 1.5 Flash",
+
+// Featured action-card icons — traced from
+// docs/redesign-references/detail-crops/chat/09-action-cards.png, which
+// draws all four in the same muted-gold outline (not a cycling
+// gold/cyan/green palette per card, see .chat-action-card > span in
+// globals.css).
+const ACTION_CARD_ICON_PATHS: Record<string, string> = {
+  "chart-up": "M4 15.5l4.2-5 3 3.2L17.5 6M14.5 6h3v3",
+  document: "M6.5 3.5h6l4 4v12a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1zM12.5 3.5v4h4M8 12h6M8 15h6M8 9h2.5",
+  code: "M8.5 6.5l-5 5.5 5 5.5M13.5 6.5l5 5.5-5 5.5",
+  presentation: "M3.5 5h15v10.5h-15zM9 19.5h4M11 15.5v4M7.5 12l2.3-2.6 1.8 1.8 3.4-3.7",
 };
 
-function modelLabel(model: string): string {
-  return MODEL_LABELS[model] ?? model;
+function ActionCardIcon({ variant }: { variant: keyof typeof ACTION_CARD_ICON_PATHS }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 22 22" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d={ACTION_CARD_ICON_PATHS[variant]} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Category-rail icons — traced from
+// docs/redesign-references/detail-crops/chat/08-category-rail.png.
+const CATEGORY_RAIL_ICON_PATHS = {
+  featured: "M11 2.7l2.5 5 5.6.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.6-.8Z",
+  chart: "M5.5 17V11M11 17V7M16.5 17V13",
+  search: "M9.3 14.1a4.8 4.8 0 1 0 0-9.6 4.8 4.8 0 0 0 0 9.6ZM17 17l-3.8-3.8",
+  pencil: "M4.5 17.5l1-4.3L13.7 5a1.5 1.5 0 0 1 2.1 0l1.2 1.2a1.5 1.5 0 0 1 0 2.1L8.8 16.5Z",
+  code: ACTION_CARD_ICON_PATHS.code,
+  workflow: "M5.5 11h3M14.5 11h2M9 11a2 2 0 1 1 4 0 2 2 0 0 1-4 0ZM16.5 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM16.5 14.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM16.5 9.5v-3a1.5 1.5 0 0 0-1.5-1.5M16.5 12.5V16a1.5 1.5 0 0 1-1.5 1.5",
+  image: "M4 4.5h14v13H4ZM7 14l3-3.5 2.5 2.5L16 9M13.2 7.5a.9.9 0 1 0 1.8 0 .9.9 0 0 0-1.8 0Z",
+  presentation: ACTION_CARD_ICON_PATHS.presentation,
+  video: "M3.5 6.5H13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1ZM14 9l4-2.5v9L14 13",
+  audio: "M4.5 11v0M7.5 8v6M10.5 5v12M13.5 8v6M16.5 9.5v3",
+} as const;
+
+type CategoryRailIconVariant = keyof typeof CATEGORY_RAIL_ICON_PATHS;
+
+function CategoryRailIcon({ variant }: { variant: CategoryRailIconVariant }) {
+  const filled = variant === "featured";
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 22 22"
+      className="size-3.5 shrink-0"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path d={CATEGORY_RAIL_ICON_PATHS[variant]} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 // Разные интонации, чтобы пустой экран не выглядел одной и той же
@@ -469,7 +509,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     <section aria-label="Чат Lumenza" className="chat-workspace mx-auto flex w-full max-w-[80rem] flex-1 flex-col px-4 sm:px-6">
       <h1 className="sr-only">Чат</h1>
       <header aria-label="Chat workspace" className="chat-workspace-header">
-        <div><p className="workspace-eyebrow">Lumenza workspace</p><strong>Chat</strong></div>
         <div role="toolbar" aria-label="Контекст чата" className="chat-context-toolbar">
           <span className="chat-context-display-pill"><i aria-hidden="true">✦</i> {routing.kind === "model" ? modelLabel(routing.model) : "Автовыбор"}</span>
           <span className="chat-context-display-pill"><i aria-hidden="true">◯</i> Chat</span>
@@ -524,10 +563,11 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             <p className="mt-3 max-w-lg text-pretty text-sm leading-6 text-muted">{greeting.subtitle}</p>
           </div>
         ) : (
-          <ol className="flex flex-col gap-6" aria-live="polite">
+          <ol className="flex flex-col gap-6">
             {messages.map((message) => (
               <motion.li
                 key={message.id}
+                aria-live={message.id === streamingMessageId ? "polite" : undefined}
                 initial={{ opacity: 0, y: motionTokens.distance.sm }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={springs.gentle}
@@ -653,6 +693,22 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             }}
           />
           <ChatModeMenu />
+          <button
+            type="button"
+            onClick={() => setThemePickerOpen((open) => !open)}
+            aria-expanded={themePickerOpen}
+            className={`composer-tool-button ${routing.kind === "task" ? "is-active" : ""}`}
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M4 5h12M6.5 10h7M8.5 15h3" strokeLinecap="round" />
+            </svg>
+            <span
+              className="hidden sm:inline"
+              data-active-tool={routing.kind === "task" ? "" : undefined}
+            >
+              {routing.kind === "task" ? TASK_LABELS[routing.task] : "Режим"}
+            </span>
+          </button>
           <PresetPicker
             activePresetId={routing.kind === "preset" ? routing.presetId : null}
             onSelect={(preset) => {
@@ -675,22 +731,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             selectedWorkspaceId={attachedWorkspace?.id ?? null}
             onSelect={setAttachedWorkspace}
           />
-          <button
-            type="button"
-            onClick={() => setThemePickerOpen((open) => !open)}
-            aria-expanded={themePickerOpen}
-            className={`composer-tool-button ${routing.kind === "task" ? "is-active" : ""}`}
-          >
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M4 5h12M6.5 10h7M8.5 15h3" strokeLinecap="round" />
-            </svg>
-            <span
-              className="hidden sm:inline"
-              data-active-tool={routing.kind === "task" ? "" : undefined}
-            >
-              {routing.kind === "task" ? TASK_LABELS[routing.task] : "Режим"}
-            </span>
-          </button>
 
           <div className="chat-composer-actions ml-auto flex items-center gap-1.5">
             <span className="hidden max-w-44 truncate text-xs text-muted lg:block">
@@ -716,7 +756,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             {transcribing ? (
               <span className="size-3 animate-pulse rounded-full bg-current" aria-hidden="true" />
             ) : (
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <rect x="9" y="3" width="6" height="11" rx="3" />
                 <path d="M5 11a7 7 0 0 0 14 0" strokeLinecap="round" />
                 <path d="M12 18v3" strokeLinecap="round" />
@@ -732,7 +772,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
             title="Отправить"
             className="composer-send-button"
           >
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M10 15V5m0 0L6 9m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </motion.button>
@@ -757,64 +797,65 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         )}
       </motion.form>
 
-      <p className="chat-disclaimer">✦ Lumenza может ошибаться. Проверяйте важную информацию.</p>
-
-      <div role="toolbar" className="chat-capability-toolbar mb-5 flex flex-wrap items-center justify-center gap-1.5" aria-label="Инструменты чата">
-        <button
-          type="button"
-          onClick={() => chooseTask("search")}
-          className={`quick-action-chip ${routing.kind !== "auto" && routing.task === "search" ? "is-active" : ""}`}
-        >
-          <span aria-hidden="true">⌕</span>
-          <span data-active-tool={routing.kind !== "auto" && routing.task === "search" ? "" : undefined}>
-            Исследовать
-          </span>
-        </button>
-        <button type="button" onClick={() => router.push("/studio")} className="quick-action-chip">
-          <span aria-hidden="true">◇</span> Изображение
-        </button>
-        <button type="button" onClick={() => router.push("/studio?mode=documents")} className="quick-action-chip">
-          <span aria-hidden="true">▤</span> Документ
-        </button>
-        <button type="button" onClick={() => router.push("/studio?mode=analyze")} className="quick-action-chip">
-          <span aria-hidden="true">◎</span> Анализ
-        </button>
-        <span className="hidden text-[11px] text-muted sm:inline">Введите / для всех режимов</span>
-      </div>
+      <p className="chat-disclaimer">✦ <span translate="no">Lumenza</span> может ошибаться. Проверяйте важную информацию.</p>
 
       {messages.length === 0 && (
         <>
           <nav aria-label="Категории инструментов" className="chat-tool-categories">
             {[
-              ["Featured", "/chat"],
-              ["Data Analysis", "/tools?category=data"],
-              ["Research", "/tools?category=research"],
-              ["Writing", "/agents?category=content"],
-              ["Code", "/tools?category=code"],
-              ["AI Workflows", "/agents"],
-              ["Images", "/studio?mode=image"],
-              ["Presentations", "/tools?category=presentations"],
-              ["Audio", "/studio?mode=audio"],
-            ].map(([label, href], index) => (
-              <Link key={label} href={href} aria-current={index === 0 ? "page" : undefined}>{label}</Link>
+              ["Featured", "/chat", "featured"],
+              ["Data Analysis", "/tools?category=data", "chart"],
+              ["Research", "/tools?category=research", "search"],
+              ["Writing", "/agents?category=content", "pencil"],
+              ["Code", "/tools?category=code", "code"],
+              ["AI Workflows", "/agents", "workflow"],
+              ["Images", "/studio?mode=image", "image"],
+              ["Presentations", "/tools?category=presentations", "presentation"],
+              ["Video", "/studio?mode=video", "video"],
+              ["Audio", "/studio?mode=audio", "audio"],
+            ].map(([label, href, icon], index) => (
+              <Link key={label} href={href} aria-current={index === 0 ? "page" : undefined}>
+                <CategoryRailIcon variant={icon as CategoryRailIconVariant} />
+                {label}
+              </Link>
             ))}
           </nav>
           <div className="chat-action-grid">
             {[
-              ["Market Research Report", "Исследовать рынок, тренды и конкурентов", "/agents?category=research", "↗"],
-              ["Content Strategy", "Собрать темы, каналы и план публикаций", "/agents?category=content", "✎"],
-              ["Data Visualization", "Превратить данные в понятный визуальный вывод", "/tools?category=data", "⌁"],
-              ["Pitch Deck Builder", "Собрать структуру и историю презентации", "/tools?category=presentations", "▣"],
-            ].map(([title, description, href, glyph]) => (
+              {
+                title: "Market Research Report",
+                description: "Исследовать рынок, тренды и конкурентов",
+                href: "/agents?category=research",
+                icon: <ActionCardIcon variant="chart-up" />,
+              },
+              {
+                title: "Content Strategy",
+                description: "Собрать темы, каналы и план публикаций",
+                href: "/agents?category=content",
+                icon: <ActionCardIcon variant="document" />,
+              },
+              {
+                title: "Data Visualization",
+                description: "Превратить данные в понятный визуальный вывод",
+                href: "/tools?category=data",
+                icon: <ActionCardIcon variant="code" />,
+              },
+              {
+                title: "Pitch Deck Builder",
+                description: "Собрать структуру и историю презентации",
+                href: "/tools?category=presentations",
+                icon: <ActionCardIcon variant="presentation" />,
+              },
+            ].map(({ title, description, href, icon }) => (
               <Link key={title} href={href} aria-label={`Открыть: ${title}`} className="chat-action-card">
-                <span aria-hidden="true">{glyph}</span>
+                <span aria-hidden="true">{icon}</span>
                 <strong>{title}</strong>
                 <p>{description}</p>
                 <em>Открыть <b aria-hidden="true">→</b></em>
               </Link>
             ))}
           </div>
-          <p className="chat-tour-line">✦ Впервые в Lumenza? <Link href="/knowledge">Короткий обзор <span aria-hidden="true">→</span></Link></p>
+          <p className="chat-tour-line">✦ Впервые в <span translate="no">Lumenza</span>? <Link href="/knowledge">Короткий обзор <span aria-hidden="true">→</span></Link></p>
         </>
       )}
     </section>

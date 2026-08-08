@@ -17,17 +17,18 @@ import { StudioWorkspaceControls, type StudioControlMode } from "@/components/st
 import { useSetStudioMode } from "@/components/zone";
 import { motionTokens, springs } from "@/lib/motion";
 
-type StudioMode = "image" | "video" | "audio" | "edit" | "upscale";
+type StudioMode = "image" | "video" | "audio" | "edit" | "upscale" | "reference";
 type LegacyStudioMode = "documents" | "analyze" | "code";
 type StudioWorkspaceMode = StudioMode | LegacyStudioMode;
 type StudioView = "workspace" | "tools" | "apps" | "community";
 
-const MODES: { key: StudioMode; label: string; eyebrow: string }[] = [
+const MODES: { key: StudioMode; label: string; eyebrow: string; preview?: boolean }[] = [
   { key: "image", label: "Image", eyebrow: "Generate" },
   { key: "video", label: "Video", eyebrow: "Motion" },
   { key: "audio", label: "Audio", eyebrow: "Voice" },
   { key: "edit", label: "Edit", eyebrow: "Transform" },
   { key: "upscale", label: "Upscale", eyebrow: "Enhance" },
+  { key: "reference", label: "Reference", eyebrow: "Use ref", preview: true },
 ];
 
 const APPS = [
@@ -46,6 +47,9 @@ const APPS = [
 ];
 
 const INSPIRATION_CATEGORIES = ["Featured", "Photography", "Design", "Illustration", "Portraits"] as const;
+
+const APP_FILTER_OPTIONS = ["Discover", "Design", "Image editing", "Video", "Audio", "Social"] as const;
+const COMMUNITY_FILTER_OPTIONS = ["Daily picks", "Popular", "Following"] as const;
 
 const INSPIRATIONS = [
   { title: "Violet editorial", category: "Photography", tile: "tile-1" },
@@ -108,7 +112,7 @@ function Studio() {
       <header className="studio-header">
         <div>
           <p className="studio-kicker">Lumenza creative suite</p>
-          <h1 className="studio-title">Welcome to Lumenza Studio</h1>
+          <h1 className="studio-title">Студия</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="studio-header-status" aria-label="Статус студии">
@@ -168,6 +172,7 @@ function Studio() {
                 )}
                 <span className="studio-mode-eyebrow">{option.eyebrow}</span>
                 <span className="studio-mode-label">{option.label}</span>
+                {option.preview && <span className="studio-mode-preview-badge">Preview</span>}
               </motion.button>
             ))}
           </nav>
@@ -184,7 +189,13 @@ function Studio() {
               initialDraft={initialDraft}
             />
           ) : (
-            <StudioCatalog key={selection.view} view={selection.view} initialTool={searchParams.get("tool")} />
+            <StudioCatalog
+              key={selection.view}
+              view={selection.view}
+              initialTool={searchParams.get("tool")}
+              initialFilter={searchParams.get("filter")}
+              initialQuery={searchParams.get("q")}
+            />
           )}
         </AnimatePresence>
       </div>
@@ -221,6 +232,19 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
       {mode === "edit" && <WorkspaceSurface mode="edit"><EditWorkspace /></WorkspaceSurface>}
       {mode === "upscale" && <WorkspaceSurface mode="upscale"><UpscaleWorkspace /></WorkspaceSurface>}
       {mode === "video" && <WorkspaceSurface mode="video"><VideoWorkspace /></WorkspaceSurface>}
+      {mode === "reference" && (
+        <section role="region" aria-label="Reference workspace" className="studio-workspace-surface">
+          <div className="studio-preview-placeholder">
+            <p className="studio-kicker">Use ref · Preview</p>
+            <h2>Генерация по референсам скоро появится</h2>
+            <p>
+              Загрузка нескольких референс-изображений для управления композицией,
+              стилем и составом сцены ещё в разработке. Пока доступны Image, Video,
+              Audio, Edit и Upscale.
+            </p>
+          </div>
+        </section>
+      )}
       {mode === "documents" && <Documents />}
       {mode === "analyze" && <Analyze />}
       {mode === "code" && <Code />}
@@ -394,17 +418,66 @@ function ModeLibrary({
   );
 }
 
-function StudioCatalog({ view, initialTool }: { view: Exclude<StudioView, "workspace">; initialTool?: string | null }) {
+function StudioCatalog({
+  view,
+  initialTool,
+  initialFilter,
+  initialQuery,
+}: {
+  view: Exclude<StudioView, "workspace">;
+  initialTool?: string | null;
+  initialFilter?: string | null;
+  initialQuery?: string | null;
+}) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
-  const [appFilter, setAppFilter] = useState("Discover");
-  const [appQuery, setAppQuery] = useState("");
-  const [communityFilter, setCommunityFilter] = useState("Daily picks");
+  const [appFilter, setAppFilterState] = useState<(typeof APP_FILTER_OPTIONS)[number]>(() => {
+    const candidate = view === "apps" ? initialFilter : null;
+    return (APP_FILTER_OPTIONS as readonly string[]).includes(candidate ?? "")
+      ? (candidate as (typeof APP_FILTER_OPTIONS)[number])
+      : "Discover";
+  });
+  const [appQuery, setAppQueryState] = useState(() => (view === "apps" ? initialQuery ?? "" : ""));
+  const [communityFilter, setCommunityFilterState] = useState<(typeof COMMUNITY_FILTER_OPTIONS)[number]>(() => {
+    const candidate = view === "community" ? initialFilter : null;
+    return (COMMUNITY_FILTER_OPTIONS as readonly string[]).includes(candidate ?? "")
+      ? (candidate as (typeof COMMUNITY_FILTER_OPTIONS)[number])
+      : "Daily picks";
+  });
   const [communityPrompt, setCommunityPrompt] = useState("");
   const visibleApps = APPS.filter((app) =>
     (appFilter === "Discover" || app.category === appFilter) &&
     `${app.name} ${app.description}`.toLocaleLowerCase().includes(appQuery.trim().toLocaleLowerCase()),
   );
+
+  // Отражает категорию/поиск Apps и категорию Community в query-параметрах
+  // `filter`/`q` (тот же приём прямого router.replace в обработчике, что и
+  // у onSelectionChange в блоке view === "tools" выше — единственная уже
+  // корректная URL-синхронизация Studio, которую мы не трогаем). Оба таба
+  // взаимоисключающие (view=apps либо view=community), поэтому общее имя
+  // `filter` для обоих безопасно.
+  function updateAppFilter(next: (typeof APP_FILTER_OPTIONS)[number]) {
+    setAppFilterState(next);
+    const query = new URLSearchParams({ view: "apps" });
+    if (next !== "Discover") query.set("filter", next);
+    if (appQuery) query.set("q", appQuery);
+    router.replace(`/studio?${query.toString()}`, { scroll: false });
+  }
+
+  function updateAppQuery(next: string) {
+    setAppQueryState(next);
+    const query = new URLSearchParams({ view: "apps" });
+    if (appFilter !== "Discover") query.set("filter", appFilter);
+    if (next) query.set("q", next);
+    router.replace(`/studio?${query.toString()}`, { scroll: false });
+  }
+
+  function updateCommunityFilter(next: (typeof COMMUNITY_FILTER_OPTIONS)[number]) {
+    setCommunityFilterState(next);
+    const query = new URLSearchParams({ view: "community" });
+    if (next !== "Daily picks") query.set("filter", next);
+    router.replace(`/studio?${query.toString()}`, { scroll: false });
+  }
   return (
     <motion.section
       initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
@@ -424,16 +497,16 @@ function StudioCatalog({ view, initialTool }: { view: Exclude<StudioView, "works
       )}
       {view === "apps" && (
         <>
-          <CatalogHeading title="Lumenza Apps" subtitle="Готовые многосоставные сценарии для повторяемой работы." />
+          <CatalogHeading title="Apps" subtitle="Готовые многосоставные сценарии для повторяемой работы." />
           <div className="studio-app-toolbar">
             <div className="studio-filter-row" aria-label="Категории Apps">
-              {['Discover', 'Design', 'Image editing', 'Video', 'Audio', 'Social'].map((item) => (
-                <button type="button" key={item} aria-pressed={appFilter === item} onClick={() => setAppFilter(item)}>{item}</button>
+              {APP_FILTER_OPTIONS.map((item) => (
+                <button type="button" key={item} aria-pressed={appFilter === item} onClick={() => updateAppFilter(item)}>{item}</button>
               ))}
             </div>
             <label className="studio-app-search">
               <span className="sr-only">Поиск Apps</span>
-              <input type="search" aria-label="Поиск Apps" value={appQuery} onChange={(event) => setAppQuery(event.target.value)} placeholder="Search apps" />
+              <input type="search" aria-label="Поиск Apps" value={appQuery} onChange={(event) => updateAppQuery(event.target.value)} placeholder="Search apps" />
             </label>
           </div>
           <div className="studio-app-grid">
@@ -452,8 +525,8 @@ function StudioCatalog({ view, initialTool }: { view: Exclude<StudioView, "works
         <>
           <CatalogHeading title="Community" subtitle="Работы сообщества, которые можно разобрать, сохранить и превратить в свой проект." />
           <div className="studio-community-filters">
-            {["Daily picks", "Popular", "Following"].map((filter) => (
-              <button key={filter} type="button" aria-pressed={communityFilter === filter} onClick={() => setCommunityFilter(filter)}>{filter}</button>
+            {COMMUNITY_FILTER_OPTIONS.map((filter) => (
+              <button key={filter} type="button" aria-pressed={communityFilter === filter} onClick={() => updateCommunityFilter(filter)}>{filter}</button>
             ))}
           </div>
           <div className="studio-community-grid" aria-label={`Галерея сообщества · ${communityFilter}`}>

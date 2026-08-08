@@ -174,7 +174,13 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
         className="h-full w-full cursor-zoom-in overflow-hidden"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={resolvedSrc} alt={alt} className="h-full w-full object-cover" />
+        <img
+          src={resolvedSrc}
+          alt={alt}
+          width={512}
+          height={512}
+          className="h-full w-full object-cover"
+        />
       </button>
 
       {open && (
@@ -242,8 +248,10 @@ export function ImageLightbox({ src, alt, downloadName }: ImageLightboxProps) {
                 <img
                   src={resolvedSrc}
                   alt={alt}
-                  style={{ width: `${zoom * 100}%` }}
-                  className="h-auto max-w-none object-contain transition-[width] duration-200"
+                  width={1024}
+                  height={1024}
+                  style={{ transform: `scale(${zoom})` }}
+                  className="h-auto w-full max-w-none object-contain transition-transform duration-200"
                 />
               </div>
             </div>

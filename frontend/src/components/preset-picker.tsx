@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api, apiErrorMessage, type ModelProgress, type Preset, type Task } from "@/lib/api";
 import { TASK_LABELS } from "@/lib/chat-taxonomy";
 
@@ -35,6 +36,8 @@ export function PresetPicker({ activePresetId, onSelect }: PresetPickerProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Preset | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -78,15 +81,25 @@ export function PresetPicker({ activePresetId, onSelect }: PresetPickerProps) {
     setOpen(false);
   }
 
-  async function handleDelete(id: number, event: React.MouseEvent) {
+  function requestDelete(preset: Preset, event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
+    setDeleteTarget(preset);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleting(true);
     try {
       await api.deletePreset(id);
       setPresets((prev) => prev?.filter((preset) => preset.id !== id) ?? prev);
       if (activePresetId === id) onSelect(null);
+      setDeleteTarget(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось удалить пресет."));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -171,7 +184,7 @@ export function PresetPicker({ activePresetId, onSelect }: PresetPickerProps) {
                 <button
                   type="button"
                   aria-label={`Удалить пресет «${preset.name}»`}
-                  onClick={(event) => void handleDelete(preset.id, event)}
+                  onClick={(event) => requestDelete(preset, event)}
                   className="shrink-0 rounded-md p-1 text-muted opacity-50 transition hover:bg-bg/50 hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
                 >
                   <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -280,6 +293,17 @@ export function PresetPicker({ activePresetId, onSelect }: PresetPickerProps) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Удалить пресет «${deleteTarget?.name ?? ""}»?`}
+        description="Это действие нельзя отменить."
+        confirmLabel="Удалить"
+        pendingLabel="Удаляем…"
+        pending={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
