@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# playwright (redesign screenshot-capture tooling — storage state, browser cache)
+.playwright/
+/test-results/
+
 # next.js
 /.next/
 /out/
