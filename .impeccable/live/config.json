@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "framework": "nextjs-app-router",
+  "files": ["frontend/src/app/layout.tsx"],
+  "insertBefore": "</body>",
+  "commentSyntax": "jsx",
+  "cspChecked": true,
+  "cspShape": null,
+  "target": "frontend"
+}
