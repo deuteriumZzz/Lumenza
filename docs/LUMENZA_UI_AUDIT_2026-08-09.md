@@ -225,3 +225,33 @@ The new shell-level E2E gate additionally proves exact 262 × 992 sidebar
 geometry, canonical computed colors, no sidebar blur/shadow, a 58px active row,
 reduced-motion state, and preservation of the same sidebar DOM node during the
 client-side Chat → Agents transition.
+
+## Phase 4 Chat and Agents checkpoint
+
+The Chat and Agents command-deck compositions were rebuilt against the approved
+references. The shared Lumenza core now has an explicit, test-covered state
+contract (`idle`, `listening`, `routing`, `thinking`, `typing`, `success`, and
+`error`) with a distinct non-colour pattern for every state and a static
+reduced-motion fallback. Chat and Agents now share one accessible mode switcher,
+and their client-side transition keeps a single interactive page tree while a
+non-interactive morph layer carries visual continuity.
+
+The production pixel audit at 1586 × 992 produced these route-specific results:
+
+| Surface | Phase 3 | Phase 4 | Change |
+|---|---:|---:|---:|
+| Chat | 22.35% | 10.42% | −11.93 pp |
+| Agents | 21.70% | 17.57% | −4.13 pp |
+
+This is a 53.4% reduction in changed pixels for Chat and a 19.0% reduction for
+Agents relative to their Phase 3 checkpoints. The remaining differences are
+tracked as finishing work, not hidden by tolerance changes.
+
+Phase acceptance evidence includes 382 passing unit/component tests, 94.49%
+statement coverage, 86.17% branch coverage, 83.70% function coverage, and
+94.49% line coverage. Four production Playwright journeys cover the six
+reference routes, persistent shell geometry, a 320px mobile drawer, overflow,
+unnamed controls, dead navigation, server/console errors, Chat and Agents
+reference anchors, unclipped agent nodes, and both transition directions.
+Independent code and motion re-review returned GO with no findings after the
+legal links, category control placement, and disclosure semantics were fixed.

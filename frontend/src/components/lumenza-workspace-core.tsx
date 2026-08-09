@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { springs } from "@/lib/motion";
+import { coreStatePattern, type CoreState } from "@/lib/lumenza-core-state";
 import styles from "@/components/lumenza-workspace-core.module.css";
 
 const CHAT_LABEL = "Lumenza объединяет несколько AI-моделей в один ответ";
@@ -11,6 +12,7 @@ type LumenzaWorkspaceCoreProps = {
   children?: ReactNode;
   className?: string;
   mode: "chat" | "agents";
+  state?: CoreState;
   testId?: string;
 };
 
@@ -18,6 +20,7 @@ export function LumenzaWorkspaceCore({
   children,
   className,
   mode,
+  state = "idle",
   testId = "lumenza-core",
 }: LumenzaWorkspaceCoreProps) {
   const shouldReduceMotion = useReducedMotion();
@@ -30,6 +33,9 @@ export function LumenzaWorkspaceCore({
       className={`${styles.core} ${isChat ? styles.chatCore : styles.agentCore}${className ? ` ${className}` : ""}`}
       data-testid={testId}
       data-core-mode={mode}
+      data-core-state={state}
+      data-core-pattern={coreStatePattern(state)}
+      data-reduced-motion={String(Boolean(shouldReduceMotion))}
       data-motion-key="lumenza-core"
       data-motion-scene={isChat ? "chat-astrolabe" : "agent-network"}
       role={isChat ? "img" : undefined}
@@ -43,10 +49,13 @@ export function LumenzaWorkspaceCore({
         transition={{ duration: shouldReduceMotion ? 0 : 0.7 }}
       />
 
+      <span aria-hidden="true" className={styles.stateSignal} data-core-state-signal="" />
+
       {isChat ? <ChatAstrolabe /> : <AgentNetwork />}
 
       <motion.span
         aria-hidden="true"
+        data-core-disc=""
         layoutId="lumenza-core-disc"
         className={styles.coreDisc}
         transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}

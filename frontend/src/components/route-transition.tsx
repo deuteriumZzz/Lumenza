@@ -30,7 +30,11 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
         ? "agents-to-chat"
         : "standard";
   return (
-    <div className="route-transition-stage overflow-x-clip">
+    <div
+      className="route-transition-stage overflow-x-clip"
+      data-testid="route-transition-stage"
+      data-shared-layout-group="lumenza-command-deck"
+    >
       <AnimatePresence>
         {!shouldReduceMotion && workspaceMorph !== "standard" && (
           <WorkspaceModeMorph
@@ -76,9 +80,17 @@ function WorkspaceModeMorph({ from, to }: { from: "chat" | "agents"; to: "chat" 
       data-from={from}
       data-to={to}
       className="workspace-mode-morph"
-      initial={{ opacity: 0, scale: 0.82, y: 46 }}
-      animate={{ opacity: [0, 1, 1, 0], scale: [0.82, 1, 1.04, 1.12], y: [46, 0, -4, -14] }}
-      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, transform: "translate3d(0, 46px, 0) scale(.82)" }}
+      animate={{
+        opacity: [0, 1, 1, 0],
+        transform: [
+          "translate3d(0, 46px, 0) scale(.82)",
+          "translate3d(0, 0, 0) scale(1)",
+          "translate3d(0, -4px, 0) scale(1.04)",
+          "translate3d(0, -14px, 0) scale(1.12)",
+        ],
+      }}
+      exit={{ opacity: 0, transform: "translate3d(0, -14px, 0) scale(1.12)" }}
       transition={{ ...redesignMotion.lumenzaCoreTransition, times: [0, 0.2, 0.72, 1] }}
       aria-hidden="true"
     >

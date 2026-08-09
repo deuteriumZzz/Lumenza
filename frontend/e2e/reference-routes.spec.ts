@@ -151,4 +151,60 @@ test.describe("approved reference routes", () => {
     await expect(sidebar).toHaveAttribute("data-collapsed", "true");
     await expect(toggle).toBeFocused();
   });
+
+  test("keeps the Chat and Agents command decks on their approved anchors", async ({ page }) => {
+    await login(page);
+    await page.goto("/chat");
+    await page.evaluate(async () => document.fonts.ready);
+
+    const composer = page.getByRole("form", { name: "Написать сообщение" });
+    const composerBox = await composer.boundingBox();
+    expect(composerBox?.x).toBeGreaterThanOrEqual(350);
+    expect(composerBox?.x).toBeLessThanOrEqual(360);
+    expect(composerBox?.y).toBeGreaterThanOrEqual(352);
+    expect(composerBox?.y).toBeLessThanOrEqual(360);
+    expect(composerBox?.height).toBeGreaterThanOrEqual(208);
+    expect(composerBox?.height).toBeLessThanOrEqual(216);
+    await expect(page.getByTestId("lumenza-core")).toHaveAttribute("data-core-state", "idle");
+    await expect(page.getByRole("link", { name: /Открыть:/ })).toHaveCount(4);
+
+    const sidebar = page.getByRole("complementary", { name: "Рабочая навигация" });
+    await Promise.all([
+      page.waitForURL("**/agents"),
+      sidebar.getByRole("link", { name: "Агенты" }).click(),
+    ]);
+    await expect(page.getByTestId("agents-network")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Popular Capabilities" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agent Scenarios" })).toBeVisible();
+    await expect(page.getByTestId("agent-scenarios").locator(":scope > div")).toHaveCount(4);
+
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("Reference viewport is unavailable");
+    for (const node of await page.locator("[data-agent-node]").all()) {
+      const box = await node.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(262);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    }
+
+    const agentComposer = page.getByRole("form", { name: "Запустить агента" });
+    const agentComposerBox = await agentComposer.boundingBox();
+    expect(agentComposerBox?.y).toBeGreaterThanOrEqual(396);
+    expect(agentComposerBox?.y).toBeLessThanOrEqual(406);
+    expect(agentComposerBox?.height).toBeGreaterThanOrEqual(156);
+    expect(agentComposerBox?.height).toBeLessThanOrEqual(166);
+
+    await page.getByRole("button", { name: "Режим: AI Agent" }).click();
+    await Promise.all([
+      page.waitForURL("**/chat"),
+      page.getByRole("link", { name: "Chat" }).click(),
+    ]);
+    await expect(page.locator('[data-route-transition="/chat"]')).toHaveAttribute(
+      "data-transition",
+      "agents-to-chat",
+    );
+    await expect(page.getByTestId("workspace-mode-morph")).toHaveCount(0);
+  });
 });

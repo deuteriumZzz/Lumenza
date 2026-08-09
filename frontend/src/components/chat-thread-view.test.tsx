@@ -145,6 +145,12 @@ describe("ChatThreadView model routing", () => {
     expect(within(workspace).getByRole("form", { name: "Написать сообщение" })).toBeDefined();
     expect(within(workspace).getByRole("navigation", { name: "Категории инструментов" })).toBeDefined();
     expect(within(workspace).getAllByRole("link", { name: /Открыть:/ })).toHaveLength(4);
+    const core = await within(workspace).findByTestId("lumenza-core");
+    const composer = within(workspace).getByRole("form", { name: "Написать сообщение" });
+    const categories = within(workspace).getByRole("navigation", { name: "Категории инструментов" });
+    expect(core.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(composer.compareDocumentPosition(categories) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(composer.classList.contains("is-empty")).toBe(true);
     expect(within(workspace).getByText(/может ошибаться/i).textContent).toMatch(
       /Lumenza может ошибаться/i,
     );
@@ -405,6 +411,9 @@ describe("ChatThreadView model routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     const stream = await latestStream();
+    expect(
+      (await screen.findByTestId("lumenza-core-active")).getAttribute("data-core-state"),
+    ).toBe("typing");
     stream.emit({ type: "chunk", text: "Lumen" });
     await screen.findByText("Lumen");
 
@@ -413,6 +422,9 @@ describe("ChatThreadView model routing", () => {
 
     stream.emit(DONE_EVENT);
     await screen.findByText("Готово");
+    expect(screen.getByTestId("lumenza-core-active").getAttribute("data-core-state")).toBe(
+      "success",
+    );
     expect(stream.closed).toBe(true);
   });
 

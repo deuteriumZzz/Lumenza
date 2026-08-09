@@ -135,6 +135,9 @@ describe("RouteTransition", () => {
     expect(
       screen.getByText("Агенты").closest("[data-route-transition]")?.getAttribute("data-transition"),
     ).toBe("chat-to-agents");
+    expect(
+      screen.getByTestId("route-transition-stage").getAttribute("data-shared-layout-group"),
+    ).toBe("lumenza-command-deck");
     expect(screen.getByTestId("workspace-mode-morph").getAttribute("data-from")).toBe("chat");
     expect(screen.getByTestId("workspace-mode-morph").getAttribute("data-to")).toBe("agents");
     expect(screen.getByTestId("workspace-mode-morph").querySelectorAll("[data-morph-node]")).toHaveLength(3);
@@ -147,5 +150,17 @@ describe("RouteTransition", () => {
       screen.getByText("Запуск агента").closest("[data-route-transition]")?.getAttribute("data-transition"),
     ).toBe("standard");
     await waitFor(() => expect(screen.queryByTestId("workspace-mode-morph")).toBeNull());
+  });
+
+  it("reports the reverse Agents to Chat direction", () => {
+    mocks.pathname = "/agents";
+    const { rerender } = render(<RouteTransition><p>Агенты</p></RouteTransition>);
+
+    mocks.pathname = "/chat";
+    rerender(<RouteTransition><p>Чат</p></RouteTransition>);
+
+    expect(
+      screen.getByText("Чат").closest("[data-route-transition]")?.getAttribute("data-transition"),
+    ).toBe("agents-to-chat");
   });
 });

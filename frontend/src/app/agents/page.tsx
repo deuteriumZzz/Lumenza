@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
@@ -9,6 +9,7 @@ import { GoalCard } from "@/components/goal-card";
 import { LumenzaWorkspaceCore } from "@/components/lumenza-workspace-core";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkspaceAccountAvatar } from "@/components/workspace-top-actions";
+import { WorkspaceModeMenu } from "@/components/workspace-mode-menu";
 import { springs } from "@/lib/motion";
 import { statusPillClass } from "@/lib/status-styles";
 import {
@@ -127,6 +128,12 @@ function Agents() {
       : category === "all"
         ? agents
         : agents.filter((agent) => agent.category === category);
+  const scenarioAgents =
+    visibleAgents === null
+      ? null
+      : category === "all"
+        ? visibleAgents.slice(0, 4)
+        : visibleAgents;
   const activeCategoryLabel = CATEGORIES.find((item) => item.key === category)?.label ?? "Популярное";
   const selectableAgents =
     category === "mine" || category === "swarm" ? [] : visibleAgents ?? [];
@@ -195,11 +202,11 @@ function Agents() {
           onSubmit={startAgentChat}
           className="agent-composer"
         >
-          <h2>Что должна сделать ваша AI-команда?</h2>
+          <h2 className="sr-only">Что должна сделать ваша AI-команда?</h2>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Опишите результат, который хотите получить"
+            placeholder="Что должна сделать ваша AI-команда?"
             aria-label="Задача агенту"
             rows={2}
           />
@@ -218,7 +225,7 @@ function Agents() {
             </div>
             <div className="agent-field">
               <span className="agent-field-label">Mode</span>
-              <AgentModeMenu />
+              <WorkspaceModeMenu mode="agents" />
             </div>
             <div className="agent-field">
               <span className="agent-field-label">Agent</span>
@@ -257,59 +264,47 @@ function Agents() {
         </motion.form>
       </section>
 
-      <nav
-        aria-label="Категория агентов"
-        data-testid="agents-category-navigation"
-        className="agent-domain-navigation mt-7 flex flex-wrap items-center gap-1 min-[380px]:gap-2"
-      >
-        {CATEGORIES.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            aria-pressed={category === option.key}
-            onClick={() => selectCategory(option.key)}
-            className={`relative isolate inline-flex min-h-9 items-center overflow-hidden rounded-full border px-3 py-1.5 text-xs transition-colors duration-150 min-[380px]:px-3.5 min-[380px]:text-sm ${
-              category === option.key
-                ? "border-primary/50 text-ink"
-                : "border-border bg-surface/75 text-muted hover:border-primary/25 hover:text-ink"
-            }`}
-          >
-            {category === option.key && (
-              <motion.span
-                layoutId="agents-active-category"
-                aria-hidden="true"
-                className="absolute inset-0 -z-10 rounded-full bg-primary/12"
-                transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
-              />
-            )}
-            <span className="relative">{option.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <AgentCapabilityRail />
+      <section className="agent-capability-section" aria-labelledby="agent-capability-title">
+        <div className="agent-section-heading">
+          <h2 id="agent-capability-title" className="agent-section-title">Popular Capabilities</h2>
+          <label className="agent-category-select">
+            <span className="sr-only">Категория агентов</span>
+            <select
+              aria-label="Категория агентов"
+              value={category}
+              onChange={(event) => selectCategory(event.target.value as CategoryFilter)}
+            >
+              {CATEGORIES.map((option) => (
+                <option key={option.key} value={option.key}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <AgentCapabilityRail />
+      </section>
 
       {category === "mine" ? (
         <MyAgents catalog={agents} />
       ) : category === "swarm" ? (
         <SwarmBuilder catalog={agents} />
       ) : (
-        <>
+        <section className="agent-scenarios" aria-labelledby="agent-scenarios-title">
+          <h2 id="agent-scenarios-title" className="agent-section-title">Agent Scenarios</h2>
           {error && (
             <p role="alert" className="mt-4 text-sm text-danger">
               {error}
             </p>
           )}
 
-          {!error && visibleAgents === null && (
+          {!error && scenarioAgents === null && (
             <p role="status" className="mt-10 text-sm text-muted">
               Загрузка…
             </p>
           )}
 
-          {visibleAgents && visibleAgents.length > 0 && (
-            <div className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {visibleAgents.map((agent, index) => (
+          {scenarioAgents && scenarioAgents.length > 0 && (
+            <div data-testid="agent-scenarios" className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {scenarioAgents.map((agent, index) => (
                 <GoalCard
                   key={agent.slug}
                   index={index}
@@ -322,10 +317,10 @@ function Agents() {
             </div>
           )}
 
-          {visibleAgents && visibleAgents.length === 0 && (
+          {scenarioAgents && scenarioAgents.length === 0 && (
             <p className="mt-10 text-sm text-muted">В этой категории пока нет агентов.</p>
           )}
-        </>
+        </section>
       )}
       <footer className="agent-trust-footer" aria-label="Гарантии Lumenza">
         <span><TrustIcon variant="shield" /> Корпоративная безопасность</span>
@@ -338,52 +333,6 @@ function Agents() {
         <Link href="/privacy" className="agent-trust-footer-link">Политика конфиденциальности</Link>
         <Link href="/terms" className="agent-trust-footer-link">Условия использования</Link>
       </footer>
-    </div>
-  );
-}
-
-function AgentModeMenu() {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function closeOnOutside(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-    document.addEventListener("mousedown", closeOnOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="agent-mode-picker">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label="Режим: AI Agent"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        AI Agent <span aria-hidden="true">⌄</span>
-      </button>
-      {open && (
-        <div role="menu" aria-label="Режим Lumenza" className="agent-mode-menu">
-          <Link href="/chat" aria-label="Chat"><strong>Chat</strong><span>Обычный диалог с AI</span></Link>
-          <Link href="/agents" aria-label="AI Agent" aria-current="page"><strong>AI Agent</strong><span>Многошаговые workflow</span></Link>
-          <Link href="/knowledge" aria-label="Knowledge"><strong>Knowledge</strong><span>Ответы по вашим источникам</span></Link>
-        </div>
-      )}
     </div>
   );
 }
