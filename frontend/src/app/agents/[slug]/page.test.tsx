@@ -185,6 +185,7 @@ describe("AgentRunPage", () => {
     render(<AgentRunPage />);
 
     expect(await screen.findByLabelText("Тема")).toBeDefined();
+    expect(storageSpy).toHaveBeenCalled();
     storageSpy.mockRestore();
   });
 

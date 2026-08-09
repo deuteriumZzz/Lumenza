@@ -188,6 +188,9 @@ describe("ChatThreadView model routing", () => {
         name: "Lumenza объединяет несколько AI-моделей в один ответ",
       }),
     ).toBeDefined();
+    const core = screen.getByTestId("lumenza-core");
+    expect(core.getAttribute("data-motion-scene")).toBe("chat-astrolabe");
+    expect(core.querySelectorAll("[data-orbit-track]")).toHaveLength(4);
     expect(screen.getByText("Модели сходятся здесь")).toBeDefined();
   });
 

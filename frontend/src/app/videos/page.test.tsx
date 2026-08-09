@@ -35,7 +35,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-import { Videos } from "@/app/videos/page";
+import { VideosWorkspace as Videos } from "@/components/videos-workspace";
 
 describe("Videos workspace", () => {
   beforeEach(() => {

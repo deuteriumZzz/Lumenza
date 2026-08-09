@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
     // jsdom + V8 instrumentation is memory-heavy. Bounding concurrency
     // keeps coverage runs deterministic instead of letting 30+ DOM suites
     // starve one another until Vitest's per-test timeout fires.

@@ -1,0 +1,202 @@
+.core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+
+.chatCore {
+  width: 250px;
+  height: 278px;
+}
+
+.agentCore {
+  width: min(100%, 62rem);
+  height: 16rem;
+  margin-inline: auto;
+}
+
+.coreAura {
+  position: absolute;
+  z-index: -1;
+  width: 52%;
+  height: 52%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(239, 173, 71, .17), rgba(88, 214, 223, .055) 44%, transparent 72%);
+  filter: blur(13px);
+}
+
+.coreSystem {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chatCore .coreSystem {
+  height: 250px;
+}
+
+.coreDisc {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  width: 88px;
+  height: 88px;
+  place-items: center;
+  border: 1px solid rgba(248, 186, 87, .88);
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 36%, #20292b, #080b0d 70%);
+  box-shadow: 0 0 0 9px rgba(239, 173, 71, .045), 0 0 0 20px rgba(239, 173, 71, .022), 0 0 42px rgba(239, 173, 71, .25);
+}
+
+.chatCore .coreDisc {
+  transform: translateY(-14px);
+}
+
+.corePulse {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  animation: coreBreathing 4.8s ease-in-out infinite;
+}
+
+.agentCore .coreDisc {
+  width: 116px;
+  height: 116px;
+  box-shadow: 0 0 0 12px rgba(239, 173, 71, .05), 0 0 56px rgba(239, 173, 71, .32);
+}
+
+.spark {
+  width: 58px;
+  height: 58px;
+  color: #ffd17b;
+  filter: drop-shadow(0 0 12px rgba(239, 173, 71, .9));
+  animation: symbolShimmer 4.2s ease-in-out infinite;
+}
+
+.agentCore .spark {
+  width: 72px;
+  height: 72px;
+}
+
+.caption {
+  position: absolute;
+  bottom: 0;
+  color: var(--color-muted, #939ba0);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.coreAxis {
+  fill: none;
+  stroke: rgba(239, 173, 71, .24);
+  stroke-width: .65;
+  stroke-dasharray: 3 10;
+  animation: axisScan 6.4s ease-in-out infinite;
+}
+
+.orbitTrack {
+  fill: none;
+  stroke: url(#lumenza-chat-ring);
+  stroke-width: 1;
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.orbitTrack > circle:not([data-orbit-particle]),
+.orbitTrack > ellipse {
+  opacity: .72;
+  stroke-dasharray: 2 5 28 7;
+}
+
+.orbitTrack [data-orbit-particle] {
+  fill: #75e6ea;
+  stroke: none;
+  filter: url(#lumenza-chat-glow);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: particleSignal 2.8s ease-in-out infinite;
+}
+
+.orbitTrack [data-orbit-particle]:nth-child(3) {
+  fill: #f4b553;
+  animation-delay: -1.4s;
+}
+
+.orbitTrackOne { animation: astrolabeSweep 18s linear infinite; }
+.orbitTrackTwo { animation: astrolabeCounterSweep 12s linear infinite; }
+.orbitTrackThree { animation: astrolabeSweep 8.5s linear infinite; }
+.orbitTrackFour { animation: astrolabeCounterSweep 24s linear infinite; }
+
+.networkSpokes {
+  fill: none;
+  stroke: rgba(99, 217, 223, .16);
+  stroke-width: .8;
+  stroke-dasharray: 2 8;
+  animation: networkSignal 3.8s linear infinite;
+}
+
+.networkLane {
+  fill: none;
+  stroke: url(#lumenza-agent-ring);
+  stroke-width: .9;
+  stroke-dasharray: 2 6 38 10;
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.networkLane [data-signal-pulse] {
+  fill: #f5b653;
+  stroke: none;
+  filter: url(#lumenza-agent-glow);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: signalPulse 2.7s ease-in-out infinite;
+}
+
+.networkLane [data-signal-pulse]:nth-child(3) {
+  fill: #73dce1;
+  animation-delay: -1.2s;
+}
+
+.networkLaneOne { animation: agentLaneForward 16s linear infinite; }
+.networkLaneTwo { animation: agentLaneReverse 13s linear infinite; }
+.networkLaneThree { animation: agentLaneForward 9s linear infinite; }
+.networkLaneFour { animation: agentLaneReverse 7s linear infinite; }
+
+@keyframes astrolabeSweep { to { transform: rotate(360deg); } }
+@keyframes astrolabeCounterSweep { to { transform: rotate(-360deg); } }
+@keyframes agentLaneForward { 50% { transform: rotate(.8deg) scaleX(1.018); } to { transform: rotate(0); } }
+@keyframes agentLaneReverse { 50% { transform: rotate(-1deg) scaleX(.982); } to { transform: rotate(0); } }
+@keyframes particleSignal { 0%, 100% { opacity: .24; transform: scale(.62); } 45% { opacity: 1; transform: scale(1.12); } }
+@keyframes signalPulse { 0%, 100% { opacity: .25; transform: scale(.65); } 50% { opacity: 1; transform: scale(1.35); } }
+@keyframes networkSignal { to { stroke-dashoffset: -80; } }
+@keyframes axisScan { 0%, 100% { opacity: .18; } 50% { opacity: .75; } }
+@keyframes coreBreathing { 0%, 100% { transform: scale(.98); } 50% { transform: scale(1.035); } }
+@keyframes symbolShimmer { 0%, 100% { opacity: .84; } 50% { opacity: 1; } }
+
+@media (max-width: 767px) {
+  .chatCore { width: 210px; height: 236px; }
+  .chatCore .coreSystem { height: 210px; }
+  .agentCore { height: 12rem; }
+  .agentCore .coreDisc { width: 80px; height: 80px; }
+  .agentCore .spark { width: 52px; height: 52px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corePulse,
+  .spark,
+  .coreAxis,
+  .orbitTrack,
+  .orbitTrack [data-orbit-particle],
+  .networkSpokes,
+  .networkLane,
+  .networkLane [data-signal-pulse] {
+    animation: none;
+  }
+}

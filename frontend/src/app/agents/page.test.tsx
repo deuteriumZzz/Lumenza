@@ -174,7 +174,10 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("region", { name: "Чат агентов" })).toBeDefined();
     expect(screen.getByRole("banner", { name: "Agents workspace" })).toBeDefined();
     expect(screen.getByRole("link", { name: "Мои агенты" }).getAttribute("href")).toBe("/agents?category=mine");
-    expect(screen.getByTestId("agents-network").querySelectorAll("[data-agent-node]").length).toBeGreaterThanOrEqual(3);
+    const network = screen.getByTestId("agents-network");
+    expect(network.getAttribute("data-motion-scene")).toBe("agent-network");
+    expect(network.querySelectorAll("[data-network-lane]")).toHaveLength(4);
+    expect(network.querySelectorAll("[data-agent-node]").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText("Агентный режим")).toBeDefined();
 
     fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));
@@ -209,6 +212,7 @@ describe("AgentsPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
 
+    expect(storageSpy).toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith("/agents/threads-content-day");
     storageSpy.mockRestore();
   });

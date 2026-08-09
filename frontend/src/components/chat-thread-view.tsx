@@ -12,7 +12,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { PresetPicker } from "@/components/preset-picker";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
-import { LumenzaConvergence } from "@/components/lumenza-brand";
+import { LumenzaWorkspaceCore } from "@/components/lumenza-workspace-core";
 import { useChatRouting, modelLabel } from "@/components/chat-routing";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -556,9 +556,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           <ResponseSkeleton />
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center pb-8 text-center">
-            <motion.div layoutId="lumenza-workspace-core" transition={springs.gentle}>
-              <LumenzaConvergence />
-            </motion.div>
+            <LumenzaWorkspaceCore mode="chat" />
             <h2 className="text-balance text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">{greeting.title}</h2>
             <p className="mt-3 max-w-lg text-pretty text-sm leading-6 text-muted">{greeting.subtitle}</p>
           </div>

@@ -2586,45 +2586,23 @@ html[data-telegram-mini-app="true"] body {
   .agent-workspace-header h1 { @apply mt-1 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl; }
   .agent-workspace-header p:last-child { @apply mt-2 max-w-2xl text-sm leading-6 text-muted; }
 
-  .agent-orbit-mark {
-    @apply relative mx-auto block h-64 w-full max-w-[62rem] rounded-none border-0;
-    background: radial-gradient(circle, color-mix(in oklch, var(--color-primary) 16%, transparent) 0 0.55rem, transparent 0.65rem), radial-gradient(ellipse at center, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 45%);
+  .agent-motion-stage [data-agent-node] {
+    @apply absolute z-20 flex size-11 items-center justify-center rounded-full border border-primary/50 bg-surface-raised text-primary;
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-primary) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-primary) 35%, transparent);
   }
-
-  .agent-orbit-mark::before,
-  .agent-orbit-mark::after {
-    content: "";
-    @apply absolute rounded-[50%] border border-primary/25;
+  .agent-motion-stage [data-agent-node][data-tone="cyan"] {
+    @apply border-accent/50 text-accent;
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-accent) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-accent) 35%, transparent);
   }
-  .agent-orbit-mark::before { inset: 2rem 8%; }
-  .agent-orbit-mark::after { inset: 4.5rem 21%; background: color-mix(in oklch, var(--color-primary) 5%, transparent); }
-  .agent-orbit-mark > b {
-    @apply absolute left-1/2 top-1/2 z-10 inline-flex size-24 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary/45 bg-bg text-primary;
-    box-shadow: 0 0 0 18px color-mix(in oklch, var(--color-primary) 6%, transparent), 0 0 70px color-mix(in oklch, var(--color-primary) 25%, transparent);
+  .agent-motion-stage [data-agent-node]::after {
+    content: attr(data-label);
+    @apply absolute left-[calc(100%+0.75rem)] top-1/2 w-36 -translate-y-1/2 text-left text-[11px] text-ink;
   }
-  .agent-orbit-mark span { @apply absolute z-20 flex size-11 items-center justify-center rounded-full border border-primary/50 bg-surface-raised text-primary; box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-primary) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-primary) 35%, transparent); }
-  .agent-orbit-mark span[data-tone="cyan"] { @apply border-accent/50 text-accent; box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-accent) 8%, transparent), 0 0 24px color-mix(in oklch, var(--color-accent) 35%, transparent); }
-
-  .agent-orbit-connectors {
-    @apply absolute inset-0 z-0 size-full;
-  }
-  .agent-orbit-connectors line {
-    stroke: color-mix(in oklch, var(--color-primary) 30%, transparent);
-    stroke-width: 0.2;
-    stroke-dasharray: 1.4 1.6;
-  }
-
-  .agent-orbit-particle {
-    @apply absolute z-10 size-1 rounded-full bg-primary/70;
-    box-shadow: 0 0 6px 1px color-mix(in oklch, var(--color-primary) 55%, transparent);
-    animation: lumenza-caption-pulse 4.6s ease-in-out infinite;
-  }
-  .agent-orbit-mark span::after { content: attr(data-label); @apply absolute left-[calc(100%+0.75rem)] top-1/2 w-36 -translate-y-1/2 text-left text-[11px] text-ink; }
-  .agent-orbit-mark span:nth-of-type(1) { left: 11%; top: 34%; }
-  .agent-orbit-mark span:nth-of-type(2) { left: 47%; top: 2%; }
-  .agent-orbit-mark span:nth-of-type(3) { right: 10%; top: 26%; }
-  .agent-orbit-mark span:nth-of-type(4) { bottom: 9%; left: 20%; }
-  .agent-orbit-mark span:nth-of-type(5) { bottom: 5%; right: 17%; }
+  .agent-motion-stage [data-position="research"] { left: 11%; top: 34%; }
+  .agent-motion-stage [data-position="executive"] { left: 47%; top: 2%; }
+  .agent-motion-stage [data-position="content"] { right: 10%; top: 26%; }
+  .agent-motion-stage [data-position="data"] { bottom: 9%; left: 20%; }
+  .agent-motion-stage [data-position="automation"] { bottom: 5%; right: 17%; }
 
   .agent-hero-copy {
     @apply sr-only;
@@ -2707,9 +2685,7 @@ html[data-telegram-mini-app="true"] body {
   .agent-trust-footer-link { @apply ml-auto inline-flex items-center gap-1.5 text-primary transition hover:text-ink; }
 
   @media (max-width: 767px) {
-    .agent-orbit-mark { @apply h-48; }
-    .agent-orbit-mark span::after { @apply hidden; }
-    .agent-orbit-mark > b { @apply size-20; }
+    .agent-motion-stage [data-agent-node]::after { @apply hidden; }
   }
 
   .agent-run-header {

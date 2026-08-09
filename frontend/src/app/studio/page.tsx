@@ -4,16 +4,16 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
-import { Images } from "@/app/images/page";
-import { Videos } from "@/app/videos/page";
-import { Voice } from "@/app/voice/page";
-import { Documents } from "@/app/documents/page";
-import { Analyze } from "@/app/analyze/page";
-import { Code } from "@/app/code/page";
+import { AnalyzeWorkspace } from "@/components/analyze-workspace";
 import { StudioMark } from "@/components/studio-mark";
 import { AllToolsCatalog } from "@/components/all-tools-catalog";
+import { CodeWorkspace } from "@/components/code-workspace";
+import { DocumentsWorkspace } from "@/components/documents-workspace";
+import { ImagesWorkspace } from "@/components/images-workspace";
 import { StudioPromptDock } from "@/components/studio-prompt-dock";
 import { StudioWorkspaceControls, type StudioControlMode } from "@/components/studio-workspace-controls";
+import { VideosWorkspace } from "@/components/videos-workspace";
+import { VoiceWorkspace } from "@/components/voice-workspace";
 import { useSetStudioMode } from "@/components/zone";
 import { motionTokens, springs } from "@/lib/motion";
 
@@ -225,7 +225,7 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
       {mode === "image" && (
         <WorkspaceSurface mode="image">
           <StudioInspirationFeed />
-          <Images key={initialDraft || "empty-draft"} initialPrompt={initialDraft} />
+          <ImagesWorkspace key={initialDraft || "empty-draft"} initialPrompt={initialDraft} />
         </WorkspaceSurface>
       )}
       {mode === "audio" && <WorkspaceSurface mode="audio"><AudioWorkspace autoStart={autoStart} /></WorkspaceSurface>}
@@ -245,9 +245,9 @@ function StudioModePanel({ mode, autoStart, initialDraft }: { mode: StudioWorksp
           </div>
         </section>
       )}
-      {mode === "documents" && <Documents />}
-      {mode === "analyze" && <Analyze />}
-      {mode === "code" && <Code />}
+      {mode === "documents" && <DocumentsWorkspace />}
+      {mode === "analyze" && <AnalyzeWorkspace />}
+      {mode === "code" && <CodeWorkspace />}
     </motion.section>
   );
 }
@@ -317,7 +317,7 @@ function AudioWorkspace({ autoStart }: { autoStart: boolean }) {
       <ModeLibrary title="Audio workspace" cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
       <div className="studio-capability-canvas studio-embedded-workspace">
         <StudioWorkspaceControls mode="audio" compact />
-        <Voice autoStart={autoStart} />
+        <VoiceWorkspace autoStart={autoStart} />
       </div>
     </div>
   );
@@ -331,7 +331,7 @@ function EditWorkspace() {
     <div className="studio-capability-layout">
       <ModeLibrary title="Edit workspace" cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
       <div className="studio-capability-canvas studio-embedded-workspace">
-        <Images initialMode="edit" />
+        <ImagesWorkspace initialMode="edit" />
       </div>
     </div>
   );
@@ -345,7 +345,7 @@ function UpscaleWorkspace() {
     <div className="studio-capability-layout">
       <ModeLibrary title="Upscale workspace" cards={cards} selectedCard={selectedCard} onSelect={setSelectedCard} />
       <div className="studio-capability-canvas studio-embedded-workspace">
-        <Images initialMode="upscale" />
+        <ImagesWorkspace initialMode="upscale" />
       </div>
     </div>
   );
@@ -373,7 +373,7 @@ function VideoWorkspace() {
         disabledCards={["Extend", "Reference video", "Edit video"]}
       />
       <div className="studio-capability-canvas studio-embedded-workspace">
-        <Videos />
+        <VideosWorkspace />
       </div>
     </div>
   );

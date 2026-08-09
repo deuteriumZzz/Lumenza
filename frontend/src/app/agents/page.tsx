@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { GoalCard } from "@/components/goal-card";
+import { LumenzaWorkspaceCore } from "@/components/lumenza-workspace-core";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkspaceAccountAvatar } from "@/components/workspace-top-actions";
 import { springs } from "@/lib/motion";
@@ -168,30 +169,13 @@ function Agents() {
         </div>
       </header>
       <section aria-label="Чат агентов" className="agent-chat-hero">
-        <motion.div
-          layoutId="lumenza-workspace-core"
-          className="agent-orbit-mark"
-          transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
-          aria-hidden="true"
-          data-testid="agents-network"
-        >
-          <svg className="agent-orbit-connectors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="50" y1="50" x2="13" y2="36" />
-            <line x1="50" y1="50" x2="49" y2="4" />
-            <line x1="50" y1="50" x2="88" y2="28" />
-            <line x1="50" y1="50" x2="22" y2="89" />
-            <line x1="50" y1="50" x2="81" y2="93" />
-          </svg>
-          <i className="agent-orbit-particle" style={{ left: "28%", top: "12%" }} />
-          <i className="agent-orbit-particle" style={{ left: "8%", top: "62%" }} />
-          <i className="agent-orbit-particle" style={{ left: "55%", top: "95%" }} />
-          <b aria-hidden="true"><HubIcon /></b>
-          <span data-agent-node data-tone="cyan" data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
-          <span data-agent-node data-tone="gold" data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
-        </motion.div>
+        <LumenzaWorkspaceCore mode="agents" className="agent-motion-stage" testId="agents-network">
+          <span data-agent-node data-position="research" data-tone="cyan" data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
+          <span data-agent-node data-position="executive" data-tone="gold" data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
+          <span data-agent-node data-position="content" data-tone="cyan" data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
+          <span data-agent-node data-position="data" data-tone="cyan" data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
+          <span data-agent-node data-position="automation" data-tone="cyan" data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
+        </LumenzaWorkspaceCore>
         <div className="agent-hero-copy">
           <p className="agent-mode-label">Агентный режим</p>
           <h1>Поставьте цель. Агент соберёт результат.</h1>
@@ -415,43 +399,6 @@ function TrustIcon({ variant }: { variant: TrustIconKind }) {
   if (variant === "badge") return <svg aria-hidden="true" {...common}><path d="M10 2.5 16 5v4.5C16 13.5 13.5 16 10 17.5 6.5 16 4 13.5 4 9.5V5Z" strokeLinejoin="round" /><path d="m7.5 9.8 1.8 1.8 3.2-3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
   if (variant === "clock") return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 1.5" strokeLinecap="round" /></svg>;
   return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M8.2 8a1.8 1.8 0 1 1 2.5 1.6c-.5.25-.7.55-.7 1.1" strokeLinecap="round" /><path d="M10 13.5v.01" strokeLinecap="round" /></svg>;
-}
-
-// Central hub glyph — traced from docs/redesign-references/detail-crops
-// (approved/agents.png hero center), a distribution/network icon rather
-// than the generic sparkle placeholder it replaced.
-function HubIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 100 100" className="size-9" fill="none">
-      <defs>
-        <linearGradient id="agent-hub-gradient" x1="10" y1="5" x2="90" y2="95" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="var(--gold-hover)" />
-          <stop offset="1" stopColor="var(--gold-active)" />
-        </linearGradient>
-      </defs>
-      <g stroke="url(#agent-hub-gradient)" strokeWidth="1.6" strokeLinecap="round">
-        <line x1="50" y1="14" x2="50" y2="20" />
-        <line x1="30" y1="27" x2="41" y2="35" />
-        <line x1="70" y1="27" x2="59" y2="35" />
-        <line x1="14" y1="50" x2="30" y2="50" />
-        <line x1="86" y1="50" x2="70" y2="50" />
-        <line x1="30" y1="73" x2="41" y2="65" />
-        <line x1="70" y1="73" x2="59" y2="65" />
-        <line x1="50" y1="86" x2="50" y2="80" />
-      </g>
-      <rect x="46" y="17" width="8" height="66" rx="4" fill="url(#agent-hub-gradient)" />
-      <rect x="26" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
-      <rect x="66" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
-      <circle cx="50" cy="9" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="24" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="76" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="9" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="91" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="24" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="76" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="50" cy="91" r="4.5" fill="url(#agent-hub-gradient)" />
-    </svg>
-  );
 }
 
 function OrbitNodeIcon({ kind }: { kind: OrbitNodeKind }) {
