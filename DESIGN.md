@@ -35,7 +35,8 @@ professional instrument with a small number of unmistakably Lumenza moments. The
 approved screenshots are the primary visual contract; implementation is compared to
 them at matching 1586×992 viewports before responsive adaptation.
 
-The desktop shell has one 248px sidebar and one uninterrupted workspace. Navigation is
+The desktop shell has one 262px sidebar, measured from the approved 1586px references,
+and one uninterrupted workspace. Navigation is
 not split into unrelated visual sections. Account remains anchored at the bottom.
 Contextual subrails and inspectors may appear inside the workspace, but must read as
 layers of the same shell. Main gutters scale from 28px to 52px. Content uses an
@@ -122,7 +123,7 @@ ambiguous.
 
 ## Components
 
-- **Unified sidebar** — 248px desktop rail; Chat, Agents, Studio and remaining product
+- **Unified sidebar** — 262px desktop rail; Chat, Agents, Studio and remaining product
   destinations share one list grammar. Each item has icon, label and a single animated
   hover surface. Active state uses gold detail and `surface.3`, never a detached tab.
 - **Lumenza Core** — central animated identity used in Chat and Agents. It has idle,

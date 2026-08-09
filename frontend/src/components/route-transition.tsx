@@ -29,15 +29,6 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       : previousFamily === "agents" && family === "chat"
         ? "agents-to-chat"
         : "standard";
-  // Every other workspace-to-workspace pair (Chat/Agents already get their
-  // own shared-element morph above) gets a light blur-crossfade layered on
-  // the existing opacity+y — Emil Kowalski's "blur masks an imperfect
-  // crossfade" technique, so panel swaps between e.g. Studio and Knowledge
-  // read as one continuous motion instead of a hard cut. Scoped to
-  // workspace<->workspace only (not marketing/login pages), kept well
-  // under the 20px cost ceiling.
-  const isWorkspaceCrossfade =
-    workspaceMorph === "standard" && previousFamily !== "page" && family !== "page" && previousFamily !== family;
   return (
     <div className="route-transition-stage overflow-x-clip">
       <AnimatePresence>
@@ -60,11 +51,10 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
             ? false
             : {
                 opacity: workspaceMorph === "standard" ? 0 : 0.42,
-                y: 6,
-                filter: isWorkspaceCrossfade ? "blur(6px)" : "blur(0px)",
+                transform: "translate3d(0, 4px, 0)",
               }
         }
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        animate={{ opacity: 1, transform: "translate3d(0, 0, 0)" }}
         transition={shouldReduceMotion ? { duration: 0 } : redesignMotion.routeIn}
         className="route-transition-frame"
       >

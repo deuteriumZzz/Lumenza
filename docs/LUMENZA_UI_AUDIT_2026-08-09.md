@@ -199,3 +199,29 @@ Artifacts are written under `frontend/test-results/visual-audit/`:
 - `overlay/` — approved reference with the current image at 50% opacity;
 - `capture-report.json` — route capture and browser error log;
 - `report.json` — exact pixel metrics.
+
+## Phase 3 design-foundation checkpoint
+
+After applying the canonical palette, measured 262px sidebar, Cyrillic Geist,
+flat shell surfaces, unified navigation geometry, and lower-cost route motion,
+the same production audit was rerun at 1586 × 992:
+
+| Surface | Baseline | Phase 3 | Change |
+|---|---:|---:|---:|
+| Chat | 21.68% | 22.35% | +0.67 pp |
+| Agents | 24.11% | 21.70% | −2.41 pp |
+| Studio | 51.72% | 48.25% | −3.47 pp |
+| Account | 23.42% | 29.11% | +5.69 pp |
+| Knowledge | 32.45% | 30.60% | −1.85 pp |
+| All Tools | 29.22% | 22.74% | −6.48 pp |
+
+Four of six routes improved and the unweighted mean changed-pixel ratio fell
+from 30.43% to 29.12%. Chat and Account increased because the shared sidebar,
+canonical colors, and Russian font geometry moved before their route-specific
+compositions were rebuilt. They remain explicit work for their later screen
+phases; the canonical foundation is not reverted to optimize a legacy layout.
+
+The new shell-level E2E gate additionally proves exact 262 × 992 sidebar
+geometry, canonical computed colors, no sidebar blur/shadow, a 58px active row,
+reduced-motion state, and preservation of the same sidebar DOM node during the
+client-side Chat → Agents transition.

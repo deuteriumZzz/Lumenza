@@ -65,6 +65,10 @@ describe("ThreadSidebar", () => {
     render(<ThreadSidebar />);
     await screen.findByRole("navigation", { name: "Разделы" });
 
+    expect(
+      screen.getByRole("complementary", { name: "Рабочая навигация" }),
+    ).toBeDefined();
+
     fireEvent.click(screen.getByRole("button", { name: "Свернуть боковую панель" }));
 
     expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true");
@@ -259,7 +263,7 @@ describe("ThreadSidebar", () => {
 
     const navigation = await screen.findByRole("navigation", { name: "Разделы" });
     within(navigation).getAllByRole("link").forEach((link) => {
-      expect(link.getAttribute("data-sidebar-motion")).toBe("spring");
+      expect(link.getAttribute("data-sidebar-motion")).toBe("tween");
     });
   });
 
@@ -290,6 +294,52 @@ describe("ThreadSidebar", () => {
     expect(screen.getByRole("button", { name: "Показать боковую панель" })).toBeDefined();
   });
 
+  it("dismisses the expanded mobile navigation with scrim or Escape", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+
+    render(<ThreadSidebar />);
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe(
+        "true",
+      ),
+    );
+    const toggle = screen.getByRole("button", {
+      name: "Показать боковую панель",
+    });
+    fireEvent.click(toggle);
+
+    expect(
+      screen.getByRole("button", { name: "Закрыть боковую панель" }),
+    ).toBeDefined();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe(
+        "true",
+      ),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Показать боковую панель" }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Показать боковую панель" }));
+    fireEvent.click(screen.getByRole("button", { name: "Закрыть боковую панель" }));
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe(
+        "true",
+      ),
+    );
+  });
+
   it("does not inherit a legacy desktop expansion on a mobile viewport", async () => {
     localStorage.setItem("lumenza:sidebar-collapsed", "false");
     Object.defineProperty(window, "matchMedia", {
@@ -305,6 +355,34 @@ describe("ThreadSidebar", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true"),
+    );
+  });
+
+  it("restores the desktop preference after a mobile to desktop resize", async () => {
+    let viewportChange: ((event: MediaQueryListEvent) => void) | undefined;
+    localStorage.setItem("lumenza:sidebar-collapsed:desktop", "false");
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(
+          (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+            viewportChange = listener;
+          },
+        ),
+        removeEventListener: vi.fn(),
+      })),
+    });
+
+    render(<ThreadSidebar />);
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("true"),
+    );
+
+    viewportChange?.({ matches: false } as MediaQueryListEvent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("complementary").getAttribute("data-collapsed")).toBe("false"),
     );
   });
 });
