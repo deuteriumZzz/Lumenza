@@ -37,7 +37,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-import { Images } from "@/app/images/page";
+import { ImagesWorkspace as Images } from "@/components/images-workspace";
 
 describe("Images Mini App layout", () => {
   beforeEach(() => {
@@ -96,9 +96,13 @@ describe("Images Mini App layout", () => {
 
   it("exposes a central upload action and bottom edit composer in Edit mode", async () => {
     render(<Images initialMode="edit" />);
-    await waitFor(() => expect(mocks.images).toHaveBeenCalled());
 
-    expect(screen.getByRole("button", { name: "Загрузить исходное изображение" })).toBeDefined();
+    expect(
+      await screen.findByRole("button", {
+        name: "Загрузить исходное изображение",
+      }),
+    ).toBeDefined();
+    expect(mocks.images).toHaveBeenCalled();
     const composer = screen.getByRole("form", { name: "Edit prompt composer" });
     expect(within(composer).getByRole("button", { name: "Добавить референс" })).toHaveProperty("disabled", false);
     expect(within(composer).getByRole("button", { name: "Создать" })).toHaveProperty("disabled", true);

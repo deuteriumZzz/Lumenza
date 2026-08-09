@@ -29,17 +29,12 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       : previousFamily === "agents" && family === "chat"
         ? "agents-to-chat"
         : "standard";
-  // Every other workspace-to-workspace pair (Chat/Agents already get their
-  // own shared-element morph above) gets a light blur-crossfade layered on
-  // the existing opacity+y — Emil Kowalski's "blur masks an imperfect
-  // crossfade" technique, so panel swaps between e.g. Studio and Knowledge
-  // read as one continuous motion instead of a hard cut. Scoped to
-  // workspace<->workspace only (not marketing/login pages), kept well
-  // under the 20px cost ceiling.
-  const isWorkspaceCrossfade =
-    workspaceMorph === "standard" && previousFamily !== "page" && family !== "page" && previousFamily !== family;
   return (
-    <div className="route-transition-stage overflow-x-clip">
+    <div
+      className="route-transition-stage overflow-x-clip"
+      data-testid="route-transition-stage"
+      data-shared-layout-group="lumenza-command-deck"
+    >
       <AnimatePresence>
         {!shouldReduceMotion && workspaceMorph !== "standard" && (
           <WorkspaceModeMorph
@@ -60,11 +55,10 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
             ? false
             : {
                 opacity: workspaceMorph === "standard" ? 0 : 0.42,
-                y: 6,
-                filter: isWorkspaceCrossfade ? "blur(6px)" : "blur(0px)",
+                transform: "translate3d(0, 4px, 0)",
               }
         }
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        animate={{ opacity: 1, transform: "translate3d(0, 0, 0)" }}
         transition={shouldReduceMotion ? { duration: 0 } : redesignMotion.routeIn}
         className="route-transition-frame"
       >
@@ -86,9 +80,17 @@ function WorkspaceModeMorph({ from, to }: { from: "chat" | "agents"; to: "chat" 
       data-from={from}
       data-to={to}
       className="workspace-mode-morph"
-      initial={{ opacity: 0, scale: 0.82, y: 46 }}
-      animate={{ opacity: [0, 1, 1, 0], scale: [0.82, 1, 1.04, 1.12], y: [46, 0, -4, -14] }}
-      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, transform: "translate3d(0, 46px, 0) scale(.82)" }}
+      animate={{
+        opacity: [0, 1, 1, 0],
+        transform: [
+          "translate3d(0, 46px, 0) scale(.82)",
+          "translate3d(0, 0, 0) scale(1)",
+          "translate3d(0, -4px, 0) scale(1.04)",
+          "translate3d(0, -14px, 0) scale(1.12)",
+        ],
+      }}
+      exit={{ opacity: 0, transform: "translate3d(0, -14px, 0) scale(1.12)" }}
       transition={{ ...redesignMotion.lumenzaCoreTransition, times: [0, 0.2, 0.72, 1] }}
       aria-hidden="true"
     >

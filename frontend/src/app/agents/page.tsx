@@ -1,13 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { GoalCard } from "@/components/goal-card";
+import { LumenzaWorkspaceCore } from "@/components/lumenza-workspace-core";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkspaceAccountAvatar } from "@/components/workspace-top-actions";
+import { WorkspaceModeMenu } from "@/components/workspace-mode-menu";
 import { springs } from "@/lib/motion";
 import { statusPillClass } from "@/lib/status-styles";
 import {
@@ -126,6 +128,12 @@ function Agents() {
       : category === "all"
         ? agents
         : agents.filter((agent) => agent.category === category);
+  const scenarioAgents =
+    visibleAgents === null
+      ? null
+      : category === "all"
+        ? visibleAgents.slice(0, 4)
+        : visibleAgents;
   const activeCategoryLabel = CATEGORIES.find((item) => item.key === category)?.label ?? "Популярное";
   const selectableAgents =
     category === "mine" || category === "swarm" ? [] : visibleAgents ?? [];
@@ -168,30 +176,13 @@ function Agents() {
         </div>
       </header>
       <section aria-label="Чат агентов" className="agent-chat-hero">
-        <motion.div
-          layoutId="lumenza-workspace-core"
-          className="agent-orbit-mark"
-          transition={shouldReduceMotion ? { duration: 0 } : springs.gentle}
-          aria-hidden="true"
-          data-testid="agents-network"
-        >
-          <svg className="agent-orbit-connectors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="50" y1="50" x2="13" y2="36" />
-            <line x1="50" y1="50" x2="49" y2="4" />
-            <line x1="50" y1="50" x2="88" y2="28" />
-            <line x1="50" y1="50" x2="22" y2="89" />
-            <line x1="50" y1="50" x2="81" y2="93" />
-          </svg>
-          <i className="agent-orbit-particle" style={{ left: "28%", top: "12%" }} />
-          <i className="agent-orbit-particle" style={{ left: "8%", top: "62%" }} />
-          <i className="agent-orbit-particle" style={{ left: "55%", top: "95%" }} />
-          <b aria-hidden="true"><HubIcon /></b>
-          <span data-agent-node data-tone="cyan" data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
-          <span data-agent-node data-tone="gold" data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
-          <span data-agent-node data-tone="cyan" data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
-        </motion.div>
+        <LumenzaWorkspaceCore mode="agents" className="agent-motion-stage" testId="agents-network">
+          <span data-agent-node data-position="research" data-tone="cyan" data-label="Research Agent"><OrbitNodeIcon kind="research" /></span>
+          <span data-agent-node data-position="executive" data-tone="gold" data-label="Executive Agent"><OrbitNodeIcon kind="executive" /></span>
+          <span data-agent-node data-position="content" data-tone="cyan" data-label="Content Agent"><OrbitNodeIcon kind="content" /></span>
+          <span data-agent-node data-position="data" data-tone="cyan" data-label="Data Analyst"><OrbitNodeIcon kind="data" /></span>
+          <span data-agent-node data-position="automation" data-tone="cyan" data-label="Automation Agent"><OrbitNodeIcon kind="automation" /></span>
+        </LumenzaWorkspaceCore>
         <div className="agent-hero-copy">
           <p className="agent-mode-label">Агентный режим</p>
           <h1>Поставьте цель. Агент соберёт результат.</h1>
@@ -211,11 +202,11 @@ function Agents() {
           onSubmit={startAgentChat}
           className="agent-composer"
         >
-          <h2>Что должна сделать ваша AI-команда?</h2>
+          <h2 className="sr-only">Что должна сделать ваша AI-команда?</h2>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Опишите результат, который хотите получить"
+            placeholder="Что должна сделать ваша AI-команда?"
             aria-label="Задача агенту"
             rows={2}
           />
@@ -234,7 +225,7 @@ function Agents() {
             </div>
             <div className="agent-field">
               <span className="agent-field-label">Mode</span>
-              <AgentModeMenu />
+              <WorkspaceModeMenu mode="agents" />
             </div>
             <div className="agent-field">
               <span className="agent-field-label">Agent</span>
@@ -273,59 +264,47 @@ function Agents() {
         </motion.form>
       </section>
 
-      <nav
-        aria-label="Категория агентов"
-        data-testid="agents-category-navigation"
-        className="agent-domain-navigation mt-7 flex flex-wrap items-center gap-1 min-[380px]:gap-2"
-      >
-        {CATEGORIES.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            aria-pressed={category === option.key}
-            onClick={() => selectCategory(option.key)}
-            className={`relative isolate inline-flex min-h-9 items-center overflow-hidden rounded-full border px-3 py-1.5 text-xs transition-colors duration-150 min-[380px]:px-3.5 min-[380px]:text-sm ${
-              category === option.key
-                ? "border-primary/50 text-ink"
-                : "border-border bg-surface/75 text-muted hover:border-primary/25 hover:text-ink"
-            }`}
-          >
-            {category === option.key && (
-              <motion.span
-                layoutId="agents-active-category"
-                aria-hidden="true"
-                className="absolute inset-0 -z-10 rounded-full bg-primary/12"
-                transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
-              />
-            )}
-            <span className="relative">{option.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <AgentCapabilityRail />
+      <section className="agent-capability-section" aria-labelledby="agent-capability-title">
+        <div className="agent-section-heading">
+          <h2 id="agent-capability-title" className="agent-section-title">Popular Capabilities</h2>
+          <label className="agent-category-select">
+            <span className="sr-only">Категория агентов</span>
+            <select
+              aria-label="Категория агентов"
+              value={category}
+              onChange={(event) => selectCategory(event.target.value as CategoryFilter)}
+            >
+              {CATEGORIES.map((option) => (
+                <option key={option.key} value={option.key}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <AgentCapabilityRail />
+      </section>
 
       {category === "mine" ? (
         <MyAgents catalog={agents} />
       ) : category === "swarm" ? (
         <SwarmBuilder catalog={agents} />
       ) : (
-        <>
+        <section className="agent-scenarios" aria-labelledby="agent-scenarios-title">
+          <h2 id="agent-scenarios-title" className="agent-section-title">Agent Scenarios</h2>
           {error && (
             <p role="alert" className="mt-4 text-sm text-danger">
               {error}
             </p>
           )}
 
-          {!error && visibleAgents === null && (
+          {!error && scenarioAgents === null && (
             <p role="status" className="mt-10 text-sm text-muted">
               Загрузка…
             </p>
           )}
 
-          {visibleAgents && visibleAgents.length > 0 && (
-            <div className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {visibleAgents.map((agent, index) => (
+          {scenarioAgents && scenarioAgents.length > 0 && (
+            <div data-testid="agent-scenarios" className="agent-card-grid mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {scenarioAgents.map((agent, index) => (
                 <GoalCard
                   key={agent.slug}
                   index={index}
@@ -338,10 +317,10 @@ function Agents() {
             </div>
           )}
 
-          {visibleAgents && visibleAgents.length === 0 && (
+          {scenarioAgents && scenarioAgents.length === 0 && (
             <p className="mt-10 text-sm text-muted">В этой категории пока нет агентов.</p>
           )}
-        </>
+        </section>
       )}
       <footer className="agent-trust-footer" aria-label="Гарантии Lumenza">
         <span><TrustIcon variant="shield" /> Корпоративная безопасность</span>
@@ -358,52 +337,6 @@ function Agents() {
   );
 }
 
-function AgentModeMenu() {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function closeOnOutside(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-    document.addEventListener("mousedown", closeOnOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="agent-mode-picker">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label="Режим: AI Agent"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        AI Agent <span aria-hidden="true">⌄</span>
-      </button>
-      {open && (
-        <div role="menu" aria-label="Режим Lumenza" className="agent-mode-menu">
-          <Link href="/chat" aria-label="Chat"><strong>Chat</strong><span>Обычный диалог с AI</span></Link>
-          <Link href="/agents" aria-label="AI Agent" aria-current="page"><strong>AI Agent</strong><span>Многошаговые workflow</span></Link>
-          <Link href="/knowledge" aria-label="Knowledge"><strong>Knowledge</strong><span>Ответы по вашим источникам</span></Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
 type OrbitNodeKind = "research" | "executive" | "content" | "data" | "automation";
 
 type TrustIconKind = "shield" | "home" | "badge" | "clock" | "help";
@@ -415,43 +348,6 @@ function TrustIcon({ variant }: { variant: TrustIconKind }) {
   if (variant === "badge") return <svg aria-hidden="true" {...common}><path d="M10 2.5 16 5v4.5C16 13.5 13.5 16 10 17.5 6.5 16 4 13.5 4 9.5V5Z" strokeLinejoin="round" /><path d="m7.5 9.8 1.8 1.8 3.2-3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
   if (variant === "clock") return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 1.5" strokeLinecap="round" /></svg>;
   return <svg aria-hidden="true" {...common}><circle cx="10" cy="10" r="7" /><path d="M8.2 8a1.8 1.8 0 1 1 2.5 1.6c-.5.25-.7.55-.7 1.1" strokeLinecap="round" /><path d="M10 13.5v.01" strokeLinecap="round" /></svg>;
-}
-
-// Central hub glyph — traced from docs/redesign-references/detail-crops
-// (approved/agents.png hero center), a distribution/network icon rather
-// than the generic sparkle placeholder it replaced.
-function HubIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 100 100" className="size-9" fill="none">
-      <defs>
-        <linearGradient id="agent-hub-gradient" x1="10" y1="5" x2="90" y2="95" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="var(--gold-hover)" />
-          <stop offset="1" stopColor="var(--gold-active)" />
-        </linearGradient>
-      </defs>
-      <g stroke="url(#agent-hub-gradient)" strokeWidth="1.6" strokeLinecap="round">
-        <line x1="50" y1="14" x2="50" y2="20" />
-        <line x1="30" y1="27" x2="41" y2="35" />
-        <line x1="70" y1="27" x2="59" y2="35" />
-        <line x1="14" y1="50" x2="30" y2="50" />
-        <line x1="86" y1="50" x2="70" y2="50" />
-        <line x1="30" y1="73" x2="41" y2="65" />
-        <line x1="70" y1="73" x2="59" y2="65" />
-        <line x1="50" y1="86" x2="50" y2="80" />
-      </g>
-      <rect x="46" y="17" width="8" height="66" rx="4" fill="url(#agent-hub-gradient)" />
-      <rect x="26" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
-      <rect x="66" y="32" width="8" height="36" rx="4" fill="url(#agent-hub-gradient)" />
-      <circle cx="50" cy="9" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="24" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="76" cy="23" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="9" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="91" cy="50" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="24" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="76" cy="77" r="4.5" fill="url(#agent-hub-gradient)" />
-      <circle cx="50" cy="91" r="4.5" fill="url(#agent-hub-gradient)" />
-    </svg>
-  );
 }
 
 function OrbitNodeIcon({ kind }: { kind: OrbitNodeKind }) {

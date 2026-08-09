@@ -33,8 +33,8 @@ function imagesModeLabel(initialMode?: string): string {
   return "Image";
 }
 
-vi.mock("@/app/images/page", () => ({
-  Images: ({ initialMode, initialPrompt }: { initialMode?: string; initialPrompt?: string }) => {
+vi.mock("@/components/images-workspace", () => ({
+  ImagesWorkspace: ({ initialMode, initialPrompt }: { initialMode?: string; initialPrompt?: string }) => {
     const label = imagesModeLabel(initialMode);
     return (
       <div>
@@ -50,8 +50,8 @@ vi.mock("@/app/images/page", () => ({
   },
 }));
 
-vi.mock("@/app/videos/page", () => ({
-  Videos: () => (
+vi.mock("@/components/videos-workspace", () => ({
+  VideosWorkspace: () => (
     <div>
       <p>Видео-генератор</p>
       <button aria-label="Инструменты Video" />
@@ -61,15 +61,15 @@ vi.mock("@/app/videos/page", () => ({
   ),
 }));
 
-vi.mock("@/app/voice/page", () => ({
-  Voice: ({ autoStart }: { autoStart?: boolean }) => (
+vi.mock("@/components/voice-workspace", () => ({
+  VoiceWorkspace: ({ autoStart }: { autoStart?: boolean }) => (
     <p>Голосовые инструменты{autoStart ? " · автозапуск" : ""}</p>
   ),
 }));
 
-vi.mock("@/app/documents/page", () => ({ Documents: () => <p>OCR документов</p> }));
-vi.mock("@/app/analyze/page", () => ({ Analyze: () => <p>Анализ фотографий</p> }));
-vi.mock("@/app/code/page", () => ({ Code: () => <p>Интерпретатор кода</p> }));
+vi.mock("@/components/documents-workspace", () => ({ DocumentsWorkspace: () => <p>OCR документов</p> }));
+vi.mock("@/components/analyze-workspace", () => ({ AnalyzeWorkspace: () => <p>Анализ фотографий</p> }));
+vi.mock("@/components/code-workspace", () => ({ CodeWorkspace: () => <p>Интерпретатор кода</p> }));
 
 import StudioPage from "@/app/studio/page";
 import { ZoneProvider } from "@/components/zone";

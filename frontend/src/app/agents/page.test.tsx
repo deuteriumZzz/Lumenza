@@ -105,6 +105,25 @@ describe("AgentsPage", () => {
     mocks.modelsCatalog.mockResolvedValue(MODELS);
   }
 
+  const CATEGORY_VALUES: Record<string, string> = {
+    "Популярное": "all",
+    "Контент": "content",
+    "Исследования": "research",
+    "Документы": "documents",
+    "Финансы": "finance",
+    "Код": "code",
+    "Видео": "video",
+    "Аудио": "audio",
+    "Мои агенты": "mine",
+    "Рой агентов": "swarm",
+  };
+
+  function selectCategory(label: string) {
+    fireEvent.change(screen.getByRole("combobox", { name: "Категория агентов" }), {
+      target: { value: CATEGORY_VALUES[label] },
+    });
+  }
+
   it("offers a real model preference dropdown in the Agents composer", async () => {
     prepareCatalog();
     render(<AgentsPage />);
@@ -125,14 +144,14 @@ describe("AgentsPage", () => {
     const trigger = screen.getByRole("button", { name: "Режим: AI Agent" });
     fireEvent.click(trigger);
 
-    const menu = screen.getByRole("menu", { name: "Режим Lumenza" });
+    const menu = screen.getByRole("navigation", { name: "Режим Lumenza" });
     expect(within(menu).getByRole("link", { name: "Chat" }).getAttribute("href")).toBe("/chat");
     expect(within(menu).getByRole("link", { name: "AI Agent" }).getAttribute("href")).toBe("/agents");
     expect(within(menu).getByRole("link", { name: "AI Agent" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).getByRole("link", { name: "Knowledge" }).getAttribute("href")).toBe("/knowledge");
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("menu", { name: "Режим Lumenza" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Режим Lumenza" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 
@@ -140,7 +159,7 @@ describe("AgentsPage", () => {
     prepareCatalog();
     render(<AgentsPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));
+    selectCategory("Исследования");
 
     expect(
       within(screen.getByRole("form", { name: "Запустить агента" })).getByRole("status", {
@@ -174,10 +193,19 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("region", { name: "Чат агентов" })).toBeDefined();
     expect(screen.getByRole("banner", { name: "Agents workspace" })).toBeDefined();
     expect(screen.getByRole("link", { name: "Мои агенты" }).getAttribute("href")).toBe("/agents?category=mine");
-    expect(screen.getByTestId("agents-network").querySelectorAll("[data-agent-node]").length).toBeGreaterThanOrEqual(3);
+    const network = screen.getByTestId("agents-network");
+    expect(network.getAttribute("data-motion-scene")).toBe("agent-network");
+    expect(network.querySelectorAll("[data-network-lane]")).toHaveLength(4);
+    expect(network.querySelectorAll("[data-agent-node]").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole("heading", { name: "Popular Capabilities" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Agent Scenarios" })).toBeDefined();
+    const capabilities = screen.getByRole("navigation", { name: "Возможности Lumenza" });
+    const scenarios = await screen.findByTestId("agent-scenarios");
+    expect(network.compareDocumentPosition(capabilities) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(capabilities.compareDocumentPosition(scenarios) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("Агентный режим")).toBeDefined();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Исследования" }));
+    selectCategory("Исследования");
 
     expect(screen.getByText("Активная область: Исследования")).toBeDefined();
   });
@@ -209,6 +237,7 @@ describe("AgentsPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
 
+    expect(storageSpy).toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith("/agents/threads-content-day");
     storageSpy.mockRestore();
   });
@@ -226,7 +255,7 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("link", { name: /Дайджест по теме/ })).toBeDefined();
     expect(screen.getByRole("link", { name: /Саммари документа/ })).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Исследования" }));
+    selectCategory("Исследования");
 
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
@@ -252,7 +281,7 @@ describe("AgentsPage", () => {
       expect(screen.getByRole("link", { name: /Дайджест рынка/ })).toBeDefined(),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Финансы" }));
+    selectCategory("Финансы");
 
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
@@ -283,14 +312,14 @@ describe("AgentsPage", () => {
       expect(screen.getByRole("link", { name: /Обзор кода/ })).toBeDefined(),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Код" }));
+    selectCategory("Код");
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
     );
     expect(screen.getByRole("link", { name: /Обзор кода/ })).toBeDefined();
     expect(screen.queryByRole("link", { name: /Генератор видео-тизера/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Видео" }));
+    selectCategory("Видео");
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: /Обзор кода/ })).toBeNull(),
     );
@@ -314,7 +343,7 @@ describe("AgentsPage", () => {
       expect(screen.getByRole("link", { name: /Подкаст из текста/ })).toBeDefined(),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Аудио" }));
+    selectCategory("Аудио");
 
     await waitFor(() =>
       expect(screen.queryByRole("link", { name: /Контент на день для Threads/ })).toBeNull(),
@@ -337,7 +366,7 @@ describe("AgentsPage", () => {
     ]);
 
     render(<AgentsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Мои агенты" }));
+    selectCategory("Мои агенты");
 
     await waitFor(() =>
       expect(screen.getByText("Контент + документы")).toBeDefined(),
@@ -350,7 +379,7 @@ describe("AgentsPage", () => {
     mocks.customAgents.mockResolvedValue([]);
 
     render(<AgentsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Мои агенты" }));
+    selectCategory("Мои агенты");
     fireEvent.click(await screen.findByRole("button", { name: "+ Создать агента" }));
 
     await waitFor(() =>
@@ -371,7 +400,7 @@ describe("AgentsPage", () => {
     mocks.createCustomAgent.mockResolvedValue({ slug: "custom-xyz789" });
 
     render(<AgentsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Мои агенты" }));
+    selectCategory("Мои агенты");
     fireEvent.click(await screen.findByRole("button", { name: "+ Создать агента" }));
 
     fireEvent.click(
@@ -431,7 +460,7 @@ describe("AgentsPage", () => {
     });
 
     render(<AgentsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Рой агентов" }));
+    selectCategory("Рой агентов");
 
     fireEvent.change(await screen.findByLabelText("Выберите агента для роя"), {
       target: { value: "threads-content-day" },
@@ -472,7 +501,7 @@ describe("AgentsPage", () => {
     });
 
     render(<AgentsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Рой агентов" }));
+    selectCategory("Рой агентов");
     fireEvent.change(await screen.findByLabelText("Выберите агента для роя"), {
       target: { value: "threads-content-day" },
     });

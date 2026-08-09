@@ -50,6 +50,7 @@ export function GoalCard({ href, title, description, caption, icon, index = 0 }:
           {caption && <span className="shrink-0 text-[11px] text-muted">{caption}</span>}
         </div>
         <p className="mt-2 text-sm leading-relaxed text-muted">{description}</p>
+        {icon && <span className="goal-card-action" aria-hidden="true">→</span>}
       </Link>
     </motion.div>
   );

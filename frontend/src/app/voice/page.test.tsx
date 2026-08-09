@@ -9,7 +9,7 @@ vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ refreshBalance: vi.fn() }),
 }));
 
-import { Voice } from "@/app/voice/page";
+import { VoiceWorkspace as Voice } from "@/components/voice-workspace";
 
 describe("Voice Mini App layout", () => {
   afterEach(cleanup);

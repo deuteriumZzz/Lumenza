@@ -1,0 +1,55 @@
+{
+  "$schema": "https://impeccable.style/schemas/design-system-v1.json",
+  "name": "Lumenza Luminous Command Deck",
+  "version": "1.0.0",
+  "sourceOfTruth": [
+    "docs/redesign-references/approved/chat.png",
+    "docs/redesign-references/approved/agents.png",
+    "docs/redesign-references/approved/studio.png",
+    "docs/redesign-references/approved/account.png",
+    "docs/redesign-references/approved/knowledge.png",
+    "docs/redesign-references/approved/all-tools.png"
+  ],
+  "tokens": {
+    "color": {
+      "bgRoot": "#080D11",
+      "bgSidebar": "#0B1116",
+      "surface1": "#10171C",
+      "surface2": "#151E24",
+      "surface3": "#1B252C",
+      "borderSubtle": "#243039",
+      "borderStrong": "#394751",
+      "textPrimary": "#F4F6F7",
+      "textSecondary": "#AAB4BA",
+      "textMuted": "#74818A",
+      "signalGold": "#EAB552",
+      "lumenCyan": "#58D5E3",
+      "success": "#49CC8B",
+      "warning": "#E9A94F",
+      "danger": "#EE6666"
+    },
+    "font": { "ui": "Geist Sans", "data": "Geist Mono" },
+    "radius": { "sm": 6, "md": 10, "lg": 14, "xl": 18 },
+    "spacing": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32 },
+    "motionMs": { "hover": 80, "micro": 160, "panel": 280, "signature": 520 }
+  },
+  "breakpoints": { "mobile": 640, "tablet": 900, "desktop": 1200, "wide": 1536 },
+  "components": [
+    "unified-sidebar",
+    "lumenza-core",
+    "composer",
+    "provider-picker",
+    "context-subrail",
+    "inspector",
+    "operational-row",
+    "creation-card",
+    "companion",
+    "panel-dialog"
+  ],
+  "accessibility": {
+    "standard": "WCAG 2.2 AA",
+    "reducedMotion": true,
+    "keyboardComplete": true,
+    "noColorOnlyState": true
+  }
+}

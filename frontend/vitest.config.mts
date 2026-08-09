@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    // Playwright specs have their own browser runner and credentials.
+    // Keeping them out of Vitest prevents the unit suite from importing
+    // browser-only setup during discovery.
+    exclude: ["e2e/**", "**/node_modules/**", "**/.next/**"],
     // jsdom + V8 instrumentation is memory-heavy. Bounding concurrency
     // keeps coverage runs deterministic instead of letting 30+ DOM suites
     // starve one another until Vitest's per-test timeout fires.

@@ -5,15 +5,14 @@
 export const motionTokens = {
   duration: {
     instant: 0.08,
-    fast: 0.18,
-    normal: 0.35,
-    slow: 0.6,
-    crawl: 1.0,
+    fast: 0.16,
+    normal: 0.28,
+    slow: 0.52,
+    crawl: 0.9,
   },
   easing: {
     smooth: [0.22, 1, 0.36, 1],
     sharp: [0.4, 0, 0.2, 1],
-    bounce: [0.34, 1.56, 0.64, 1],
     linear: [0, 0, 1, 1],
   },
   distance: {
@@ -32,11 +31,15 @@ export const motionTokens = {
 } as const;
 
 export const springs = {
-  snappy: { type: "spring", stiffness: 300, damping: 30 },
-  gentle: { type: "spring", stiffness: 120, damping: 14 },
-  bouncy: { type: "spring", stiffness: 400, damping: 10 },
+  snappy: { type: "spring", stiffness: 380, damping: 32 },
+  gentle: { type: "spring", stiffness: 160, damping: 24 },
   instant: { type: "spring", stiffness: 600, damping: 35 },
   release: { type: "spring", stiffness: 200, damping: 20, restDelta: 0.001 },
+} as const;
+
+export const foundationMotion = {
+  micro: { type: "tween", duration: 0.16, ease: [0.22, 1, 0.36, 1] },
+  panel: { type: "tween", duration: 0.28, ease: [0.22, 1, 0.36, 1] },
 } as const;
 
 // Choreography-specific tokens for the pixel-perfect redesign

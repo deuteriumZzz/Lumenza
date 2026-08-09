@@ -12,7 +12,8 @@ import { ModelPicker } from "@/components/model-picker";
 import { PresetPicker } from "@/components/preset-picker";
 import { WorkspacePicker } from "@/components/workspace-picker";
 import { ResponseSkeleton } from "@/components/response-skeleton";
-import { LumenzaConvergence } from "@/components/lumenza-brand";
+import { LumenzaWorkspaceCore } from "@/components/lumenza-workspace-core";
+import { WorkspaceModeMenu } from "@/components/workspace-mode-menu";
 import { useChatRouting, modelLabel } from "@/components/chat-routing";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -33,6 +34,7 @@ import {
   type Workspace,
 } from "@/lib/api";
 import { usePolledStatus } from "@/lib/use-polled-status";
+import { resolveChatCoreState } from "@/lib/lumenza-core-state";
 
 const TRANSCRIPTION_IN_PROGRESS = new Set(["pending", "processing"]);
 
@@ -150,6 +152,8 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   const [models, setModels] = useState<ModelProgress[]>([]);
   const [modelsError, setModelsError] = useState(false);
   const [sending, setSending] = useState(false);
+  const [coreSucceeded, setCoreSucceeded] = useState(false);
+  const coreSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<{
     kind: "insufficient" | "provider" | "locked" | "generic";
     message: string;
@@ -213,6 +217,10 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
       cancelled = true;
     };
   }, [threadId]);
+
+  useEffect(() => () => {
+    if (coreSuccessTimerRef.current) clearTimeout(coreSuccessTimerRef.current);
+  }, []);
 
   // Смена треда (переход по сайдбару на другой /chat/[threadId]) должна
   // сбросить список сообщений сразу — иначе на миг видно сообщения
@@ -343,6 +351,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         );
         setBalance({ balance: payload.balance, updated_at: new Date().toISOString() });
         setLastModel(payload.model);
+        setCoreSucceeded(true);
+        if (coreSuccessTimerRef.current) clearTimeout(coreSuccessTimerRef.current);
+        coreSuccessTimerRef.current = setTimeout(() => setCoreSucceeded(false), 520);
         void refreshModelsCatalog();
         finish();
         return;
@@ -497,6 +508,17 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
     : TASK_DEFINITIONS.filter((option) =>
         `${option.label} ${option.hint}`.toLocaleLowerCase().includes(slashQuery),
       );
+  const coreState = resolveChatCoreState({
+    dictating,
+    error: Boolean(error || micError),
+    sending,
+    streaming: streamingMessageId !== null,
+    succeeded: coreSucceeded,
+    transcribing,
+  });
+  const showActiveCore =
+    messages.length > 0
+    && (sending || coreSucceeded || dictating || transcribing || Boolean(error || micError));
 
   function chooseTask(task: Task) {
     setRouting({ kind: "task", task });
@@ -506,7 +528,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
   }
 
   return (
-    <section aria-label="Чат Lumenza" className="chat-workspace mx-auto flex w-full max-w-[80rem] flex-1 flex-col px-4 sm:px-6">
+    <section aria-label="Чат Lumenza" className="chat-workspace mx-auto flex w-full flex-1 flex-col px-4 sm:px-6">
       <h1 className="sr-only">Чат</h1>
       <header aria-label="Chat workspace" className="chat-workspace-header">
         <div role="toolbar" aria-label="Контекст чата" className="chat-context-toolbar">
@@ -551,20 +573,29 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
           </div>
         </div>
       </header>
-      <div ref={listRef} className="flex-1 overflow-y-auto py-8">
+      <div ref={listRef} className="chat-thread-content overflow-y-auto py-8">
         {loadingThread ? (
           <ResponseSkeleton />
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center pb-8 text-center">
-            <motion.div layoutId="lumenza-workspace-core" transition={springs.gentle}>
-              <LumenzaConvergence />
-            </motion.div>
-            <h2 className="text-balance text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">{greeting.title}</h2>
-            <p className="mt-3 max-w-lg text-pretty text-sm leading-6 text-muted">{greeting.subtitle}</p>
+          <div className="chat-empty-state flex h-full flex-col items-center justify-center text-center">
+            <LumenzaWorkspaceCore mode="chat" state={coreState} />
+            <div className="chat-empty-copy">
+              <h2>{greeting.title}</h2>
+              <p>{greeting.subtitle}</p>
+            </div>
           </div>
         ) : (
-          <ol className="flex flex-col gap-6">
-            {messages.map((message) => (
+          <>
+            {showActiveCore && (
+              <LumenzaWorkspaceCore
+                mode="chat"
+                state={coreState}
+                className="chat-inline-core"
+                testId="lumenza-core-active"
+              />
+            )}
+            <ol className="flex flex-col gap-6">
+              {messages.map((message) => (
               <motion.li
                 key={message.id}
                 aria-live={message.id === streamingMessageId ? "polite" : undefined}
@@ -574,8 +605,9 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
               >
                 <MessageBlock message={message} />
               </motion.li>
-            ))}
-          </ol>
+              ))}
+            </ol>
+          </>
         )}
 
         {sending && streamingMessageId === null && <ResponseSkeleton />}
@@ -616,7 +648,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         aria-label="Написать сообщение"
         data-focus-surface="composer"
         onSubmit={onSubmit}
-        className="chat-composer relative mb-3"
+        className={`chat-composer relative mb-3 ${messages.length === 0 ? "is-empty" : ""}`}
       >
         {slashQuery !== null && (
           <div role="dialog" aria-label="Команды" className="slash-command-menu">
@@ -692,7 +724,7 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
               setRouting({ kind: "model", model, task: task as Task });
             }}
           />
-          <ChatModeMenu />
+          <WorkspaceModeMenu mode="chat" />
           <button
             type="button"
             onClick={() => setThemePickerOpen((open) => !open)}
@@ -859,55 +891,6 @@ export function ChatThreadView({ threadId }: { threadId: number | null }) {
         </>
       )}
     </section>
-  );
-}
-
-// Mirrors agents/page.tsx's AgentModeMenu — Chat and Agents stay separate
-// workspaces (see workspace-sections.ts), this is only a quick-nav switcher
-// so the two feel like modes of one product instead of unrelated pages.
-function ChatModeMenu() {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function closeOnOutside(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-    document.addEventListener("mousedown", closeOnOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="agent-mode-picker">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label="Режим: Chat"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        Chat <span aria-hidden="true">⌄</span>
-      </button>
-      {open && (
-        <div role="menu" aria-label="Режим Lumenza" className="agent-mode-menu">
-          <Link href="/chat" aria-label="Chat" aria-current="page"><strong>Chat</strong><span>Обычный диалог с AI</span></Link>
-          <Link href="/agents" aria-label="AI Agent"><strong>AI Agent</strong><span>Многошаговые workflow</span></Link>
-          <Link href="/knowledge" aria-label="Knowledge"><strong>Knowledge</strong><span>Ответы по вашим источникам</span></Link>
-        </div>
-      )}
-    </div>
   );
 }
 

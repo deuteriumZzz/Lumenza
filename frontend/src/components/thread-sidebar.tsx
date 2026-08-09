@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { LumenzaBrand } from "@/components/lumenza-brand";
 import { StudioMark } from "@/components/studio-mark";
-import { springs } from "@/lib/motion";
+import { foundationMotion } from "@/lib/motion";
 import { getWorkspaceSection, type WorkspaceSectionKey } from "@/lib/workspace-sections";
 
 const SIDEBAR_STORAGE_KEY = "lumenza:sidebar-collapsed";
@@ -82,28 +82,29 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { key: "community", href: "/studio?view=community", label: "Community", icon: "community" },
 ];
 
-function sidebarPreferenceKey(): string {
-  const viewport = typeof window !== "undefined"
+function sidebarPreferenceKey(mobile?: boolean): string {
+  const isMobileViewport = mobile ?? (
+    typeof window !== "undefined"
     && typeof window.matchMedia === "function"
     && window.matchMedia("(max-width: 767px)").matches
-      ? "mobile"
-      : "desktop";
+  );
+  const viewport = isMobileViewport ? "mobile" : "desktop";
   return `${SIDEBAR_STORAGE_KEY}:${viewport}`;
 }
 
-function storedSidebarPreference(): boolean | null {
+function storedSidebarPreference(mobile?: boolean): boolean | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.localStorage.getItem(sidebarPreferenceKey());
+    const value = window.localStorage.getItem(sidebarPreferenceKey(mobile));
     return value === null ? null : value === "true";
   } catch {
     return null;
   }
 }
 
-function persistSidebarPreference(value: boolean) {
+function persistSidebarPreference(value: boolean, mobile?: boolean) {
   try {
-    window.localStorage.setItem(sidebarPreferenceKey(), String(value));
+    window.localStorage.setItem(sidebarPreferenceKey(mobile), String(value));
   } catch {
     // Storage can be unavailable in locked-down browser contexts.
   }
@@ -111,6 +112,7 @@ function persistSidebarPreference(value: boolean) {
 
 export function ThreadSidebar() {
   const pathname = usePathname();
+  const shouldReduceMotion = useReducedMotion();
   const activeSection = getWorkspaceSection(pathname)?.key;
   // Starts at the server-safe default (false) so the first client render
   // matches SSR exactly — reading localStorage synchronously here would
@@ -121,54 +123,92 @@ export function ThreadSidebar() {
   // globals.css) keeps that brief window from flashing wide on mobile.
   const [collapsed, setCollapsed] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const media = typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 767px)")
+      : null;
     const frame = requestAnimationFrame(() => {
-      const stored = storedSidebarPreference();
+      const mobile = Boolean(media?.matches);
+      setIsMobile(mobile);
+      const stored = storedSidebarPreference(mobile);
       if (stored !== null) {
         setCollapsed(stored);
-      } else if (
-        typeof window.matchMedia === "function"
-        && window.matchMedia("(max-width: 767px)").matches
-      ) {
-        setCollapsed(true);
+      } else {
+        setCollapsed(mobile);
       }
       setInitializing(false);
     });
-    return () => cancelAnimationFrame(frame);
+    function handleViewportChange(event: MediaQueryListEvent) {
+      setIsMobile(event.matches);
+      const stored = storedSidebarPreference(event.matches);
+      setCollapsed(stored ?? event.matches);
+    }
+    media?.addEventListener("change", handleViewportChange);
+    return () => {
+      cancelAnimationFrame(frame);
+      media?.removeEventListener("change", handleViewportChange);
+    };
   }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && isMobile && !collapsed) {
+        event.preventDefault();
+        setCollapsed(true);
+        persistSidebarPreference(true, true);
+        requestAnimationFrame(() => toggleButtonRef.current?.focus());
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== "b") return;
       event.preventDefault();
       setCollapsed((current) => {
         const next = !current;
-        persistSidebarPreference(next);
+        persistSidebarPreference(next, isMobile);
         return next;
       });
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [collapsed, isMobile]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
       const next = !current;
-      persistSidebarPreference(next);
+      persistSidebarPreference(next, isMobile);
       return next;
     });
   }
 
+  function closeMobileSidebar() {
+    setCollapsed(true);
+    persistSidebarPreference(true, true);
+    requestAnimationFrame(() => toggleButtonRef.current?.focus());
+  }
+
   return (
-    <aside
+    <>
+      {isMobile && !collapsed && !initializing && (
+        <button
+          type="button"
+          aria-label="Закрыть боковую панель"
+          className="sidebar-navigation-scrim"
+          onClick={closeMobileSidebar}
+        />
+      )}
+      <aside
       id="thread-sidebar"
+      aria-label="Рабочая навигация"
       data-collapsed={collapsed}
+      data-reduced-motion={String(Boolean(shouldReduceMotion))}
       className={`chat-sidebar ${collapsed ? "is-collapsed" : ""} ${initializing ? "is-initializing" : ""}`}
     >
       <div className={`mb-3 flex items-center ${collapsed ? "justify-center" : "justify-between px-1"}`}>
         {!collapsed && <LumenzaBrand href="/chat" />}
         <button
+          ref={toggleButtonRef}
           type="button"
           aria-label={collapsed ? "Показать боковую панель" : "Свернуть боковую панель"}
           aria-controls="thread-sidebar-navigation"
@@ -192,6 +232,7 @@ export function ThreadSidebar() {
             item={item}
             active={item.section === activeSection}
             collapsed={collapsed}
+            reducedMotion={Boolean(shouldReduceMotion)}
           />
         ))}
       </nav>
@@ -199,11 +240,12 @@ export function ThreadSidebar() {
       <div className={`mt-auto border-t border-border/70 pt-2 ${collapsed ? "flex flex-col items-center" : ""}`}>
         <AccountMenu collapsed={collapsed} />
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
-function SidebarNavigationItem({ item, active, collapsed }: { item: SidebarItem; active: boolean; collapsed: boolean }) {
+function SidebarNavigationItem({ item, active, collapsed, reducedMotion }: { item: SidebarItem; active: boolean; collapsed: boolean; reducedMotion: boolean }) {
   const renderLink = (flyout?: { open: boolean; id: string }) => (
     <Link
       href={item.href}
@@ -213,11 +255,11 @@ function SidebarNavigationItem({ item, active, collapsed }: { item: SidebarItem;
       aria-controls={flyout?.id}
       aria-label={collapsed ? item.label : undefined}
       title={collapsed ? item.label : undefined}
-      data-sidebar-motion="spring"
+      data-sidebar-motion="tween"
       className={collapsed ? "sidebar-icon-button" : `sidebar-action sidebar-navigation-link ${active ? "is-active" : ""}`}
     >
       {!collapsed && active && (
-        <motion.span layoutId="sidebar-active-item" aria-hidden="true" className="sidebar-active-indicator" transition={springs.snappy} />
+        <motion.span layoutId="sidebar-active-item" aria-hidden="true" className="sidebar-active-indicator" transition={reducedMotion ? { duration: 0 } : foundationMotion.micro} />
       )}
       <span className="sidebar-navigation-icon"><SidebarIcon icon={item.icon} active={active} /></span>
       {!collapsed && <span className="relative z-10">{item.label}</span>}
@@ -277,7 +319,7 @@ function SidebarFlyoutRoot({ id, label, items, testId, children }: { id: string;
             initial={shouldReduceMotion ? false : { opacity: 0, x: -10, scale: 0.98 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -8, scale: 0.99 }}
-            transition={shouldReduceMotion ? { duration: 0 } : springs.snappy}
+            transition={shouldReduceMotion ? { duration: 0 } : foundationMotion.micro}
             className="sidebar-studio-flyout"
           >
             <div className="sidebar-flyout-heading">

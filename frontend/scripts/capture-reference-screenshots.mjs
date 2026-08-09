@@ -1,85 +1,136 @@
-// Captures "current implementation" screenshots of the 6 pixel-perfect
-// redesign target screens, for overlay comparison against
-// docs/redesign-references/approved/*.png per
-// docs/LUMENZA_PIXEL_PERFECT_REDESIGN_PLAN.md §3/§19.
-//
-// Usage: run from frontend/ with the dev server already reachable at
-// BASE_URL (default http://127.0.0.1:3000) and LUMENZA_TEST_USERNAME /
-// LUMENZA_TEST_PASSWORD set to a seeded account. See
-// docs/redesign-references/README.md for the full container recipe.
 import { chromium } from "playwright";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import {
+  REFERENCE_ROUTES,
+  REFERENCE_VIEWPORT,
+  isExpectedPreviewConsoleError,
+  resolveVisualAuditPaths,
+  validateReferenceRoutes,
+} from "./visual-audit-config.mjs";
 
-const BASE_URL = process.env.CAPTURE_BASE_URL ?? "http://127.0.0.1:3000";
+const FRONTEND_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const BASE_URL = process.env.CAPTURE_BASE_URL ?? "http://127.0.0.1:3100";
 const USERNAME = process.env.LUMENZA_TEST_USERNAME;
 const PASSWORD = process.env.LUMENZA_TEST_PASSWORD;
+const paths = resolveVisualAuditPaths(FRONTEND_ROOT);
 
-// Real pixel dimensions of the approved references (see
-// docs/redesign-references/README.md) — not the plan doc's rounded
-// 1600x1000 figure. Matching the reference's actual pixels takes
-// precedence for overlay comparison.
-const VIEWPORT = { width: 1586, height: 992 };
-
-const ROUTES = [
-  { name: "chat", path: "/chat" },
-  { name: "agents", path: "/agents" },
-  { name: "studio", path: "/studio" },
-  { name: "account", path: "/profile" },
-  { name: "knowledge", path: "/knowledge" },
-  { name: "all-tools", path: "/tools" },
-];
-
-const OUTPUT_DIR = path.join(
-  fileURLToPath(new URL("..", import.meta.url)),
-  "..",
-  "docs",
-  "redesign-references",
-  "baseline",
-);
-
-async function login(page) {
+function requireConfiguration() {
+  const validation = validateReferenceRoutes();
+  if (!validation.valid) throw new Error(validation.errors.join("\n"));
   if (!USERNAME || !PASSWORD) {
     throw new Error(
-      "LUMENZA_TEST_USERNAME / LUMENZA_TEST_PASSWORD must be set to a seeded test account.",
+      "Set LUMENZA_TEST_USERNAME and LUMENZA_TEST_PASSWORD for a seeded test account.",
     );
   }
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[name="username"]', USERNAME);
-  await page.fill('input[name="password"]', PASSWORD);
-  await page.click('button[type="submit"]');
-  // Next.js dev mode compiles /home on first request (observed 15-20s cold
-  // vs <1s once cached) — the prior 15s timeout raced that compile.
-  await page.waitForURL(`${BASE_URL}/home`, { timeout: 45000 });
+}
+
+async function login(page) {
+  await page.goto(`${BASE_URL}/login`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await page.getByLabel("Имя пользователя", { exact: true }).fill(USERNAME);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await Promise.all([
+    page.waitForURL(`${BASE_URL}/home`, { timeout: 45_000 }),
+    page.getByRole("button", { name: "Войти", exact: true }).click(),
+  ]);
+}
+
+async function stabilize(page, route) {
+  await page.locator(`[aria-label="${route.landmark}"]`).waitFor({
+    state: "visible",
+    timeout: 45_000,
+  });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-delay: 0s !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        caret-color: transparent !important;
+        scroll-behavior: auto !important;
+        transition-delay: 0s !important;
+        transition-duration: 0.001ms !important;
+      }
+    `,
+  });
 }
 
 async function main() {
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  requireConfiguration();
+  await mkdir(paths.currentDir, { recursive: true });
 
   const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: VIEWPORT });
+  const context = await browser.newContext({
+    viewport: REFERENCE_VIEWPORT,
+    reducedMotion: "reduce",
+    locale: "ru-RU",
+    timezoneId: "Asia/Makassar",
+  });
   const page = await context.newPage();
+  const browserErrors = [];
 
-  await login(page);
+  try {
+    await login(page);
+    page.on("console", (message) => {
+      if (
+        message.type() === "error"
+        && !isExpectedPreviewConsoleError(message.text())
+      ) {
+        browserErrors.push(`console: ${message.text()}`);
+      }
+    });
+    page.on("pageerror", (error) => browserErrors.push(`page: ${error.message}`));
+    page.on("response", (response) => {
+      if (response.status() >= 500) {
+        browserErrors.push(`http ${response.status()}: ${response.url()}`);
+      }
+    });
+    const captures = [];
 
-  for (const route of ROUTES) {
-    // Same cold-compile margin as login() — each route compiles on its
-    // first request in dev mode.
-    await page.goto(`${BASE_URL}${route.path}`, { waitUntil: "networkidle", timeout: 60000 });
-    // Let entry animations (Lumenza Core idle loop, route transition,
-    // orbit scene, etc.) settle before capturing — matches doc §19 step 2
-    // ("дождаться завершения загрузки и анимации входа").
-    await page.waitForTimeout(1200);
-    const outputPath = path.join(OUTPUT_DIR, `${route.name}.png`);
-    await page.screenshot({ path: outputPath });
-    console.log(`Captured ${route.path} -> ${outputPath}`);
+    for (const route of REFERENCE_ROUTES) {
+      const errorOffset = browserErrors.length;
+      await page.goto(`${BASE_URL}${route.path}`, {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await stabilize(page, route);
+
+      const outputPath = path.join(paths.currentDir, `${route.name}.png`);
+      await page.screenshot({ path: outputPath, animations: "disabled" });
+      captures.push({
+        ...route,
+        outputPath,
+        browserErrors: browserErrors.slice(errorOffset),
+      });
+      process.stdout.write(`Captured ${route.path} -> ${outputPath}\n`);
+    }
+
+    const captureReportPath = path.join(
+      path.dirname(paths.reportPath),
+      "capture-report.json",
+    );
+    await writeFile(
+      captureReportPath,
+      `${JSON.stringify({ baseURL: BASE_URL, viewport: REFERENCE_VIEWPORT, captures }, null, 2)}\n`,
+      "utf8",
+    );
+
+    if (browserErrors.length > 0) {
+      throw new Error(`Browser audit found errors:\n${browserErrors.join("\n")}`);
+    }
+  } finally {
+    await browser.close();
   }
-
-  await browser.close();
 }
 
 main().catch((error) => {
-  console.error(error);
+  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
   process.exitCode = 1;
 });

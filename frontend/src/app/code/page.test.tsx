@@ -29,7 +29,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-import { Code } from "@/app/code/page";
+import { CodeWorkspace as Code } from "@/components/code-workspace";
 import { ApiError } from "@/lib/api";
 
 describe("Code", () => {

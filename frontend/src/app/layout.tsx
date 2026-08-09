@@ -18,12 +18,12 @@ import { ChatRoutingProvider } from "@/components/chat-routing";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["cyrillic", "latin"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["cyrillic", "latin"],
 });
 
 export const metadata: Metadata = {
