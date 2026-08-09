@@ -31,35 +31,35 @@ during an earlier redesign-scoping session referenced in project memory
 
 ## `baseline/`
 
-"Before" screenshots of the *current* live app at the same routes,
-captured via `frontend/scripts/capture-reference-screenshots.mjs`
-(added in Phase 0/1 of this initiative) — kept separate from `approved/`
-so the old-app baseline is never confused with the new-design source of
-truth. Regenerate any time with:
+Historical “before” screenshots retained separately from `approved/` so an old
+implementation can never be confused with the redesign source of truth.
+
+## Deterministic current capture and comparison
+
+The active audit harness writes generated artifacts to the ignored
+`frontend/test-results/visual-audit/` directory. It uses the approved images'
+exact 1586 × 992 viewport, waits for the semantic route landmark and fonts,
+disables nondeterministic transition time, captures the current screen, and
+produces both pixel diffs and 50%-opacity overlays.
+
+With the backend and frontend already running:
 
 ```
-docker run --rm \
-  -v /Users/deuterium/Dev/Lumenza/frontend:/app -w /app \
-  -e LUMENZA_TEST_USERNAME -e LUMENZA_TEST_PASSWORD \
-  -e LUMENZA_API_ORIGIN=http://host.docker.internal:8000 \
-  -e LUMENZA_ALLOW_HTTP_LOCALHOST=true \
-  -e PORT=3000 \
-  --add-host=host.docker.internal:host-gateway \
-  node:22-bookworm bash -lc "
-    npm ci &&
-    npx playwright install --with-deps chromium &&
-    npm run dev & \
-    npx wait-on http://127.0.0.1:3000 -t 60000 &&
-    node scripts/capture-reference-screenshots.mjs &&
-    kill %1
-  "
+cd frontend
+CAPTURE_BASE_URL=http://localhost:3100 \
+LUMENZA_TEST_USERNAME=... \
+LUMENZA_TEST_PASSWORD=... \
+npm run audit:visual
 ```
 
-(`LUMENZA_API_ORIGIN` is read by both `server.js`'s WS proxy and
-`src/proxy.ts`'s `/api` proxy — confirmed via source, not the
-`NEXT_PUBLIC_*`-style var an earlier draft of this recipe guessed. The
-dev server is a custom `server.js` reading `PORT` from the environment,
-not a `next dev --port` flag.)
+The functional browser baseline uses the same route matrix and viewport:
 
-Requires the backend stack up (`docker compose up -d web db redis`) and
-a seeded test account.
+```
+E2E_SKIP_WEB_SERVER=true \
+LUMENZA_TEST_USERNAME=... \
+LUMENZA_TEST_PASSWORD=... \
+npm run test:e2e
+```
+
+The credentials are environment-only and are never committed. See
+`docs/LUMENZA_UI_AUDIT_2026-08-09.md` for the current metrics and findings.
